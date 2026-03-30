@@ -39,6 +39,9 @@
     { "id": "docker-sonarqube", "name": "SonarQube (Docker)", "description": "Code quality analysis", "category": "DevOps", "status": "connected", "source": "docker" },
     { "id": "docker-buildkite", "name": "Buildkite (Docker)", "description": "CI/CD pipeline management", "category": "DevOps", "status": "connected", "source": "docker" },
     { "id": "docker-smartbear", "name": "SmartBear (Docker)", "description": "API governance and quality", "category": "DevOps", "status": "connected", "source": "docker" },
-    { "id": "docker-sequa", "name": "Sequa (Docker)", "description": "Full codebase context for AI tools", "category": "DevOps", "status": "connected", "source": "docker" }
+    { "id": "docker-sequa", "name": "Sequa (Docker)", "description": "Full codebase context for AI tools", "category": "DevOps", "status": "connected", "source": "docker" },
+    { "id": "docling", "name": "Docling MCP", "description": "IBM Research document parsing — PDF, DOCX, PPTX, XLSX, HTML with table structure, OCR, formula extraction", "category": "Ingestion", "status": "connected", "source": "legacy", "tools": 12 },
+    { "id": "apify", "name": "Apify MCP", "description": "8,000+ web scrapers and automation actors — social media, search engines, maps, e-commerce, dynamic discovery", "category": "Extraction", "status": "connected", "source": "legacy" },
+    { "id": "qdrant", "name": "Qdrant MCP", "description": "Semantic memory — store and retrieve prior analysis results, standards mappings, job patterns by meaning", "category": "Memory", "status": "connected", "source": "legacy", "tools": 2 }
   ]
 }
