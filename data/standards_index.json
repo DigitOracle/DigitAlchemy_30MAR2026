@@ -1,0 +1,18 @@
+{
+  "version": "mpf-v15.8-30MAR2026",
+  "source": "local-cache",
+  "meta": {
+    "total_standards": 768,
+    "countries": 69,
+    "corpus_files": 213,
+    "collections": ["ISO", "BSI", "ASHRAE", "IEC", "AISC", "UAE_Local", "GCC", "RIBA", "BIM_Standards", "Smart_City"]
+  },
+  "categories": [
+    { "id": "bim", "label": "BIM & Digital Delivery", "collections": ["ISO 19650", "BS 1192", "PAS 1192", "COBie", "IFC", "Uniclass 2015"], "keywords": ["bim", "ifc", "revit", "model", "cde", "handover", "cobie", "uniclass", "level of information"] },
+    { "id": "smart_city", "label": "Smart City & IoT", "collections": ["ISO 37100", "ISO 37120", "ISO 37122", "ITU-T Y.4000"], "keywords": ["smart city", "iot", "sensor", "telemetry", "viper", "digital twin", "infrastructure"] },
+    { "id": "digital_twin", "label": "Digital Twin", "collections": ["ISO 23247", "IEC 63278", "DTDL"], "keywords": ["digital twin", "simulation", "twin", "asset model", "real-time"] },
+    { "id": "compliance", "label": "Regulatory & Compliance", "collections": ["UAE_Local", "GCC", "ADDC", "DDA", "MOCCAE", "CBUAE"], "keywords": ["compliance", "regulatory", "uae", "abu dhabi", "addc", "permit", "approval", "authority"] },
+    { "id": "gis", "label": "GIS & Spatial", "collections": ["ISO 19100", "OGC", "EPSG"], "keywords": ["gis", "spatial", "geospatial", "mapping", "coordinates", "projection", "vector", "raster"] },
+    { "id": "construction", "label": "Construction & Project Delivery", "collections": ["RIBA Plan of Work", "NEC", "FIDIC", "ISO 21500"], "keywords": ["construction", "riba", "project delivery", "stage", "gateway", "procurement"] }
+  ]
+}

@@ -1,0 +1,18 @@
+[
+  { "id": "DA-01", "displayName": "Command Desk", "shortDescription": "Routes the task, builds the execution path, and coordinates the agent workforce.", "category": "Orchestration", "userVisible": true },
+  { "id": "DA-02", "displayName": "Model Surgeon", "shortDescription": "Inspects model health, classification readiness, and remediation paths.", "category": "BIM", "userVisible": true },
+  { "id": "DA-03", "displayName": "Spatial Analyst", "shortDescription": "Processes GIS layers, spatial queries, and geographic data pipelines.", "category": "GIS", "userVisible": true },
+  { "id": "DA-04", "displayName": "Compliance Advisor", "shortDescription": "Maps tasks to regulatory frameworks, standards, and compliance requirements.", "category": "Regulatory", "userVisible": true },
+  { "id": "DA-05", "displayName": "Scene Porter", "shortDescription": "Manages Revit to Unreal Engine pipeline and visualisation exports.", "category": "Visualisation", "userVisible": true },
+  { "id": "DA-06", "displayName": "Digital Twin Engineer", "shortDescription": "Builds and maintains digital twin state, telemetry, and simulation layers.", "category": "Digital Twin", "userVisible": true },
+  { "id": "DA-07", "displayName": "Sensor Alchemist", "shortDescription": "Derives sensor logic, VIPER outputs, and IoT placement strategies.", "category": "IoT", "userVisible": true },
+  { "id": "DA-08", "displayName": "Code Guardian", "shortDescription": "Manages DevOps pipelines, CI/CD, code quality, and deployment governance.", "category": "DevOps", "userVisible": true },
+  { "id": "DA-09", "displayName": "Render Pilot", "shortDescription": "Handles visualisation QA, render pipeline monitoring, and asset delivery.", "category": "Visualisation", "userVisible": true },
+  { "id": "DA-10", "displayName": "Dossier Keeper", "shortDescription": "Maintains living project dossiers, client records, and engagement history.", "category": "Documentation", "userVisible": true },
+  { "id": "DA-11", "displayName": "Citation Guard", "shortDescription": "Searches, validates, and applies standards citations across the corpus.", "category": "Standards", "userVisible": true },
+  { "id": "DA-12", "displayName": "Asset Librarian", "shortDescription": "Manages asset registers, COBie records, and classification schemas.", "category": "Asset Management", "userVisible": true },
+  { "id": "SOCIAL-01", "displayName": "Content Analyst", "shortDescription": "Understands video content, extracts topics, tone, audience, and key hooks.", "category": "Social", "userVisible": true },
+  { "id": "SOCIAL-02", "displayName": "Trend Scout", "shortDescription": "Identifies trending hashtags, audio, and creator patterns across platforms.", "category": "Social", "userVisible": true },
+  { "id": "SOCIAL-03", "displayName": "Hashtag Strategist", "shortDescription": "Builds ranked hashtag sets, caption options, and keyword clusters.", "category": "Social", "userVisible": true },
+  { "id": "SOCIAL-04", "displayName": "Platform Router", "shortDescription": "Adapts content recommendations per platform — LinkedIn, TikTok, Instagram, X.", "category": "Social", "userVisible": true }
+]
