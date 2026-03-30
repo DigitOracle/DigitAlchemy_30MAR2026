@@ -106,9 +106,9 @@ export function IntakeStepRenderer({ step, state, onChange }: IntakeStepRenderer
                 <p className="text-xs text-gray-400 mt-1">
                   {((value as ParsedFileContent).sizeByes / 1024).toFixed(1)} KB · {(value as ParsedFileContent).contentType}
                 </p>
-                {(value as ParsedFileContent).metadata?.entityCount && (
+                {(value as ParsedFileContent).metadata?.entityCount !== undefined && (
                   <p className="text-xs text-green-600 mt-1">
-                    ✓ {(value as ParsedFileContent).metadata?.entityCount as number} IFC entities extracted
+                    ✓ {String((value as ParsedFileContent).metadata?.entityCount)} IFC entities extracted
                   </p>
                 )}
                 <button
