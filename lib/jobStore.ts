@@ -1,38 +1,30 @@
 // lib/jobStore.ts
-// Firestore-backed job store — replaces in-memory Map
+// Firestore-backed job store — explicit cert credentials for Vercel
 
 import type { Job, JobSection, SectionId } from "@/types"
+import { cert, getApps, initializeApp } from "firebase-admin/app"
+import { getFirestore } from "firebase-admin/firestore"
 
-// Firebase Admin SDK — use service account or default credentials
-// For Vercel: set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
+function initFirestore() {
+  if (getApps().length > 0) return getFirestore()
 
-let db: FirebaseFirestore.Firestore | null = null
+  const projectId = process.env.FIRESTORE_PROJECT_ID
+  const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL
+  const privateKey = process.env.FIRESTORE_PRIVATE_KEY?.replace(/\\n/g, "\n")
 
-async function getDb(): Promise<FirebaseFirestore.Firestore> {
-  if (db) return db
-
-  // Dynamic import to avoid edge runtime issues
-  const admin = await import("firebase-admin")
-
-  if (!admin.default.apps.length) {
-    const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "digitalchemy-de4b7"
-
-    // Try service account first, fall back to default credentials
-    if (process.env.FIRESTORE_PRIVATE_KEY && process.env.FIRESTORE_CLIENT_EMAIL) {
-      admin.default.initializeApp({
-        credential: admin.default.credential.cert({
-          projectId,
-          clientEmail: process.env.FIRESTORE_CLIENT_EMAIL,
-          privateKey: process.env.FIRESTORE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-        }),
-      })
-    } else {
-      admin.default.initializeApp({ projectId })
-    }
+  if (!projectId || !clientEmail || !privateKey) {
+    throw new Error(`Firestore configuration error: missing env vars. Present: projectId=${!!projectId} clientEmail=${!!clientEmail} privateKey=${!!privateKey}`)
   }
 
-  db = admin.default.firestore()
-  return db
+  initializeApp({
+    credential: cert({ projectId, clientEmail, privateKey }),
+  })
+
+  return getFirestore()
+}
+
+export function getDb() {
+  return initFirestore()
 }
 
 const COLLECTION = "console_jobs"
@@ -43,7 +35,7 @@ export async function createJob(
   workflowLabel: string | null,
   intakeContext: Record<string, string | string[]>
 ): Promise<Job> {
-  const db = await getDb()
+  const db = getDb()
   const id = `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
   const sections: JobSection[] = [
@@ -73,13 +65,13 @@ export async function createJob(
 }
 
 export async function getJob(id: string): Promise<Job | undefined> {
-  const db = await getDb()
+  const db = getDb()
   const doc = await db.collection(COLLECTION).doc(id).get()
   return doc.exists ? (doc.data() as Job) : undefined
 }
 
 export async function updateJobStatus(id: string, status: Job["status"], error?: string) {
-  const db = await getDb()
+  const db = getDb()
   const update: Record<string, unknown> = { status }
   if (error) update.error = error
   if (status === "complete" || status === "failed") {
@@ -89,7 +81,7 @@ export async function updateJobStatus(id: string, status: Job["status"], error?:
 }
 
 export async function updateSection(id: string, sectionId: SectionId, data: Record<string, unknown>) {
-  const db = await getDb()
+  const db = getDb()
   const job = await getJob(id)
   if (!job) return
 
@@ -102,7 +94,7 @@ export async function updateSection(id: string, sectionId: SectionId, data: Reco
 }
 
 export async function setSectionStreaming(id: string, sectionId: SectionId) {
-  const db = await getDb()
+  const db = getDb()
   const job = await getJob(id)
   if (!job) return
 
