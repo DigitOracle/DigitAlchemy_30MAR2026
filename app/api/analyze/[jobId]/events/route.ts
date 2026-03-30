@@ -188,14 +188,23 @@ export async function GET(req: NextRequest, { params }: { params: { jobId: strin
           ? buildSocialPrompt(job.task, job.intakeContext, registryStr, agentStr)
           : buildGeneralPrompt(job.task, job.intakeContext, registryStr, agentStr, job.workflowLabel)
 
-        // Call Claude API
-        const response = await client.messages.create({
-          model: "claude-sonnet-4-6",
-          max_tokens: 3000,
-          messages: [{ role: "user", content: prompt }],
-        })
+        // Keepalive ping to prevent Vercel from killing the connection
+        const pingInterval = setInterval(() => {
+          controller.enqueue(new TextEncoder().encode(": ping\n\n"))
+        }, 5000)
 
-        const text = response.content[0].type === "text" ? response.content[0].text : ""
+        // Call Claude API
+        let text = ""
+        try {
+          const response = await client.messages.create({
+            model: "claude-sonnet-4-6",
+            max_tokens: 3000,
+            messages: [{ role: "user", content: prompt }],
+          })
+          text = response.content[0].type === "text" ? response.content[0].text : ""
+        } finally {
+          clearInterval(pingInterval)
+        }
 
         // Parse response
         let parsed: Record<string, unknown> = {}
@@ -289,6 +298,8 @@ export async function GET(req: NextRequest, { params }: { params: { jobId: strin
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+      "Transfer-Encoding": "chunked",
     }
   })
 }
