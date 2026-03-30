@@ -1,17 +1,51 @@
 // lib/jobStore.ts
-// In-memory job store for MVP. Replace with Redis/Firestore for production.
+// Firestore-backed job store — replaces in-memory Map
 
 import type { Job, JobSection, SectionId } from "@/types"
 
-const jobs = new Map<string, Job>()
+// Firebase Admin SDK — use service account or default credentials
+// For Vercel: set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY
 
-export function createJob(
+let db: FirebaseFirestore.Firestore | null = null
+
+async function getDb(): Promise<FirebaseFirestore.Firestore> {
+  if (db) return db
+
+  // Dynamic import to avoid edge runtime issues
+  const admin = await import("firebase-admin")
+
+  if (!admin.default.apps.length) {
+    const projectId = process.env.FIRESTORE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "digitalchemy-de4b7"
+
+    // Try service account first, fall back to default credentials
+    if (process.env.FIRESTORE_PRIVATE_KEY && process.env.FIRESTORE_CLIENT_EMAIL) {
+      admin.default.initializeApp({
+        credential: admin.default.credential.cert({
+          projectId,
+          clientEmail: process.env.FIRESTORE_CLIENT_EMAIL,
+          privateKey: process.env.FIRESTORE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+        }),
+      })
+    } else {
+      admin.default.initializeApp({ projectId })
+    }
+  }
+
+  db = admin.default.firestore()
+  return db
+}
+
+const COLLECTION = "console_jobs"
+
+export async function createJob(
   task: string,
   workflowId: string | null,
   workflowLabel: string | null,
   intakeContext: Record<string, string | string[]>
-): Job {
+): Promise<Job> {
+  const db = await getDb()
   const id = `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+
   const sections: JobSection[] = [
     { id: "intake-summary", label: "Intake summary", status: "pending" },
     { id: "execution-timeline", label: "Execution plan", status: "pending" },
@@ -34,42 +68,46 @@ export function createJob(
     createdAt: new Date().toISOString(),
   }
 
-  jobs.set(id, job)
+  await db.collection(COLLECTION).doc(id).set(job)
   return job
 }
 
-export function getJob(id: string): Job | undefined {
-  return jobs.get(id)
+export async function getJob(id: string): Promise<Job | undefined> {
+  const db = await getDb()
+  const doc = await db.collection(COLLECTION).doc(id).get()
+  return doc.exists ? (doc.data() as Job) : undefined
 }
 
-export function updateJobStatus(id: string, status: Job["status"], error?: string) {
-  const job = jobs.get(id)
-  if (!job) return
-  job.status = status
-  if (error) job.error = error
+export async function updateJobStatus(id: string, status: Job["status"], error?: string) {
+  const db = await getDb()
+  const update: Record<string, unknown> = { status }
+  if (error) update.error = error
   if (status === "complete" || status === "failed") {
-    job.completedAt = new Date().toISOString()
+    update.completedAt = new Date().toISOString()
   }
-  jobs.set(id, job)
+  await db.collection(COLLECTION).doc(id).update(update)
 }
 
-export function updateSection(id: string, sectionId: SectionId, data: Record<string, unknown>) {
-  const job = jobs.get(id)
+export async function updateSection(id: string, sectionId: SectionId, data: Record<string, unknown>) {
+  const db = await getDb()
+  const job = await getJob(id)
   if (!job) return
-  const section = job.sections.find((s) => s.id === sectionId)
-  if (!section) return
-  section.status = "ready"
-  section.data = data
-  section.readyAt = new Date().toISOString()
-  jobs.set(id, job)
+
+  const sections = job.sections.map((s) =>
+    s.id === sectionId
+      ? { ...s, status: "ready" as const, data, readyAt: new Date().toISOString() }
+      : s
+  )
+  await db.collection(COLLECTION).doc(id).update({ sections })
 }
 
-export function setSectionStreaming(id: string, sectionId: SectionId) {
-  const job = jobs.get(id)
+export async function setSectionStreaming(id: string, sectionId: SectionId) {
+  const db = await getDb()
+  const job = await getJob(id)
   if (!job) return
-  const section = job.sections.find((s) => s.id === sectionId)
-  if (section) {
-    section.status = "streaming"
-    jobs.set(id, job)
-  }
+
+  const sections = job.sections.map((s) =>
+    s.id === sectionId ? { ...s, status: "streaming" as const } : s
+  )
+  await db.collection(COLLECTION).doc(id).update({ sections })
 }

@@ -1,27 +1,308 @@
-import { NextRequest, NextResponse } from "next/server"
-import { createJob } from "@/lib/jobStore"
+import { NextRequest } from "next/server"
+import { createJob, updateJobStatus, updateSection, setSectionStreaming } from "@/lib/jobStore"
+import { getAllServers, serversToRegistryString } from "@/lib/registry"
+import { agentsToProfileString } from "@/lib/agentProfiles"
+import Anthropic from "@anthropic-ai/sdk"
 
 export const runtime = "nodejs"
+export const maxDuration = 60
 
-export async function POST(req: NextRequest) {
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+function encodeEvent(event: string, data: unknown): Uint8Array {
+  return new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+}
+
+function ping(): Uint8Array {
+  return new TextEncoder().encode(": ping\n\n")
+}
+
+async function callClaude(prompt: string, maxTokens = 1500): Promise<Record<string, unknown>> {
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: maxTokens,
+    messages: [{ role: "user", content: prompt }],
+  })
+  const text = response.content[0].type === "text" ? response.content[0].text : ""
+  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
   try {
-    const body = await req.json()
-    const { task, workflowId, workflowLabel, intakeContext } = body
-
-    if (!task || typeof task !== "string" || task.trim().length < 5) {
-      return NextResponse.json({ success: false, error: "Task description required." }, { status: 400 })
+    return JSON.parse(cleaned)
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/)
+    if (match) {
+      try { return JSON.parse(match[0]) } catch { /* fall through */ }
     }
-
-    const job = createJob(
-      task.trim(),
-      workflowId ?? null,
-      workflowLabel ?? null,
-      intakeContext ?? {}
-    )
-
-    return NextResponse.json({ success: true, jobId: job.id })
-  } catch (err) {
-    console.error("[analyze] error:", err)
-    return NextResponse.json({ success: false, error: "Failed to create job" }, { status: 500 })
+    return {}
   }
+}
+
+export async function POST(req: NextRequest): Promise<Response> {
+  const body = await req.json()
+  const { task, workflowId, workflowLabel, intakeContext } = body
+
+  if (!task || task.trim().length < 5) {
+    return new Response(JSON.stringify({ success: false, error: "Task required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    })
+  }
+
+  const job = await createJob(task.trim(), workflowId ?? null, workflowLabel ?? null, intakeContext ?? {})
+  const isSocial = workflowId === "social-video-optimization"
+
+  const contextStr = Object.entries(intakeContext ?? {})
+    .map(([k, v]: [string, unknown]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+    .join("\n")
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      // Keep connection alive with periodic pings
+      const keepAlive = setInterval(() => {
+        try { controller.enqueue(ping()) } catch { /* closed */ }
+      }, 8000)
+
+      const emit = (event: string, data: unknown) => {
+        try { controller.enqueue(encodeEvent(event, data)) } catch { /* closed */ }
+      }
+
+      try {
+        emit("job.created", { jobId: job.id, workflowLabel })
+        await updateJobStatus(job.id, "planning")
+
+        // Load registry
+        const servers = await getAllServers()
+        const connected = servers.filter((s) => s.status === "connected").slice(0, 12)
+        const registryStr = serversToRegistryString(connected)
+        const agentStr = agentsToProfileString()
+
+        // SECTION 1 — Intake summary (immediate)
+        const intakeSectionData = { task: task.trim(), workflowLabel, intakeContext }
+        emit("section.ready", { sectionId: "intake-summary", label: "Intake summary", data: intakeSectionData })
+        await updateSection(job.id, "intake-summary", intakeSectionData)
+
+        // SECTION 2 — Execution timeline (immediate)
+        const timelineData = {
+          steps: isSocial ? [
+            { label: "Content intelligence", status: "running" },
+            { label: "Transcript analysis", status: "pending" },
+            { label: "Trend research", status: "pending" },
+            { label: "Platform packs", status: "pending" },
+            { label: "Agent plan", status: "pending" },
+          ] : [
+            { label: "Task classification", status: "running" },
+            { label: "Standards lookup", status: "pending" },
+            { label: "Agent routing", status: "pending" },
+          ]
+        }
+        emit("section.ready", { sectionId: "execution-timeline", label: "Execution plan", data: timelineData })
+        await updateSection(job.id, "execution-timeline", timelineData)
+
+        await updateJobStatus(job.id, "running")
+
+        // PASS 1 — Content Intelligence
+        emit("processor.started", { processorId: "content-intelligence", label: "Analysing content\u2026" })
+        await setSectionStreaming(job.id, "content-intelligence")
+
+        const contentPrompt = `You are DigitAlchemy\u00ae content intelligence. Analyse this task and return JSON only.
+
+TASK: ${task}
+CONTEXT:
+${contextStr}
+
+Return ONLY this JSON:
+{
+  "assetType": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
+  "duration": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
+  "tone": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
+  "language": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
+  "audienceFit": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
+  "topic": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
+  "subject": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
+  "keywords": { "value": ["string"], "provenance": "observed|inferred", "confidence": "high|medium|low" }
+}`
+
+        const contentData = await callClaude(contentPrompt, 800)
+        emit("section.ready", { sectionId: "content-intelligence", label: "Content intelligence", data: contentData })
+        await updateSection(job.id, "content-intelligence", contentData)
+
+        // PASS 2 — Transcript (social only)
+        if (isSocial) {
+          emit("processor.started", { processorId: "transcript", label: "Extracting transcript\u2026" })
+          await setSectionStreaming(job.id, "transcript")
+
+          const transcriptPrompt = `You are DigitAlchemy\u00ae transcript analyst. Return JSON only.
+
+TASK: ${task}
+CONTENT DETECTED: ${JSON.stringify(contentData)}
+CONTEXT: ${contextStr}
+
+Return ONLY this JSON:
+{
+  "status": { "value": "string describing transcript availability", "provenance": "inferred", "confidence": "medium" },
+  "keyQuotes": [{ "value": "string", "provenance": "inferred", "confidence": "medium" }],
+  "hookCandidates": [{ "value": "string", "provenance": "inferred", "confidence": "high|medium", "note": "why this works as a hook" }]
+}
+
+Provide 2-3 keyQuotes and 3 hookCandidates based on the topic and content detected.`
+
+          const transcriptData = await callClaude(transcriptPrompt, 800)
+          emit("section.ready", { sectionId: "transcript", label: "Transcript & key moments", data: transcriptData })
+          await updateSection(job.id, "transcript", transcriptData)
+        }
+
+        // PASS 3 — Trend Intelligence (social only)
+        if (isSocial) {
+          const platforms = Array.isArray(intakeContext?.targetPlatforms)
+            ? intakeContext.targetPlatforms
+            : [intakeContext?.targetPlatforms ?? "TikTok", "Instagram"]
+
+          emit("processor.started", { processorId: "trend-intelligence", label: "Researching trends\u2026" })
+          await setSectionStreaming(job.id, "trend-intelligence")
+
+          const trendPrompt = `You are DigitAlchemy\u00ae trend intelligence. Return JSON only.
+
+TASK: ${task}
+TOPIC: ${(contentData.topic as {value:string})?.value ?? "unknown"}
+KEYWORDS: ${JSON.stringify((contentData.keywords as {value:string[]})?.value ?? [])}
+TARGET PLATFORMS: ${platforms.join(", ")}
+TARGET REGION: ${intakeContext?.targetRegion ?? "Global"}
+
+Return ONLY this JSON \u2014 one entry per platform:
+{
+  "platforms": [
+    {
+      "platform": "platform name",
+      "trendingHashtags": { "value": ["hashtag1", "hashtag2", "hashtag3"], "provenance": "inferred", "confidence": "medium", "note": "trend context" },
+      "emergingHashtags": { "value": ["hashtag1", "hashtag2"], "provenance": "inferred", "confidence": "low" },
+      "audioSuggestions": { "value": ["track or genre suggestion"], "provenance": "inferred", "confidence": "medium" },
+      "formatFit": { "value": "description of best format for this platform", "provenance": "inferred", "confidence": "high" },
+      "trendNotes": { "value": "platform-specific trend observation", "provenance": "inferred", "confidence": "medium" }
+    }
+  ]
+}
+
+Provide data for these platforms: ${platforms.join(", ")}
+Make hashtags specific to the topic: ${(contentData.topic as {value:string})?.value ?? task}`
+
+          const trendResult = await callClaude(trendPrompt, 1200)
+          const trendData = trendResult.platforms ? trendResult : { platforms: [trendResult] }
+          emit("section.ready", { sectionId: "trend-intelligence", label: "Trend intelligence", data: trendData })
+          await updateSection(job.id, "trend-intelligence", trendData)
+        }
+
+        // PASS 4 — Platform Packs (social only)
+        if (isSocial) {
+          const platforms = Array.isArray(intakeContext?.targetPlatforms)
+            ? intakeContext.targetPlatforms
+            : ["TikTok", "Instagram"]
+
+          emit("processor.started", { processorId: "platform-packs", label: "Building platform packs\u2026" })
+          await setSectionStreaming(job.id, "platform-packs")
+
+          const packsPrompt = `You are DigitAlchemy\u00ae platform pack builder. Return JSON only.
+
+TASK: ${task}
+TOPIC: ${(contentData.topic as {value:string})?.value ?? "unknown"}
+SUBJECT: ${(contentData.subject as {value:string})?.value ?? "unknown"}
+KEYWORDS: ${JSON.stringify((contentData.keywords as {value:string[]})?.value ?? [])}
+AUDIENCE: ${intakeContext?.audienceDescription ?? "general"}
+TARGET PLATFORMS: ${platforms.join(", ")}
+TARGET REGION: ${intakeContext?.targetRegion ?? "UAE"}
+
+Return ONLY this JSON:
+{
+  "packs": [
+    {
+      "platform": "platform name",
+      "hookOptions": [
+        { "value": "hook text \u2014 attention-grabbing opening line", "provenance": "inferred", "confidence": "high" },
+        { "value": "alternative hook", "provenance": "inferred", "confidence": "high" }
+      ],
+      "captionVariants": [
+        { "value": "full caption text with emojis appropriate for platform", "provenance": "inferred", "confidence": "high" },
+        { "value": "shorter variant caption", "provenance": "inferred", "confidence": "medium" }
+      ],
+      "hashtags": { "value": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"], "provenance": "inferred", "confidence": "medium" },
+      "musicSuggestion": { "value": "specific track name or genre/vibe description", "provenance": "inferred", "confidence": "medium" },
+      "postingGuidance": { "value": "best time/day, format notes, CTA recommendation", "provenance": "inferred", "confidence": "high" }
+    }
+  ]
+}
+
+Build packs for: ${platforms.join(", ")}
+Make each pack specific to the topic and platform norms.`
+
+          const packsResult = await callClaude(packsPrompt, 2000)
+          const packsData = packsResult.packs ? packsResult : { packs: [packsResult] }
+          emit("section.ready", { sectionId: "platform-packs", label: "Platform packs", data: packsData })
+          await updateSection(job.id, "platform-packs", packsData)
+        }
+
+        // PASS 5 — Agent Plan (all workflows)
+        emit("processor.started", { processorId: "agent-plan", label: "Building agent plan\u2026" })
+        await setSectionStreaming(job.id, "agent-plan")
+
+        const agentPrompt = `You are DigitAlchemy\u00ae orchestration planner. Return JSON only.
+
+WORKFLOW: ${workflowLabel ?? "General Orchestration"}
+TASK: ${task}
+CONTEXT: ${contextStr}
+
+AGENT PROFILES:
+${agentStr}
+
+MCP REGISTRY:
+${registryStr}
+
+Return ONLY this JSON:
+{
+  "workflowType": "string",
+  "taskSummary": "one sentence summary",
+  "recommendedAgents": [{ "id": "string", "displayName": "string", "shortDescription": "string", "category": "string" }],
+  "recommendedMCPs": [{ "name": "string", "role": "string", "priority": "core|supporting|optional", "reason": "string", "source": "registry|missing_but_recommended", "confidence": "high|medium|low" }],
+  "executionOrder": ["step 1", "step 2", "step 3"],
+  "warnings": ["string"],
+  "nextActions": ["string"]
+}`
+
+        const agentData = await callClaude(agentPrompt, 1200)
+        emit("section.ready", { sectionId: "agent-plan", label: "Agent & MCP plan", data: agentData })
+        await updateSection(job.id, "agent-plan", agentData)
+
+        // Actions section
+        const actionsData = {
+          canExportJson: true,
+          canSendAyrshare: isSocial,
+          jobId: job.id,
+        }
+        emit("section.ready", { sectionId: "actions", label: "Actions", data: actionsData })
+        await updateSection(job.id, "actions", actionsData)
+
+        // Complete
+        await updateJobStatus(job.id, "complete")
+        emit("job.completed", { jobId: job.id })
+
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Analysis failed"
+        console.error("[analyze stream]", err)
+        try {
+          await updateJobStatus(job.id, "failed", message)
+        } catch { /* ignore */ }
+        emit("job.failed", { jobId: job.id, error: message })
+      } finally {
+        clearInterval(keepAlive)
+        controller.close()
+      }
+    }
+  })
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+      "Access-Control-Allow-Origin": "*",
+    },
+  })
 }

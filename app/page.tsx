@@ -1,6 +1,6 @@
 "use client"
 import { TaskInput } from "@/components/TaskInput"
-import { useJobStream } from "@/lib/useJobStream"
+import { useStream } from "@/lib/useStream"
 import { IntakeSummaryCard } from "@/components/sections/IntakeSummaryCard"
 import { ExecutionTimelineCard } from "@/components/sections/ExecutionTimelineCard"
 import { ContentIntelligenceCard } from "@/components/sections/ContentIntelligenceCard"
@@ -32,8 +32,8 @@ const stageLabels: Record<string, string> = {
 }
 
 export default function ConsolePage() {
-  const { state, startJob, reset } = useJobStream()
-  const loading = state.status === "creating" || state.status === "streaming"
+  const { state, startStream, reset } = useStream()
+  const loading = state.status === "streaming"
 
   const handleSubmit = async (
     task: string,
@@ -49,7 +49,7 @@ export default function ConsolePage() {
       else if (typeof value === "string") context[key] = value
     }
 
-    await startJob(task, workflow?.id ?? null, workflow?.label ?? null, context)
+    await startStream(task, workflow?.id ?? null, workflow?.label ?? null, context)
   }
 
   return (
@@ -72,6 +72,9 @@ export default function ConsolePage() {
                 {state.status === "complete" && <div className="w-2 h-2 rounded-full bg-green-500" />}
                 {state.status === "failed" && <div className="w-2 h-2 rounded-full bg-red-500" />}
                 <span className="text-xs text-gray-500">{stageLabels[state.status]}</span>
+                {state.currentProcessor && (
+                  <span className="text-xs text-gray-400">{state.currentProcessor}</span>
+                )}
               </div>
             )}
             {(state.status === "complete" || state.status === "failed") && (
