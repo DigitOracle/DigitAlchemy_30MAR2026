@@ -307,6 +307,102 @@ export type OrchestrationStatus = {
   currentStep?: string
 }
 
+// ── Job architecture ─────────────────────────────────────────────────────────
+
+export type JobStatus = "created" | "planning" | "running" | "complete" | "failed"
+
+export type JobEvent = {
+  type:
+    | "job.created"
+    | "workflow.detected"
+    | "plan.generated"
+    | "processor.started"
+    | "processor.completed"
+    | "section.ready"
+    | "job.completed"
+    | "job.failed"
+  jobId: string
+  timestamp: string
+  data: Record<string, unknown>
+}
+
+export type SectionId =
+  | "intake-summary"
+  | "execution-timeline"
+  | "content-intelligence"
+  | "transcript"
+  | "trend-intelligence"
+  | "platform-packs"
+  | "agent-plan"
+  | "actions"
+
+export type SectionStatus = "pending" | "streaming" | "ready" | "failed"
+
+export type OutputItem = {
+  label: string
+  value: string | string[]
+  provenance: ProvenanceType
+  confidence: ConfidenceLevel
+  note?: string
+}
+
+export type ContentIntelligence = {
+  assetType: OutputItem
+  duration?: OutputItem
+  tone: OutputItem
+  language: OutputItem
+  audienceFit: OutputItem
+  topic: OutputItem
+  subject: OutputItem
+  keywords: OutputItem
+}
+
+export type TranscriptSection = {
+  status: OutputItem
+  keyQuotes: OutputItem[]
+  hookCandidates: OutputItem[]
+  segmentNotes?: OutputItem[]
+}
+
+export type PlatformTrend = {
+  platform: string
+  trendingHashtags: OutputItem
+  emergingHashtags: OutputItem
+  audioSuggestions: OutputItem
+  formatFit: OutputItem
+  trendNotes: OutputItem
+}
+
+export type PlatformPack = {
+  platform: string
+  hookOptions: OutputItem[]
+  captionVariants: OutputItem[]
+  hashtags: OutputItem
+  musicSuggestion: OutputItem
+  postingGuidance: OutputItem
+}
+
+export type JobSection = {
+  id: SectionId
+  label: string
+  status: SectionStatus
+  data?: Record<string, unknown>
+  readyAt?: string
+}
+
+export type Job = {
+  id: string
+  status: JobStatus
+  workflowId: string | null
+  workflowLabel: string | null
+  task: string
+  intakeContext: Record<string, string | string[]>
+  sections: JobSection[]
+  createdAt: string
+  completedAt?: string
+  error?: string
+}
+
 // ── Request/response ──────────────────────────────────────────────────────────
 
 export type AnalyzeTaskRequest = {

@@ -1,33 +1,27 @@
 import { NextRequest, NextResponse } from "next/server"
-import { analyzeTask } from "@/lib/analyzeTask"
-import type { AnalyzeTaskRequest, AnalyzeTaskResponse } from "@/types"
+import { createJob } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
-export const maxDuration = 60
 
-export async function POST(req: NextRequest): Promise<NextResponse<AnalyzeTaskResponse>> {
+export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as AnalyzeTaskRequest
+    const body = await req.json()
+    const { task, workflowId, workflowLabel, intakeContext } = body
 
-    if (!body.task || typeof body.task !== "string" || body.task.trim().length < 5) {
-      return NextResponse.json({ success: false, error: "Task description is required (minimum 5 characters)." }, { status: 400 })
+    if (!task || typeof task !== "string" || task.trim().length < 5) {
+      return NextResponse.json({ success: false, error: "Task description required." }, { status: 400 })
     }
 
-    if (body.task.length > 5000) {
-      return NextResponse.json({ success: false, error: "Task description is too long (maximum 5000 characters)." }, { status: 400 })
-    }
-
-    const result = await analyzeTask(
-      body.task.trim(),
-      body.workflowId ?? null,
-      body.workflowLabel ?? null,
-      body.isCompound ?? false,
-      body.compoundBranches ?? []
+    const job = createJob(
+      task.trim(),
+      workflowId ?? null,
+      workflowLabel ?? null,
+      intakeContext ?? {}
     )
-    return NextResponse.json({ success: true, result })
+
+    return NextResponse.json({ success: true, jobId: job.id })
   } catch (err) {
     console.error("[analyze] error:", err)
-    const message = err instanceof Error ? err.message : "Analysis failed"
-    return NextResponse.json({ success: false, error: message }, { status: 500 })
+    return NextResponse.json({ success: false, error: "Failed to create job" }, { status: 500 })
   }
 }
