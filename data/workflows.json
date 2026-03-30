@@ -75,7 +75,7 @@
     ],
     "agents": ["SOCIAL-01", "SOCIAL-02", "SOCIAL-03", "SOCIAL-04"],
     "mcpTools": ["youtube-transcript", "ayrshare", "xpoz", "docker-brave", "docker-playwright"],
-    "processorChain": ["video-url-extract", "transcript", "social-trend-lookup", "llm-recommendation"],
+    "processorChain": ["video-url-extract", "transcript", "social-trend-lookup", "semantic-memory-retrieve", "llm-recommendation", "semantic-memory-store"],
     "outputs": ["transcript", "summary", "hooks", "captions", "hashtags", "music-suggestions", "platform-notes"]
   },
   {
@@ -150,7 +150,7 @@
     ],
     "agents": ["DA-02", "DA-11", "DA-12"],
     "mcpTools": ["revit-mcp", "autocad-mcp", "ifcmcp", "docker-markdownify"],
-    "processorChain": ["file-parse", "ifc-extract", "classification-check", "llm-analysis"],
+    "processorChain": ["file-parse", "ifc-extract", "classification-check", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["bim-metrics", "compliance-flags", "schema-metadata", "json-structured"]
   },
   {
@@ -207,7 +207,7 @@
     ],
     "agents": ["DA-03", "DA-01"],
     "mcpTools": ["cesium-mcp", "autocad-mcp", "docker-playwright"],
-    "processorChain": ["spatial-parse", "llm-analysis"],
+    "processorChain": ["spatial-parse", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["summary", "json-structured", "schema-metadata"]
   },
   {
@@ -256,7 +256,7 @@
     ],
     "agents": ["DA-04", "DA-11", "DA-01"],
     "mcpTools": ["perplexity", "docker-wikipedia", "docker-brave", "docker-neo4j", "docker-markdownify"],
-    "processorChain": ["standards-lookup", "doc-parse", "llm-analysis"],
+    "processorChain": ["standards-lookup", "doc-parse", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["compliance-flags", "summary", "json-structured"]
   },
   {
@@ -308,7 +308,7 @@
     ],
     "agents": ["DA-07", "DA-06", "DA-03"],
     "mcpTools": ["docker-timestream", "firebase-mcp", "cesium-mcp"],
-    "processorChain": ["space-analysis", "viper-derivation", "llm-planning"],
+    "processorChain": ["space-analysis", "viper-derivation", "semantic-memory-retrieve", "llm-planning", "semantic-memory-store"],
     "outputs": ["json-structured", "summary", "schema-metadata"]
   },
   {
@@ -355,7 +355,7 @@
     ],
     "agents": ["DA-06", "DA-07", "DA-02"],
     "mcpTools": ["revit-mcp", "cesium-mcp", "firebase-mcp", "docker-neo4j"],
-    "processorChain": ["model-parse", "twin-analysis", "llm-analysis"],
+    "processorChain": ["model-parse", "twin-analysis", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["summary", "json-structured", "compliance-flags"]
   },
   {
@@ -422,7 +422,7 @@
     ],
     "agents": ["DA-10", "DA-11", "DA-01"],
     "mcpTools": ["docker-markdownify", "docker-markitdown", "google-docs", "notebooklm-mcp"],
-    "processorChain": ["doc-parse", "llm-analysis"],
+    "processorChain": ["docling-parse", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["summary", "json-structured", "export-package"]
   },
   {
@@ -440,7 +440,7 @@
     "intakeSteps": [],
     "agents": ["DA-01"],
     "mcpTools": [],
-    "processorChain": ["llm-classification", "llm-analysis"],
+    "processorChain": ["llm-classification", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["summary", "json-structured"]
   }
 ]
