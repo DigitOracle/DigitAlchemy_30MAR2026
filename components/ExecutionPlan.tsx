@@ -14,10 +14,27 @@ export function ExecutionPlan({ result }: { result: AnalyzeTaskResult }) {
     <div className="space-y-5">
       {/* Header */}
       <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-        <div className="flex items-start gap-3 mb-3">
-          <WorkflowTypeTag type={result.workflowType} />
+        <div className="flex items-start gap-3 mb-3 flex-wrap">
+          <WorkflowTypeTag type={result.workflowType.value} />
+          <span className={`text-xs px-2 py-0.5 rounded border ${
+            result.workflowType.confidence === "high"
+              ? "bg-green-50 text-green-700 border-green-200"
+              : result.workflowType.confidence === "medium"
+              ? "bg-amber-50 text-amber-700 border-amber-200"
+              : "bg-gray-50 text-gray-500 border-gray-200"
+          }`}>
+            {result.workflowType.confidence} confidence · {result.workflowType.provenance}
+          </span>
+          {result.isCompound && result.compoundBranches && (
+            <span className="text-xs bg-[#190A46]/10 text-[#190A46] px-2 py-0.5 rounded border border-[#190A46]/20">
+              Compound — {result.compoundBranches.map(b => b.label).join(" + ")}
+            </span>
+          )}
         </div>
-        <p className="text-base text-gray-800 leading-relaxed">{result.taskSummary}</p>
+        <p className="text-base text-gray-800 leading-relaxed">{result.taskSummary.value}</p>
+        {result.taskSummary.reason && (
+          <p className="text-xs text-gray-400 mt-2">{result.taskSummary.reason}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
