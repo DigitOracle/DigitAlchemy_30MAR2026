@@ -1,0 +1,239 @@
+{
+  "version": "3.0",
+  "processors": [
+    {
+      "id": "video-url-extract",
+      "label": "Video URL Extractor",
+      "description": "Validate and normalise video URL, detect platform",
+      "type": "backend-service",
+      "acceptedInputTypes": ["url", "text"],
+      "requiredInputs": ["videoUrl"],
+      "produces": ["normalised-url", "platform-type", "video-id"],
+      "timeoutMs": 5000,
+      "retryPolicy": { "maxAttempts": 2, "backoffMs": 500, "retryOn": ["network-error"] },
+      "failureModes": [
+        { "errorType": "invalid-url", "description": "URL not parseable", "recovery": "abort" },
+        { "errorType": "unsupported-platform", "description": "Platform not in supported list", "recovery": "fallback", "fallbackProcessorId": "llm-analysis" }
+      ],
+      "cacheStrategy": { "enabled": true, "ttlMs": 3600000, "keyFields": ["videoUrl"] },
+      "reliability": "high"
+    },
+    {
+      "id": "transcript",
+      "label": "Video Transcript Extractor",
+      "description": "Extract transcript from video URL via MCP",
+      "type": "mcp-tool",
+      "acceptedInputTypes": ["normalised-url"],
+      "requiredInputs": ["normalised-url"],
+      "produces": ["transcript-text", "language", "duration-seconds"],
+      "timeoutMs": 30000,
+      "retryPolicy": { "maxAttempts": 3, "backoffMs": 2000, "retryOn": ["timeout", "network-error"] },
+      "failureModes": [
+        { "errorType": "no-captions", "description": "Video has no captions/transcript", "recovery": "fallback", "fallbackProcessorId": "playwright-scrape" },
+        { "errorType": "private-video", "description": "Video is private or restricted", "recovery": "abort" },
+        { "errorType": "timeout", "description": "Transcript extraction timed out", "recovery": "retry" }
+      ],
+      "cacheStrategy": { "enabled": true, "ttlMs": 86400000, "keyFields": ["normalised-url"] },
+      "primaryTool": "youtube-transcript",
+      "fallbackTool": "docker-playwright",
+      "reliability": "high"
+    },
+    {
+      "id": "social-trend-lookup",
+      "label": "Social Trend Research",
+      "description": "Find trending hashtags, audio, and creator patterns",
+      "type": "api",
+      "acceptedInputTypes": ["transcript-text", "topic-tags", "target-platform"],
+      "requiredInputs": ["targetPlatforms"],
+      "produces": ["trending-hashtags", "trending-audio", "creator-patterns", "engagement-signals"],
+      "timeoutMs": 15000,
+      "retryPolicy": { "maxAttempts": 2, "backoffMs": 1000, "retryOn": ["rate-limit", "timeout"] },
+      "failureModes": [
+        { "errorType": "rate-limit", "description": "API rate limit hit", "recovery": "retry" },
+        { "errorType": "no-data", "description": "No trend data for region/topic", "recovery": "fallback", "fallbackProcessorId": "brave-search-trends" }
+      ],
+      "cacheStrategy": { "enabled": true, "ttlMs": 3600000, "keyFields": ["targetPlatforms", "targetRegion"] },
+      "primaryTool": "ScrapeCreators",
+      "fallbackTool": "docker-brave",
+      "reliability": "high",
+      "notes": "ScrapeCreators for TikTok. Xpoz for Instagram/Twitter search. Never swap."
+    },
+    {
+      "id": "file-parse",
+      "label": "File Parser",
+      "description": "Parse uploaded file and extract text/metadata server-side",
+      "type": "backend-service",
+      "acceptedInputTypes": ["file-upload"],
+      "requiredInputs": ["modelFile"],
+      "produces": ["extracted-text", "file-metadata", "mime-type", "file-size"],
+      "timeoutMs": 60000,
+      "retryPolicy": { "maxAttempts": 1, "backoffMs": 0, "retryOn": [] },
+      "failureModes": [
+        { "errorType": "file-too-large", "description": "File exceeds size limit", "recovery": "abort" },
+        { "errorType": "unsupported-format", "description": "Format not supported by parser", "recovery": "fallback", "fallbackProcessorId": "doc-parse" },
+        { "errorType": "corrupt-file", "description": "File is unreadable or corrupt", "recovery": "abort" }
+      ],
+      "cacheStrategy": { "enabled": false },
+      "reliability": "high"
+    },
+    {
+      "id": "ifc-extract",
+      "label": "IFC Model Extractor",
+      "description": "Extract IFC model metadata using IfcOpenShell",
+      "type": "mcp-tool",
+      "acceptedInputTypes": ["ifc-file", "file-metadata"],
+      "requiredInputs": ["modelFile"],
+      "produces": ["element-count", "schema-version", "property-sets", "classification-coverage", "storey-list"],
+      "timeoutMs": 60000,
+      "retryPolicy": { "maxAttempts": 2, "backoffMs": 3000, "retryOn": ["timeout"] },
+      "failureModes": [
+        { "errorType": "not-ifc", "description": "File is not valid IFC", "recovery": "fallback", "fallbackProcessorId": "file-parse" },
+        { "errorType": "ifc-version-unsupported", "description": "IFC version not supported", "recovery": "fallback", "fallbackProcessorId": "file-parse" },
+        { "errorType": "mcp-not-connected", "description": "ifcmcp server not running", "recovery": "fallback", "fallbackProcessorId": "doc-parse" }
+      ],
+      "cacheStrategy": { "enabled": true, "ttlMs": 600000, "keyFields": ["modelFile"] },
+      "primaryTool": "ifcmcp",
+      "fallbackTool": "docker-markdownify",
+      "reliability": "medium",
+      "notes": "ifcmcp needs pip install ifcopenshell fastmcp. Fallback to markdownify for basic extraction."
+    },
+    {
+      "id": "classification-check",
+      "label": "Classification Checker",
+      "description": "Check element classification completeness against Uniclass/OmniClass",
+      "type": "mcp-tool",
+      "acceptedInputTypes": ["element-count", "property-sets"],
+      "requiredInputs": ["reviewGoals"],
+      "produces": ["classification-report", "missing-classifications", "compliance-score"],
+      "timeoutMs": 30000,
+      "retryPolicy": { "maxAttempts": 2, "backoffMs": 2000, "retryOn": ["timeout"] },
+      "failureModes": [
+        { "errorType": "no-classification-data", "description": "Model has no classification properties", "recovery": "skip" }
+      ],
+      "cacheStrategy": { "enabled": true, "ttlMs": 600000, "keyFields": ["modelFile", "reviewGoals"] },
+      "primaryTool": "revit-mcp",
+      "reliability": "high"
+    },
+    {
+      "id": "standards-lookup",
+      "label": "Standards Lookup",
+      "description": "Look up applicable standards from Firestore corpus and web",
+      "type": "multi",
+      "acceptedInputTypes": ["text", "domain"],
+      "requiredInputs": ["complianceDomain"],
+      "produces": ["applicable-standards", "standards-citations", "regulatory-context"],
+      "timeoutMs": 20000,
+      "retryPolicy": { "maxAttempts": 2, "backoffMs": 1000, "retryOn": ["network-error", "timeout"] },
+      "failureModes": [
+        { "errorType": "no-standards-found", "description": "No matching standards in corpus", "recovery": "fallback", "fallbackProcessorId": "llm-analysis" }
+      ],
+      "cacheStrategy": { "enabled": true, "ttlMs": 3600000, "keyFields": ["complianceDomain", "jurisdiction"] },
+      "primaryTool": "docker-neo4j",
+      "fallbackTool": "perplexity",
+      "reliability": "high"
+    },
+    {
+      "id": "doc-parse",
+      "label": "Document Parser",
+      "description": "Convert document to Markdown for LLM consumption",
+      "type": "mcp-tool",
+      "acceptedInputTypes": ["pdf", "docx", "xlsx", "html", "url"],
+      "requiredInputs": [],
+      "produces": ["markdown-text", "document-metadata", "page-count"],
+      "timeoutMs": 30000,
+      "retryPolicy": { "maxAttempts": 2, "backoffMs": 2000, "retryOn": ["timeout", "network-error"] },
+      "failureModes": [
+        { "errorType": "protected-pdf", "description": "PDF is password protected", "recovery": "abort" },
+        { "errorType": "scanned-only", "description": "PDF is scan with no text layer", "recovery": "skip" }
+      ],
+      "cacheStrategy": { "enabled": true, "ttlMs": 3600000, "keyFields": ["docFile", "docUrl"] },
+      "primaryTool": "docker-markdownify",
+      "fallbackTool": "docker-markitdown",
+      "reliability": "high"
+    },
+    {
+      "id": "spatial-parse",
+      "label": "Spatial File Parser",
+      "description": "Parse geospatial file and extract geometry and attributes",
+      "type": "backend-service",
+      "acceptedInputTypes": ["geojson", "kml", "shp", "coordinates"],
+      "requiredInputs": [],
+      "produces": ["feature-count", "geometry-types", "bounding-box", "attribute-schema"],
+      "timeoutMs": 30000,
+      "retryPolicy": { "maxAttempts": 1, "backoffMs": 0, "retryOn": [] },
+      "failureModes": [
+        { "errorType": "invalid-geometry", "description": "File contains invalid geometries", "recovery": "skip" }
+      ],
+      "cacheStrategy": { "enabled": false },
+      "reliability": "medium"
+    },
+    {
+      "id": "viper-derivation",
+      "label": "VIPER® Sensor Derivation",
+      "description": "DigitAlchemy proprietary sensor placement and derivation logic",
+      "type": "backend-service",
+      "acceptedInputTypes": ["text", "floor-plan-metadata"],
+      "requiredInputs": ["sensorScopes", "spaceDescription"],
+      "produces": ["sensor-count-estimate", "placement-strategy", "scope-coverage", "viper-config"],
+      "timeoutMs": 15000,
+      "retryPolicy": { "maxAttempts": 1, "backoffMs": 0, "retryOn": [] },
+      "failureModes": [
+        { "errorType": "insufficient-space-data", "description": "Not enough space description to derive sensors", "recovery": "fallback", "fallbackProcessorId": "llm-planning" }
+      ],
+      "cacheStrategy": { "enabled": false },
+      "reliability": "high",
+      "notes": "DA-07 Sensor Alchemist proprietary logic"
+    },
+    {
+      "id": "llm-classification",
+      "label": "Task Classifier",
+      "description": "Fast LLM classification of task type using Haiku",
+      "type": "llm",
+      "acceptedInputTypes": ["text"],
+      "requiredInputs": ["task"],
+      "produces": ["workflow-classification", "confidence-score", "compound-detection"],
+      "timeoutMs": 8000,
+      "retryPolicy": { "maxAttempts": 2, "backoffMs": 1000, "retryOn": ["timeout", "rate-limit"] },
+      "failureModes": [
+        { "errorType": "model-unavailable", "description": "LLM unavailable", "recovery": "fallback", "fallbackProcessorId": "keyword-classification" }
+      ],
+      "cacheStrategy": { "enabled": true, "ttlMs": 300000, "keyFields": ["task"] },
+      "reliability": "high",
+      "notes": "Use claude-haiku-4-5-20251001 for speed — classification only"
+    },
+    {
+      "id": "llm-analysis",
+      "label": "Analysis Engine",
+      "description": "Full Claude Sonnet analysis and execution plan generation",
+      "type": "llm",
+      "acceptedInputTypes": ["text", "extracted-text", "markdown-text", "metadata"],
+      "requiredInputs": ["task"],
+      "produces": ["task-summary", "agent-recommendations", "mcp-recommendations", "execution-order", "warnings", "next-actions"],
+      "timeoutMs": 50000,
+      "retryPolicy": { "maxAttempts": 2, "backoffMs": 3000, "retryOn": ["timeout", "rate-limit"] },
+      "failureModes": [
+        { "errorType": "context-too-long", "description": "Input exceeds context window", "recovery": "fallback", "fallbackProcessorId": "llm-analysis-compressed" },
+        { "errorType": "rate-limit", "description": "API rate limit", "recovery": "retry" }
+      ],
+      "cacheStrategy": { "enabled": false },
+      "reliability": "high",
+      "notes": "Use claude-sonnet-4-6"
+    },
+    {
+      "id": "llm-planning",
+      "label": "Orchestration Planner",
+      "description": "Generate deterministic orchestration plan before full reasoning",
+      "type": "llm",
+      "acceptedInputTypes": ["text", "workflow-classification", "intake-context"],
+      "requiredInputs": ["task", "workflowId"],
+      "produces": ["orchestration-plan", "step-sequence", "dependency-graph"],
+      "timeoutMs": 15000,
+      "retryPolicy": { "maxAttempts": 2, "backoffMs": 2000, "retryOn": ["timeout"] },
+      "failureModes": [
+        { "errorType": "planning-failed", "description": "Could not generate valid plan", "recovery": "skip" }
+      ],
+      "cacheStrategy": { "enabled": false },
+      "reliability": "high"
+    }
+  ]
+}
