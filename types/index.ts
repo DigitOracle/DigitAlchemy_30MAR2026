@@ -16,6 +16,26 @@ export type StandardsSource = "firestore" | "local-cache"
 export type ConfidenceLevel = "high" | "medium" | "low"
 export type ProvenanceType = "observed" | "inferred" | "registry" | "user-provided"
 
+// ── Registry / standards primitives ──────────────────────────────────────────
+
+export type MCPServer = {
+  id: string
+  name: string
+  description: string
+  category: string
+  status: string
+  source: string
+  tools?: number
+}
+
+export type StandardsEntry = {
+  title: string
+  code: string
+  collection: string
+  category: string
+  tags: string[]
+}
+
 // ── Condition system (replaces new Function) ──────────────────────────────────
 
 export type ConditionOperator =

@@ -17,6 +17,7 @@ export async function getStandardsContext(task: string): Promise<StandardsContex
       code: r.code,
       collection: r.collection,
       reason: `Matched task keywords against ${r.category} category`,
+      confidence: "medium" as const,
     })),
     standardsActions: [
       "Review applicable standards before proceeding",

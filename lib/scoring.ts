@@ -37,5 +37,6 @@ export function scoreMCPs(task: string, servers: MCPServer[]): RecommendedMCP[] 
     priority: i < 2 ? "core" : i < 5 ? "supporting" : "optional",
     reason: `Score ${score} — matched task keywords to ${server.category} category`,
     source: "registry",
+    confidence: i < 2 ? "high" : i < 5 ? "medium" : "low",
   }))
 }

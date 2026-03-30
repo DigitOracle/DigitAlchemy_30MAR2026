@@ -1,7 +1,7 @@
 // Firestore provider — stubbed for MVP, ready for live integration
 // Connect by setting FIRESTORE_PROJECT_ID, FIRESTORE_CLIENT_EMAIL, FIRESTORE_PRIVATE_KEY
 import type { StandardsProvider } from "./standardsProvider"
-type StandardsEntry = { title: string; code: string; collection: string; category: string; tags: string[] }
+import type { StandardsEntry } from "@/types"
 import { LocalStandardsProvider } from "./localStandardsProvider"
 
 export class FirestoreStandardsProvider implements StandardsProvider {
