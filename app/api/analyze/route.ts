@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { createJob, updateJobStatus, updateSection, setSectionStreaming } from "@/lib/jobStore"
+import { createJobV2, updateJobStatusV2 } from "@/lib/firestore/jobs"
 import { getAllServers, serversToRegistryString } from "@/lib/registry"
 import { agentsToProfileString } from "@/lib/agentProfiles"
 import Anthropic from "@anthropic-ai/sdk"
@@ -49,6 +50,18 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const job = await createJob(task.trim(), workflowId ?? null, workflowLabel ?? null, intakeContext ?? {})
   const isSocial = workflowId === "social-video-optimization"
+
+  // Create v2 job document with extended schema
+  const sourceUrl = (intakeContext?.videoUrl as string) ?? null
+  const jobV2 = await createJobV2({
+    task: task.trim(),
+    sourceUrl,
+    sourceType: sourceUrl ? "url" : null,
+    workflowId: workflowId ?? null,
+    workflowLabel: workflowLabel ?? null,
+    intakeContext: intakeContext ?? {},
+  })
+  await updateJobStatusV2(jobV2.id, "ingesting")
 
   const contextStr = Object.entries(intakeContext ?? {})
     .map(([k, v]: [string, unknown]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
@@ -133,6 +146,10 @@ Return ONLY this JSON:
         const contentData = await callClaude(contentPrompt, 800)
         emit("section.ready", { sectionId: "content-intelligence", label: "Content intelligence", data: contentData })
         await updateSection(job.id, "content-intelligence", contentData)
+
+        // Update v2 job — ingestion complete, move to platform selection
+        await updateJobStatusV2(jobV2.id, "ingestion_complete")
+        await updateJobStatusV2(jobV2.id, "platform_selection_pending")
 
         // Check if content is accessible — block pipeline if not
         const canProceed = contentData.canProceed !== false
@@ -309,13 +326,15 @@ Return ONLY this JSON:
 
         // Complete
         await updateJobStatus(job.id, "complete")
-        emit("job.completed", { jobId: job.id })
+        await updateJobStatusV2(jobV2.id, "complete")
+        emit("job.completed", { jobId: job.id, jobIdV2: jobV2.id })
 
       } catch (err) {
         const message = err instanceof Error ? err.message : "Analysis failed"
         console.error("[analyze stream]", err)
         try {
           await updateJobStatus(job.id, "failed", message)
+          await updateJobStatusV2(jobV2.id, "error", message)
         } catch { /* ignore */ }
         emit("job.failed", { jobId: job.id, error: message })
       } finally {
