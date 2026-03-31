@@ -2,55 +2,59 @@
 import { useState, useEffect, useCallback } from "react"
 import { TaskInput } from "@/components/TaskInput"
 import { useStream } from "@/lib/useStream"
-import { IntakeSummaryCard } from "@/components/sections/IntakeSummaryCard"
-import { ExecutionTimelineCard } from "@/components/sections/ExecutionTimelineCard"
-import { ContentIntelligenceCard } from "@/components/sections/ContentIntelligenceCard"
-import { TranscriptCard } from "@/components/sections/TranscriptCard"
-import { TrendIntelligenceCard } from "@/components/sections/TrendIntelligenceCard"
-import { PlatformPacksCard } from "@/components/sections/PlatformPacksCard"
-import { AgentPlanCard } from "@/components/sections/AgentPlanCard"
-import { BlockedCard } from "@/components/sections/BlockedCard"
-import { IngestionConfirmedCard } from "@/components/sections/IngestionConfirmedCard"
-import { PlatformSelectionCard } from "@/components/sections/PlatformSelectionCard"
+import { ProgressStrip } from "@/components/ProgressStrip"
+import type { ProgressChip } from "@/components/ProgressStrip"
+import { IngestionConfirmedStage } from "@/components/stages/IngestionConfirmedStage"
+import { PlatformSelectionStage } from "@/components/stages/PlatformSelectionStage"
 import { PlatformWorkspace } from "@/components/console/PlatformWorkspace"
+import { BlockedCard } from "@/components/sections/BlockedCard"
 import type { WorkflowDefinition, IntakeState, CompoundTaskPlan } from "@/types"
 import type { JobV2 } from "@/types/jobs"
 
-function SectionRenderer({ id, data, jobId, onUploadComplete }: {
-  id: string
-  data: Record<string, unknown>
-  jobId?: string
-  onUploadComplete?: (storagePath: string) => void
-}) {
-  if (data.blocked) return <BlockedCard data={data} jobId={jobId} onUploadComplete={onUploadComplete} />
-  switch (id) {
-    case "intake-summary": return <IntakeSummaryCard data={data} />
-    case "execution-timeline": return <ExecutionTimelineCard data={data} />
-    case "content-intelligence": return <ContentIntelligenceCard data={data} />
-    case "transcript": return <TranscriptCard data={data} />
-    case "trend-intelligence": return <TrendIntelligenceCard data={data} />
-    case "platform-packs": return <PlatformPacksCard data={data} />
-    case "agent-plan": return <AgentPlanCard data={data} />
-    default: return null
-  }
-}
-
-const stageLabels: Record<string, string> = {
-  idle: "",
-  streaming: "Analysis running\u2026",
-  complete: "Complete",
-  failed: "Failed",
-}
+// Stage flow: intake → ingesting → ingestion_confirmed → platform_select → generating → complete
+type Stage = "intake" | "ingesting" | "ingestion_confirmed" | "platform_select" | "generating" | "complete" | "error"
 
 type CardState = Record<string, Record<string, Record<string, unknown> | null>>
 
 export default function ConsolePage() {
   const { state, startStream, reset } = useStream()
-  const loading = state.status === "streaming"
-  const [phase2JobId, setPhase2JobId] = useState<string | null>(null)
-  const [phase2Status, setPhase2Status] = useState<"idle" | "generating" | "complete" | "error">("idle")
+
+  const [stage, setStage] = useState<Stage>("intake")
+  const [jobIdV2, setJobIdV2] = useState<string | null>(null)
+  const [taskSummary, setTaskSummary] = useState("")
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [platformCards, setPlatformCards] = useState<CardState>({})
-  const [rehydratedJob, setRehydratedJob] = useState<JobV2 | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // Track ingestion data for progress strip and display
+  const ingestion = state.ingestion
+
+  // Update stage based on stream state
+  useEffect(() => {
+    if (state.status === "streaming" && stage === "intake") {
+      setStage("ingesting")
+    }
+    if (state.ingestion && stage === "ingesting") {
+      setStage("ingestion_confirmed")
+    }
+    if (state.status === "failed") {
+      setError(state.error)
+    }
+    if (state.jobIdV2) {
+      setJobIdV2(state.jobIdV2)
+    }
+  }, [state.status, state.ingestion, state.jobIdV2, stage])
+
+  // When Phase 1 SSE completes and we have ingestion, auto-advance to platform selection
+  useEffect(() => {
+    if (state.status === "complete" && stage === "ingesting") {
+      // No ingestion data arrived but Phase 1 completed — show platform select anyway
+      setStage("platform_select")
+    }
+    if (state.status === "complete" && stage === "ingestion_confirmed") {
+      setStage("platform_select")
+    }
+  }, [state.status, stage])
 
   // Rehydrate from URL on mount
   useEffect(() => {
@@ -63,7 +67,7 @@ export default function ConsolePage() {
       .then((data) => {
         if (!data.ok || !data.job) return
         const job = data.job as JobV2
-        setRehydratedJob(job)
+        setJobIdV2(job.id)
 
         if (job.status === "complete" && job.cards) {
           setPlatformCards(
@@ -80,19 +84,21 @@ export default function ConsolePage() {
               ])
             )
           )
-          setPhase2Status("complete")
+          setSelectedPlatforms(job.selectedPlatforms)
+          setStage("complete")
         } else if (job.status === "generating") {
-          setPhase2JobId(job.id)
+          setSelectedPlatforms(job.selectedPlatforms)
           startPhase2Stream(job.id)
+        } else if (job.status === "platform_selection_pending" || job.status === "ingestion_complete") {
+          setStage("platform_select")
         }
       })
-      .catch(() => { /* ignore rehydration errors */ })
+      .catch(() => {})
   }, [])
 
   const startPhase2Stream = useCallback((jobId: string) => {
-    setPhase2Status("generating")
+    setStage("generating")
 
-    // Init skeleton cards for selected platforms
     fetch(`/api/jobs/${jobId}`)
       .then((r) => r.json())
       .then((data) => {
@@ -103,15 +109,13 @@ export default function ConsolePage() {
           initial[p] = { trending: null, audio: null, hooks: null, captions: null, schedule: null }
         }
         setPlatformCards(initial)
+        setSelectedPlatforms(job.selectedPlatforms)
       })
       .catch(() => {})
 
     fetch(`/api/jobs/${jobId}/stream`)
       .then(async (response) => {
-        if (!response.ok || !response.body) {
-          setPhase2Status("error")
-          return
-        }
+        if (!response.ok || !response.body) { setStage("error"); return }
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ""
@@ -134,15 +138,13 @@ export default function ConsolePage() {
                 if (currentEvent === "card") {
                   setPlatformCards((prev) => ({
                     ...prev,
-                    [payload.platform]: {
-                      ...(prev[payload.platform] ?? {}),
-                      [payload.cardType]: payload.data,
-                    },
+                    [payload.platform]: { ...(prev[payload.platform] ?? {}), [payload.cardType]: payload.data },
                   }))
                 } else if (currentEvent === "complete") {
-                  setPhase2Status("complete")
+                  setStage("complete")
                 } else if (currentEvent === "error") {
-                  setPhase2Status("error")
+                  setStage("error")
+                  setError(payload.error)
                 }
               } catch { /* ignore */ }
               currentEvent = ""
@@ -150,30 +152,9 @@ export default function ConsolePage() {
             }
           }
         }
-        if (phase2Status === "generating") setPhase2Status("complete")
       })
-      .catch(() => setPhase2Status("error"))
+      .catch(() => setStage("error"))
   }, [])
-
-  const handleUploadComplete = useCallback((_storagePath: string) => {
-    // Upload is complete — the /api/upload/complete route has already
-    // updated the job status. Re-submit the task to trigger Phase 1 SSE
-    // with the uploaded file as the source.
-    // For now, just reset and let the user re-submit.
-    // Future: auto-trigger /api/analyze with sourceType: 'upload'
-  }, [])
-
-  const handlePlatformConfirm = async (platforms: string[]) => {
-    if (!phase2JobId) return
-    const res = await fetch("/api/platform-selection", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId: phase2JobId, platforms }),
-    })
-    if (res.ok) {
-      startPhase2Stream(phase2JobId)
-    }
-  }
 
   const handleSubmit = async (
     task: string,
@@ -181,6 +162,7 @@ export default function ConsolePage() {
     intakeState: IntakeState,
     _compoundPlan: CompoundTaskPlan | null
   ) => {
+    setTaskSummary(task.slice(0, 60))
     const context: Record<string, string | string[]> = {}
     for (const [key, value] of Object.entries(intakeState)) {
       if (!value) continue
@@ -188,21 +170,58 @@ export default function ConsolePage() {
       if (Array.isArray(value)) context[key] = value as string[]
       else if (typeof value === "string") context[key] = value
     }
-
     await startStream(task, workflow?.id ?? null, workflow?.label ?? null, context)
   }
 
+  const handlePlatformConfirm = async (platforms: string[]) => {
+    if (!jobIdV2) return
+    setSelectedPlatforms(platforms)
+    const res = await fetch("/api/platform-selection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId: jobIdV2, platforms }),
+    })
+    if (res.ok) {
+      startPhase2Stream(jobIdV2)
+    }
+  }
+
+  const handleUploadComplete = useCallback((_storagePath: string) => {}, [])
+
   const handleFullReset = () => {
     reset()
-    setPhase2JobId(null)
-    setPhase2Status("idle")
+    setStage("intake")
+    setJobIdV2(null)
+    setTaskSummary("")
+    setSelectedPlatforms([])
     setPlatformCards({})
-    setRehydratedJob(null)
+    setError(null)
     window.history.replaceState({}, "", window.location.pathname)
   }
 
-  const showPhase1 = state.status !== "idle" || rehydratedJob !== null
-  const showPhase2 = phase2Status !== "idle"
+  // Build progress strip chips
+  const chips: ProgressChip[] = []
+  if (stage !== "intake") {
+    chips.push({ id: "intake", label: "Intake", summary: taskSummary || "Task submitted", completed: true })
+  }
+  if (ingestion && (stage === "platform_select" || stage === "generating" || stage === "complete")) {
+    chips.push({
+      id: "ingestion",
+      label: "Ingestion",
+      summary: ingestion.title ?? "Video processed",
+      completed: true,
+    })
+  }
+  if (selectedPlatforms.length > 0 && (stage === "generating" || stage === "complete")) {
+    chips.push({
+      id: "platforms",
+      label: "Platforms",
+      summary: selectedPlatforms.join(", "),
+      completed: true,
+    })
+  }
+
+  const isLoading = stage === "ingesting" || stage === "generating"
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -212,96 +231,76 @@ export default function ConsolePage() {
             <div className="w-7 h-7 rounded bg-[#190A46] flex items-center justify-center">
               <span className="text-white text-xs font-bold">DA</span>
             </div>
-            <div>
-              <span className="text-sm font-semibold text-gray-900">DigitAlchemy&reg;</span>
-              <span className="text-sm text-gray-400 ml-2">Console</span>
-            </div>
+            <span className="text-sm font-semibold text-gray-900">DigitAlchemy&reg;</span>
+            <span className="text-sm text-gray-400">Console</span>
           </div>
           <div className="flex items-center gap-3">
-            {showPhase1 && (
-              <div className="flex items-center gap-2">
-                {loading && <div className="w-2 h-2 rounded-full bg-[#b87333] animate-pulse" />}
-                {(state.status === "complete" || phase2Status === "complete") && <div className="w-2 h-2 rounded-full bg-green-500" />}
-                {state.status === "failed" && <div className="w-2 h-2 rounded-full bg-red-500" />}
-                <span className="text-xs text-gray-500">
-                  {phase2Status === "generating" ? "Generating content\u2026" : stageLabels[state.status] ?? ""}
-                </span>
-                {state.currentProcessor && <span className="text-xs text-gray-400">{state.currentProcessor}</span>}
-              </div>
-            )}
-            {(state.status === "complete" || state.status === "failed" || phase2Status === "complete") && (
+            {isLoading && <div className="w-2 h-2 rounded-full bg-[#b87333] animate-pulse" />}
+            {stage === "complete" && <div className="w-2 h-2 rounded-full bg-green-500" />}
+            {stage === "error" && <div className="w-2 h-2 rounded-full bg-red-500" />}
+            {stage === "ingesting" && <span className="text-xs text-gray-500">Analysing video&hellip;</span>}
+            {stage === "generating" && <span className="text-xs text-gray-500">Generating content&hellip;</span>}
+            {state.currentProcessor && <span className="text-xs text-gray-400">{state.currentProcessor}</span>}
+            {(stage === "complete" || stage === "error") && (
               <button onClick={handleFullReset} className="text-xs text-gray-400 hover:text-[#190A46] border border-gray-200 px-3 py-1 rounded-lg">
                 New task
               </button>
             )}
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-green-400" />
-              <span className="text-xs text-gray-500">Connected</span>
-            </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
-        {state.status === "idle" && !rehydratedJob && (
-          <div className="mb-6">
-            <h1 className="text-xl font-semibold text-gray-900">Task analysis</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Describe a task. Command Desk classifies it, gathers context, and streams intelligence as it arrives.
-            </p>
-          </div>
-        )}
+        {/* Progress strip — collapsed completed stages */}
+        <ProgressStrip chips={chips} />
 
         <div className="space-y-5">
-          {state.status === "idle" && !rehydratedJob && (
-            <TaskInput onSubmit={handleSubmit} loading={false} />
+          {/* STAGE 1: Intake */}
+          {stage === "intake" && (
+            <>
+              <div className="mb-2">
+                <h1 className="text-xl font-semibold text-gray-900">Task analysis</h1>
+                <p className="text-sm text-gray-500 mt-1">Describe a task. Submit a video URL or upload a file.</p>
+              </div>
+              <TaskInput onSubmit={handleSubmit} loading={false} />
+            </>
           )}
 
-          {loading && state.sections.length === 0 && (
+          {/* STAGE 1.5: Loading spinner */}
+          {stage === "ingesting" && !ingestion && (
             <div className="bg-white border border-gray-100 rounded-xl p-8 flex items-center justify-center gap-3">
               <div className="w-4 h-4 border-2 border-[#190A46] border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-gray-500">Initialising analysis pipeline&hellip;</p>
+              <p className="text-sm text-gray-500">Analysing content&hellip;</p>
             </div>
           )}
 
-          {/* Ingestion confirmed card */}
-          {state.ingestion && (
-            <div className="animate-fade-in">
-              <IngestionConfirmedCard
-                title={state.ingestion.title}
-                duration={state.ingestion.duration}
-                thumbnail={state.ingestion.thumbnail}
-                transcriptSummary={null}
-                provenance={state.ingestion.provenance as "observed" | "derived" | "inferred"}
-                jobId={state.ingestion.jobId}
-              />
-            </div>
+          {/* STAGE 2: Ingestion confirmed */}
+          {(stage === "ingestion_confirmed" || (stage === "ingesting" && ingestion)) && ingestion && (
+            <IngestionConfirmedStage
+              title={ingestion.title}
+              duration={ingestion.duration}
+              thumbnail={ingestion.thumbnail}
+              transcriptSummary={null}
+              provenance={ingestion.provenance as "observed" | "derived" | "inferred" | "unavailable"}
+            />
           )}
 
-          {/* Phase 1 — Progressive section rendering */}
-          {state.sections
-            .filter((s) => s.status === "ready" && s.data && s.id !== "actions")
-            .map((section) => (
-              <div key={section.id} className="animate-fade-in">
-                <SectionRenderer
-                  id={section.id}
-                  data={section.data!}
-                  jobId={state.jobIdV2 ?? undefined}
-                  onUploadComplete={handleUploadComplete}
-                />
-              </div>
-            ))}
-
-          {state.status === "failed" && state.error && (
-            <div className="bg-red-50 border border-red-100 rounded-xl p-5">
-              <p className="text-sm font-medium text-red-800">Analysis failed</p>
-              <p className="text-sm text-red-600 mt-1">{state.error}</p>
-              <button onClick={handleFullReset} className="text-xs text-red-500 hover:underline mt-2">Try again</button>
-            </div>
+          {/* STAGE 3: Platform selection */}
+          {stage === "platform_select" && (
+            <PlatformSelectionStage onConfirm={handlePlatformConfirm} />
           )}
 
-          {/* Phase 2 — Platform workspaces */}
-          {showPhase2 && Object.entries(platformCards).map(([platform, cards]) => (
+          {/* Blocked content — show upload option */}
+          {state.sections.some((s) => s.data?.blocked) && (
+            <BlockedCard
+              data={state.sections.find((s) => s.data?.blocked)?.data ?? { blocked: true }}
+              jobId={jobIdV2 ?? undefined}
+              onUploadComplete={handleUploadComplete}
+            />
+          )}
+
+          {/* STAGE 4: Platform workspaces */}
+          {(stage === "generating" || stage === "complete") && Object.entries(platformCards).map(([platform, cards]) => (
             <div key={platform} className="animate-fade-in">
               <PlatformWorkspace
                 platform={platform}
@@ -316,11 +315,19 @@ export default function ConsolePage() {
             </div>
           ))}
 
-          {(state.status === "complete" || phase2Status === "complete") && (
+          {/* Error state */}
+          {stage === "error" && (
+            <div className="bg-red-50 border border-red-100 rounded-xl p-5">
+              <p className="text-sm font-medium text-red-800">Analysis failed</p>
+              {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
+              <button onClick={handleFullReset} className="text-xs text-red-500 hover:underline mt-2">Try again</button>
+            </div>
+          )}
+
+          {/* Complete state */}
+          {stage === "complete" && (
             <div className="bg-green-50 border border-green-100 rounded-xl p-4 flex items-center justify-between">
-              <p className="text-sm text-green-800">
-                {phase2Status === "complete" ? "Content generation complete" : "Analysis complete"}
-              </p>
+              <p className="text-sm text-green-800">Content generation complete</p>
               <button onClick={handleFullReset} className="text-xs text-green-700 border border-green-200 px-3 py-1 rounded-lg hover:bg-green-100">
                 New task
               </button>
