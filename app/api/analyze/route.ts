@@ -89,36 +89,10 @@ export async function POST(req: NextRequest): Promise<Response> {
         const registryStr = serversToRegistryString(connected)
         const agentStr = agentsToProfileString()
 
-        // Attempt media access if URL provided
+        // Attempt media access if URL provided (HeyGen API key, public URL, etc.)
         if (sourceUrl && isSocial) {
-          emit("processor.started", { processorId: "media-access", label: "Checking video access\u2026" })
+          emit("processor.started", { processorId: "media-access", label: "Fetching video metadata\u2026" })
           const access = await attemptMediaAccess(sourceUrl, jobV2.id)
-
-          if (access.requiresOAuth && !access.oauthConfigured) {
-            emit("oauth_required", {
-              platform: access.detectedPlatform ?? "unknown",
-              connectUrl: `/api/oauth/connect/${access.detectedPlatform ?? "heygen"}`,
-            })
-            await updateJobStatusV2(jobV2.id, "error", "oauth_required")
-            await updateJobStatus(job.id, "failed", "OAuth required")
-            emit("job.failed", { jobId: job.id, error: "oauth_required" })
-            clearInterval(keepAlive)
-            controller.close()
-            return
-          }
-
-          if (access.requiresOAuth && access.oauthConfigured) {
-            emit("oauth_expired", {
-              platform: access.detectedPlatform ?? "unknown",
-              connectUrl: `/api/oauth/connect/${access.detectedPlatform ?? "heygen"}`,
-            })
-            await updateJobStatusV2(jobV2.id, "error", "oauth_expired")
-            await updateJobStatus(job.id, "failed", "OAuth expired")
-            emit("job.failed", { jobId: job.id, error: "oauth_expired" })
-            clearInterval(keepAlive)
-            controller.close()
-            return
-          }
 
           if (access.success) {
             await updateJobV2(jobV2.id, {
@@ -130,7 +104,7 @@ export async function POST(req: NextRequest): Promise<Response> {
                 thumbnail: access.videoMeta?.thumbnailUrl ?? null,
                 transcriptSummary: null,
                 transcriptStatus: "pending",
-                provenance: access.accessMethod === "oauth" ? "observed" : "derived",
+                provenance: "observed",
               },
             })
           }

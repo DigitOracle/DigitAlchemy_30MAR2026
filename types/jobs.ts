@@ -17,7 +17,7 @@ export type TranscriptStatus = "pending" | "complete" | "failed"
 
 export type AccessResult = "success" | "auth_required" | "not_found" | "failed"
 
-export type AccessMethod = "public" | "oauth" | "share_link" | null
+export type AccessMethod = "public" | "api_key" | "share_link" | null
 
 export type SourceType = "url" | "upload" | null
 

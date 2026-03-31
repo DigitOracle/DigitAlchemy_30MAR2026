@@ -1,30 +1,24 @@
-// config/platforms.ts — Platform registry for OAuth + content generation
+// config/platforms.ts — Platform registry for content generation
 
 export type PlatformConfig = {
   id: string
   label: string
   oauthEnabled: boolean
-  scopes?: string[]
-  authUrl?: string
-  tokenUrl?: string
-  refreshUrl?: string
+  apiKeyEnv?: string
   apiBase?: string
+  videoEndpoint?: string
   icon: string
-  usePkce?: boolean
 }
 
 export const PLATFORMS: Record<string, PlatformConfig> = {
   heygen: {
     id: "heygen",
     label: "HeyGen",
-    oauthEnabled: true,
-    scopes: [],
-    authUrl: "https://app.heygen.com/oauth/authorize",
-    tokenUrl: "https://api2.heygen.com/v1/oauth/token",
-    refreshUrl: "https://api2.heygen.com/v1/oauth/refresh_token",
+    oauthEnabled: false,
+    apiKeyEnv: "HEYGEN_API_KEY",
     apiBase: "https://api.heygen.com",
+    videoEndpoint: "/v2/video/{videoId}",
     icon: "HG",
-    usePkce: true,
   },
   instagram: { id: "instagram", label: "Instagram", oauthEnabled: false, icon: "IG" },
   tiktok:    { id: "tiktok",    label: "TikTok",    oauthEnabled: false, icon: "TT" },
@@ -36,8 +30,4 @@ export const PLATFORMS: Record<string, PlatformConfig> = {
 
 export function getPlatform(id: string): PlatformConfig | undefined {
   return PLATFORMS[id]
-}
-
-export function getOAuthPlatforms(): PlatformConfig[] {
-  return Object.values(PLATFORMS).filter((p) => p.oauthEnabled)
 }

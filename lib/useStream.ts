@@ -9,19 +9,12 @@ export type StreamingSection = {
   data?: Record<string, unknown>
 }
 
-export type OAuthPrompt = {
-  type: "required" | "expired"
-  platform: string
-  connectUrl: string
-}
-
 export type StreamState = {
   status: "idle" | "streaming" | "complete" | "failed"
   workflowLabel: string | null
   sections: StreamingSection[]
   currentProcessor: string | null
   error: string | null
-  oauthPrompt: OAuthPrompt | null
 }
 
 const SECTION_ORDER: SectionId[] = [
@@ -42,7 +35,6 @@ export function useStream() {
     sections: [],
     currentProcessor: null,
     error: null,
-    oauthPrompt: null,
   })
 
   const startStream = useCallback(async (
@@ -51,7 +43,7 @@ export function useStream() {
     workflowLabel: string | null,
     intakeContext: Record<string, string | string[]>
   ) => {
-    setState({ status: "streaming", workflowLabel, sections: [], currentProcessor: null, error: null, oauthPrompt: null })
+    setState({ status: "streaming", workflowLabel, sections: [], currentProcessor: null, error: null })
 
     try {
       const response = await fetch("/api/analyze", {
@@ -109,16 +101,6 @@ export function useStream() {
                 setState((s) => ({ ...s, currentProcessor: payload.label }))
               } else if (currentEvent === "job.completed") {
                 setState((s) => ({ ...s, status: "complete", currentProcessor: null }))
-              } else if (currentEvent === "oauth_required") {
-                setState((s) => ({
-                  ...s, status: "failed",
-                  oauthPrompt: { type: "required", platform: payload.platform, connectUrl: payload.connectUrl },
-                }))
-              } else if (currentEvent === "oauth_expired") {
-                setState((s) => ({
-                  ...s, status: "failed",
-                  oauthPrompt: { type: "expired", platform: payload.platform, connectUrl: payload.connectUrl },
-                }))
               } else if (currentEvent === "job.failed") {
                 setState((s) => ({ ...s, status: "failed", error: payload.error, currentProcessor: null }))
               }
@@ -144,7 +126,7 @@ export function useStream() {
   }, [])
 
   const reset = useCallback(() => {
-    setState({ status: "idle", workflowLabel: null, sections: [], currentProcessor: null, error: null, oauthPrompt: null })
+    setState({ status: "idle", workflowLabel: null, sections: [], currentProcessor: null, error: null })
   }, [])
 
   return { state, startStream, reset }
