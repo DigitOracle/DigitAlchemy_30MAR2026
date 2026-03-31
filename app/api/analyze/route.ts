@@ -3,6 +3,7 @@ import { createJob, updateJobStatus, updateSection, setSectionStreaming } from "
 import { createJobV2, updateJobStatusV2, updateJobV2 } from "@/lib/firestore/jobs"
 import { attemptMediaAccess } from "@/lib/media/access"
 import { transcribeFromUrl } from "@/lib/transcription/whisper"
+import { getSupadataTranscript } from "@/lib/transcription/supadata"
 import { getAllServers, serversToRegistryString } from "@/lib/registry"
 import { agentsToProfileString } from "@/lib/agentProfiles"
 import Anthropic from "@anthropic-ai/sdk"
@@ -91,9 +92,10 @@ export async function POST(req: NextRequest): Promise<Response> {
         const registryStr = serversToRegistryString(connected)
         const agentStr = agentsToProfileString()
 
-        // Attempt media access — either from URL (HeyGen API) or from uploaded file (Firebase Storage)
+        // Attempt media access — either from URL (HeyGen API, YouTube) or from uploaded file (Firebase Storage)
         let videoMeta: { title?: string; duration?: number; thumbnailUrl?: string; videoUrl?: string; captionUrl?: string } | null = null
         let mediaAccessSuccess = false
+        let youtubeTranscript: string | null = null
 
         // Handle uploaded file: generate signed read URL
         if (isUpload && uploadedStoragePath) {
@@ -132,7 +134,39 @@ export async function POST(req: NextRequest): Promise<Response> {
           }
         }
 
-        if (sourceUrl && isSocial && !isUpload) {
+        // Try Supadata transcript for social video URLs (YouTube, TikTok, Instagram, X, Facebook)
+        const supadataPatterns = /youtube\.com|youtu\.be|tiktok\.com|instagram\.com|twitter\.com|x\.com|facebook\.com|fb\.watch/
+        const isSupadataUrl = sourceUrl ? supadataPatterns.test(sourceUrl) : false
+        if (sourceUrl && isSupadataUrl && !isUpload) {
+          emit("processor.started", { processorId: "media-access", label: "Extracting video transcript\u2026" })
+          const supadataResult = await getSupadataTranscript(sourceUrl)
+
+          if (supadataResult) {
+            mediaAccessSuccess = true
+            youtubeTranscript = supadataResult.text
+            await updateJobV2(jobV2.id, {
+              accessMethod: "public",
+              ingestion: {
+                title: null,
+                duration: null,
+                thumbnail: null,
+                transcriptSummary: supadataResult.text.slice(0, 500),
+                transcriptStatus: "complete",
+                provenance: "observed",
+              },
+            })
+            emit("ingestion_complete", {
+              title: null,
+              duration: null,
+              thumbnail: null,
+              provenance: "observed",
+              jobId: jobV2.id,
+            })
+          }
+        }
+
+        // Handle HeyGen + other URLs (skip if Supadata already handled)
+        if (sourceUrl && isSocial && !isUpload && !isSupadataUrl) {
           emit("processor.started", { processorId: "media-access", label: "Fetching video metadata\u2026" })
           const access = await attemptMediaAccess(sourceUrl, jobV2.id)
 
@@ -191,9 +225,12 @@ export async function POST(req: NextRequest): Promise<Response> {
         emit("processor.started", { processorId: "content-intelligence", label: "Analysing content\u2026" })
         await setSectionStreaming(job.id, "content-intelligence")
 
-        // Build video metadata context for the LLM
+        // Build video metadata + transcript context for the LLM
         const videoContext = videoMeta
-          ? `\nVIDEO METADATA (extracted via API — provenance: observed):\n- Duration: ${videoMeta.duration ? `${Math.round(videoMeta.duration)} seconds` : "unknown"}\n- Title: ${videoMeta.title ?? "untitled"}\n- Video URL: available\n- Thumbnail: available`
+          ? `\nVIDEO METADATA (extracted via API — provenance: observed):\n- Duration: ${videoMeta.duration ? `${Math.round(videoMeta.duration)} seconds` : "unknown"}\n- Title: ${videoMeta.title ?? "untitled"}\n- Video URL: available\n- Thumbnail: ${videoMeta.thumbnailUrl ? "available" : "unavailable"}`
+          : ""
+        const transcriptContext = youtubeTranscript
+          ? `\nTRANSCRIPT (extracted from YouTube captions — provenance: observed):\n${youtubeTranscript.slice(0, 4000)}`
           : ""
 
         const contentPrompt = `You are DigitAlchemy\u00ae content intelligence. Analyse this task and return JSON only.
@@ -209,7 +246,7 @@ If the task description contains enough explicit detail, you may proceed with pr
 
 TASK: ${task}
 CONTEXT:
-${contextStr}${videoContext}
+${contextStr}${videoContext}${transcriptContext}
 
 Return ONLY this JSON:
 {
@@ -255,15 +292,17 @@ Return ONLY this JSON:
           emit("processor.started", { processorId: "transcript", label: "Extracting transcript\u2026" })
           await setSectionStreaming(job.id, "transcript")
 
-          // Attempt Groq Whisper transcription if we have a video URL
-          let whisperTranscript: string | null = null
-          let whisperSucceeded = false
-          const transcriptionVideoUrl = videoMeta?.videoUrl
-          if (transcriptionVideoUrl) {
-            const whisperResult = await transcribeFromUrl(transcriptionVideoUrl)
-            if (whisperResult.status === "complete" && whisperResult.transcript) {
-              whisperTranscript = whisperResult.transcript
-              whisperSucceeded = true
+          // Use YouTube transcript if already extracted, otherwise try Groq Whisper
+          let whisperTranscript: string | null = youtubeTranscript
+          let whisperSucceeded = !!youtubeTranscript
+          if (!whisperSucceeded) {
+            const transcriptionVideoUrl = videoMeta?.videoUrl
+            if (transcriptionVideoUrl) {
+              const whisperResult = await transcribeFromUrl(transcriptionVideoUrl)
+              if (whisperResult.status === "complete" && whisperResult.transcript) {
+                whisperTranscript = whisperResult.transcript
+                whisperSucceeded = true
+              }
             }
             // If Whisper failed, fall through to Claude summary — no pipeline block
           }
