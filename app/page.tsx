@@ -9,6 +9,7 @@ import { TrendIntelligenceCard } from "@/components/sections/TrendIntelligenceCa
 import { PlatformPacksCard } from "@/components/sections/PlatformPacksCard"
 import { AgentPlanCard } from "@/components/sections/AgentPlanCard"
 import { BlockedCard } from "@/components/sections/BlockedCard"
+import { OAuthRequiredCard } from "@/components/sections/OAuthRequiredCard"
 import type { WorkflowDefinition, IntakeState, CompoundTaskPlan } from "@/types"
 
 function SectionRenderer({ id, data }: { id: string; data: Record<string, unknown> }) {
@@ -126,7 +127,17 @@ export default function ConsolePage() {
               </div>
             ))}
 
-          {state.status === "failed" && state.error && (
+          {state.status === "failed" && state.oauthPrompt && (
+            <div className="animate-fade-in">
+              <OAuthRequiredCard
+                platform={state.oauthPrompt.platform}
+                connectUrl={state.oauthPrompt.connectUrl}
+                expired={state.oauthPrompt.type === "expired"}
+              />
+            </div>
+          )}
+
+          {state.status === "failed" && state.error && !state.oauthPrompt && (
             <div className="bg-red-50 border border-red-100 rounded-xl p-5">
               <p className="text-sm font-medium text-red-800">Analysis failed</p>
               <p className="text-sm text-red-600 mt-1">{state.error}</p>
