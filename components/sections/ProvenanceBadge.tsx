@@ -13,12 +13,13 @@ const confidenceConfig = {
   low: "●○○",
 }
 
-export function ProvenanceBadge({ provenance, confidence }: { provenance: ProvenanceType; confidence: ConfidenceLevel }) {
+export function ProvenanceBadge({ provenance, confidence }: { provenance?: ProvenanceType; confidence?: ConfidenceLevel }) {
+  if (!provenance || !confidence) return null
   const pc = provenanceConfig[provenance] ?? provenanceConfig.inferred
   return (
     <span className="inline-flex items-center gap-1">
       <span className={`text-xs px-1.5 py-0.5 rounded border ${pc.className}`}>{pc.label}</span>
-      <span className="text-xs text-gray-400 font-mono">{confidenceConfig[confidence]}</span>
+      <span className="text-xs text-gray-400 font-mono">{confidenceConfig[confidence] ?? "●○○"}</span>
     </span>
   )
 }

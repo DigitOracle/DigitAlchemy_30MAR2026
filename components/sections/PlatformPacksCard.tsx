@@ -36,9 +36,9 @@ export function PlatformPacksCard({ data }: { data: Record<string, unknown> }) {
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const hashtagsStr = Array.isArray(active.hashtags.value)
+  const hashtagsStr = Array.isArray(active.hashtags?.value)
     ? active.hashtags.value.map((h: string) => `#${h.replace(/^#/, "")}`).join(" ")
-    : String(active.hashtags.value)
+    : String(active.hashtags?.value ?? "")
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
@@ -106,7 +106,7 @@ export function PlatformPacksCard({ data }: { data: Record<string, unknown> }) {
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Hashtags</p>
             <div className="flex items-center gap-2">
-              <ProvenanceBadge provenance={active.hashtags.provenance} confidence={active.hashtags.confidence} />
+              <ProvenanceBadge provenance={active.hashtags?.provenance} confidence={active.hashtags?.confidence} />
               <button
                 onClick={() => copyToClipboard(hashtagsStr, "hashtags")}
                 className="text-xs text-gray-400 hover:text-[#190A46]"
@@ -116,7 +116,7 @@ export function PlatformPacksCard({ data }: { data: Record<string, unknown> }) {
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {(Array.isArray(active.hashtags.value) ? active.hashtags.value : [active.hashtags.value]).map((tag: string, i: number) => (
+            {(Array.isArray(active.hashtags?.value) ? active.hashtags.value : [active.hashtags?.value ?? ""]).map((tag: string, i: number) => (
               <span
                 key={i}
                 onClick={() => copyToClipboard(`#${tag.replace(/^#/, "")}`, `tag-${i}`)}
@@ -132,15 +132,15 @@ export function PlatformPacksCard({ data }: { data: Record<string, unknown> }) {
         <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
           <div>
             <span className="text-xs text-gray-500">Music suggestion</span>
-            <p className="text-sm text-gray-800">{active.musicSuggestion.value as string}</p>
+            <p className="text-sm text-gray-800">{(active.musicSuggestion?.value as string) ?? ""}</p>
           </div>
-          <ProvenanceBadge provenance={active.musicSuggestion.provenance} confidence={active.musicSuggestion.confidence} />
+          <ProvenanceBadge provenance={active.musicSuggestion?.provenance} confidence={active.musicSuggestion?.confidence} />
         </div>
 
         {/* Posting guidance */}
         <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
           <span className="text-xs font-medium text-amber-700">Posting guidance</span>
-          <p className="text-sm text-amber-900 mt-0.5">{active.postingGuidance.value as string}</p>
+          <p className="text-sm text-amber-900 mt-0.5">{(active.postingGuidance?.value as string) ?? ""}</p>
         </div>
       </div>
     </div>

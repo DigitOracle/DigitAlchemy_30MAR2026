@@ -39,10 +39,10 @@ export function TrendIntelligenceCard({ data }: { data: Record<string, unknown> 
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-gray-500">Trending hashtags</span>
-                  <ProvenanceBadge provenance={platform.trendingHashtags.provenance} confidence={platform.trendingHashtags.confidence} />
+                  <ProvenanceBadge provenance={platform.trendingHashtags?.provenance} confidence={platform.trendingHashtags?.confidence} />
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {(Array.isArray(platform.trendingHashtags.value) ? platform.trendingHashtags.value : [platform.trendingHashtags.value]).map((tag, j) => (
+                  {(Array.isArray(platform.trendingHashtags?.value) ? platform.trendingHashtags.value : [platform.trendingHashtags?.value ?? ""]).map((tag, j) => (
                     <span key={j} className="text-xs bg-gray-900 text-white px-2 py-0.5 rounded">#{(tag as string).replace(/^#/, "")}</span>
                   ))}
                 </div>
@@ -50,18 +50,18 @@ export function TrendIntelligenceCard({ data }: { data: Record<string, unknown> 
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-gray-500">Audio suggestions</span>
-                  <ProvenanceBadge provenance={platform.audioSuggestions.provenance} confidence={platform.audioSuggestions.confidence} />
+                  <ProvenanceBadge provenance={platform.audioSuggestions?.provenance} confidence={platform.audioSuggestions?.confidence} />
                 </div>
                 <p className="text-sm text-gray-700">
-                  {Array.isArray(platform.audioSuggestions.value) ? platform.audioSuggestions.value.join(", ") : platform.audioSuggestions.value}
+                  {Array.isArray(platform.audioSuggestions?.value) ? platform.audioSuggestions.value.join(", ") : platform.audioSuggestions?.value ?? ""}
                 </p>
               </div>
               <div>
                 <span className="text-xs text-gray-500">Format fit: </span>
-                <span className="text-sm text-gray-800">{platform.formatFit.value as string}</span>
+                <span className="text-sm text-gray-800">{(platform.formatFit?.value as string) ?? ""}</span>
               </div>
               {platform.trendNotes?.value && (
-                <p className="text-xs text-gray-500 italic">{platform.trendNotes.value as string}</p>
+                <p className="text-xs text-gray-500 italic">{(platform.trendNotes?.value as string) ?? ""}</p>
               )}
             </div>
           </div>

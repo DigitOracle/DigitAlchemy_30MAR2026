@@ -25,15 +25,15 @@ export function ContentIntelligenceCard({ data }: { data: Record<string, unknown
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {entries.map(([key, item]) => {
           const output = item as OutputItem
-          const val = Array.isArray(output.value) ? output.value.join(", ") : output.value
+          const val = Array.isArray(output?.value) ? output.value.join(", ") : (output?.value ?? "")
           return (
             <div key={key} className="border border-gray-50 rounded-lg p-3 bg-gray-50/50">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-medium text-gray-500">{fieldLabels[key]}</span>
-                <ProvenanceBadge provenance={output.provenance} confidence={output.confidence} />
+                <ProvenanceBadge provenance={output?.provenance} confidence={output?.confidence} />
               </div>
               <p className="text-sm text-gray-900">{val}</p>
-              {output.note && <p className="text-xs text-gray-400 mt-1">{output.note}</p>}
+              {output?.note && <p className="text-xs text-gray-400 mt-1">{output.note}</p>}
             </div>
           )
         })}
