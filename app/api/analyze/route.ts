@@ -40,7 +40,7 @@ async function callClaude(prompt: string, maxTokens = 1500): Promise<Record<stri
 
 export async function POST(req: NextRequest): Promise<Response> {
   const body = await req.json()
-  const { task, workflowId, workflowLabel, intakeContext } = body
+  const { task, workflowId, workflowLabel, intakeContext, storagePath: uploadedStoragePath } = body
 
   if (!task || task.trim().length < 5) {
     return new Response(JSON.stringify({ success: false, error: "Task required" }), {
@@ -54,10 +54,11 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // Create v2 job document with extended schema
   const sourceUrl = (intakeContext?.videoUrl as string) ?? null
+  const isUpload = !!uploadedStoragePath
   const jobV2 = await createJobV2({
     task: task.trim(),
     sourceUrl,
-    sourceType: sourceUrl ? "url" : null,
+    sourceType: isUpload ? "upload" : (sourceUrl ? "url" : null),
     workflowId: workflowId ?? null,
     workflowLabel: workflowLabel ?? null,
     intakeContext: intakeContext ?? {},
@@ -89,11 +90,48 @@ export async function POST(req: NextRequest): Promise<Response> {
         const registryStr = serversToRegistryString(connected)
         const agentStr = agentsToProfileString()
 
-        // Attempt media access if URL provided (HeyGen API key, public URL, etc.)
+        // Attempt media access — either from URL (HeyGen API) or from uploaded file (Firebase Storage)
         let videoMeta: { title?: string; duration?: number; thumbnailUrl?: string; videoUrl?: string; captionUrl?: string } | null = null
         let mediaAccessSuccess = false
 
-        if (sourceUrl && isSocial) {
+        // Handle uploaded file: generate signed read URL
+        if (isUpload && uploadedStoragePath) {
+          emit("processor.started", { processorId: "media-access", label: "Processing uploaded file\u2026" })
+          try {
+            const { getStorageBucket } = await import("@/lib/jobStore")
+            const bucket = getStorageBucket()
+            const [signedUrl] = await bucket.file(uploadedStoragePath).getSignedUrl({
+              version: "v4",
+              action: "read",
+              expires: Date.now() + 60 * 60 * 1000, // 1 hour
+            })
+            mediaAccessSuccess = true
+            videoMeta = { videoUrl: signedUrl, title: uploadedStoragePath.split("/").pop() }
+            await updateJobV2(jobV2.id, {
+              storagePath: uploadedStoragePath,
+              accessMethod: "api_key",
+              ingestion: {
+                title: videoMeta.title ?? null,
+                duration: null,
+                thumbnail: null,
+                transcriptSummary: null,
+                transcriptStatus: "pending",
+                provenance: "derived",
+              },
+            })
+            emit("ingestion_complete", {
+              title: videoMeta.title ?? null,
+              duration: null,
+              thumbnail: null,
+              provenance: "derived",
+              jobId: jobV2.id,
+            })
+          } catch (err) {
+            console.error("[analyze] storage read URL failed:", err)
+          }
+        }
+
+        if (sourceUrl && isSocial && !isUpload) {
           emit("processor.started", { processorId: "media-access", label: "Fetching video metadata\u2026" })
           const access = await attemptMediaAccess(sourceUrl, jobV2.id)
 
