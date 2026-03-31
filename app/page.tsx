@@ -8,9 +8,11 @@ import { TranscriptCard } from "@/components/sections/TranscriptCard"
 import { TrendIntelligenceCard } from "@/components/sections/TrendIntelligenceCard"
 import { PlatformPacksCard } from "@/components/sections/PlatformPacksCard"
 import { AgentPlanCard } from "@/components/sections/AgentPlanCard"
+import { BlockedCard } from "@/components/sections/BlockedCard"
 import type { WorkflowDefinition, IntakeState, CompoundTaskPlan } from "@/types"
 
 function SectionRenderer({ id, data }: { id: string; data: Record<string, unknown> }) {
+  if (data.blocked) return <BlockedCard data={data} />
   switch (id) {
     case "intake-summary": return <IntakeSummaryCard data={data} />
     case "execution-timeline": return <ExecutionTimelineCard data={data} />

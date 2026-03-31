@@ -105,32 +105,61 @@ export async function POST(req: NextRequest): Promise<Response> {
 
         const contentPrompt = `You are DigitAlchemy\u00ae content intelligence. Analyse this task and return JSON only.
 
+CRITICAL: You must ONLY use information explicitly provided in the task and context.
+If the video URL is a HeyGen app link, YouTube link without transcript, or any URL you cannot directly access:
+- Set all content fields to null with provenance "unavailable"
+- Do NOT infer, guess, or use training knowledge about the video
+- Return canProceed: false in your response
+
+If the task description contains enough explicit detail (topic, subject, audience) to analyse WITHOUT accessing the URL, you may proceed with provenance "observed" for fields derived from the task text.
+
 TASK: ${task}
 CONTEXT:
 ${contextStr}
 
 Return ONLY this JSON:
 {
-  "assetType": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
-  "duration": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
-  "tone": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
-  "language": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
-  "audienceFit": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
-  "topic": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
-  "subject": { "value": "string", "provenance": "observed|inferred", "confidence": "high|medium|low" },
-  "keywords": { "value": ["string"], "provenance": "observed|inferred", "confidence": "high|medium|low" }
+  "canProceed": true|false,
+  "assetType": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
+  "duration": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
+  "tone": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
+  "language": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
+  "audienceFit": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
+  "topic": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
+  "subject": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
+  "keywords": { "value": ["string"]|null, "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" }
 }`
 
         const contentData = await callClaude(contentPrompt, 800)
         emit("section.ready", { sectionId: "content-intelligence", label: "Content intelligence", data: contentData })
         await updateSection(job.id, "content-intelligence", contentData)
 
-        // PASS 2 — Transcript (social only)
-        if (isSocial) {
+        // Check if content is accessible — block pipeline if not
+        const canProceed = contentData.canProceed !== false
+
+        if (!canProceed && isSocial) {
+          // Emit blocked section
+          emit("section.ready", {
+            sectionId: "transcript",
+            label: "Content not accessible",
+            data: {
+              blocked: true,
+              message: "Video content could not be accessed. Please provide a public URL or upload the transcript.",
+              reason: "The video URL provided requires authentication or is not publicly accessible.",
+              suggestion: "To proceed: paste a public YouTube URL, or provide the video transcript as text.",
+            }
+          })
+          await updateSection(job.id, "transcript", { blocked: true })
+        }
+
+        // PASS 2 — Transcript (social only, if content accessible)
+        if (isSocial && canProceed) {
           emit("processor.started", { processorId: "transcript", label: "Extracting transcript\u2026" })
           await setSectionStreaming(job.id, "transcript")
 
           const transcriptPrompt = `You are DigitAlchemy\u00ae transcript analyst. Return JSON only.
+
+CRITICAL: Only use information from the task description and content analysis below. Do NOT infer or fabricate transcript content from training data.
 
 TASK: ${task}
 CONTENT DETECTED: ${JSON.stringify(contentData)}
@@ -138,8 +167,8 @@ CONTEXT: ${contextStr}
 
 Return ONLY this JSON:
 {
-  "status": { "value": "string describing transcript availability", "provenance": "inferred", "confidence": "medium" },
-  "keyQuotes": [{ "value": "string", "provenance": "inferred", "confidence": "medium" }],
+  "status": { "value": "string describing transcript availability", "provenance": "observed|inferred", "confidence": "medium" },
+  "keyQuotes": [{ "value": "string", "provenance": "observed|inferred", "confidence": "medium" }],
   "hookCandidates": [{ "value": "string", "provenance": "inferred", "confidence": "high|medium", "note": "why this works as a hook" }]
 }
 
@@ -150,8 +179,8 @@ Provide 2-3 keyQuotes and 3 hookCandidates based on the topic and content detect
           await updateSection(job.id, "transcript", transcriptData)
         }
 
-        // PASS 3 — Trend Intelligence (social only)
-        if (isSocial) {
+        // PASS 3 — Trend Intelligence (social only, if content accessible)
+        if (isSocial && canProceed) {
           const platforms = Array.isArray(intakeContext?.targetPlatforms)
             ? intakeContext.targetPlatforms
             : [intakeContext?.targetPlatforms ?? "TikTok", "Instagram"]
@@ -190,8 +219,8 @@ Make hashtags specific to the topic: ${(contentData.topic as {value:string})?.va
           await updateSection(job.id, "trend-intelligence", trendData)
         }
 
-        // PASS 4 — Platform Packs (social only)
-        if (isSocial) {
+        // PASS 4 — Platform Packs (social only, if content accessible)
+        if (isSocial && canProceed) {
           const platforms = Array.isArray(intakeContext?.targetPlatforms)
             ? intakeContext.targetPlatforms
             : ["TikTok", "Instagram"]
