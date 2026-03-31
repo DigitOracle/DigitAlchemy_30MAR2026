@@ -8,13 +8,17 @@ export async function GET() {
   const projectId = process.env.FIRESTORE_PROJECT_ID
   const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL
   const rawKey = process.env.FIRESTORE_PRIVATE_KEY
-  const privateKey = rawKey?.replace(/\\n/g, "\n")
+  const privateKey = rawKey
+    ?.replace(/\\n/g, "\n")           // Handle escaped \n
+    ?.replace(/\\\\n/g, "\n")         // Handle double-escaped \\n
+    ?.replace(/(\r\n|\r|\n)/g, "\n")  // Normalise line endings
+    ?? ""
 
   const checks = {
     hasProjectId: !!projectId,
     hasClientEmail: !!clientEmail,
     hasPrivateKey: !!rawKey,
-    keyLooksPem: !!privateKey?.includes("BEGIN PRIVATE KEY"),
+    keyLooksPem: !!privateKey?.includes("BEGIN PRIVATE KEY") || !!rawKey?.includes("BEGIN PRIVATE KEY"),
     appsAlreadyInit: getApps().length,
   }
 

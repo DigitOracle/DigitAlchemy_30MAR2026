@@ -10,7 +10,11 @@ function initFirestore() {
 
   const projectId = process.env.FIRESTORE_PROJECT_ID
   const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL
-  const privateKey = process.env.FIRESTORE_PRIVATE_KEY?.replace(/\\n/g, "\n")
+  const privateKey = process.env.FIRESTORE_PRIVATE_KEY
+    ?.replace(/\\n/g, "\n")           // Handle escaped \n
+    ?.replace(/\\\\n/g, "\n")         // Handle double-escaped \\n
+    ?.replace(/(\r\n|\r|\n)/g, "\n")  // Normalise line endings
+    ?? ""
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(`Firestore configuration error: missing env vars. Present: projectId=${!!projectId} clientEmail=${!!clientEmail} privateKey=${!!privateKey}`)
