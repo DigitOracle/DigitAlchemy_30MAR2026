@@ -6,14 +6,15 @@ type Props = {
   duration: string | null
   thumbnail: string | null
   transcriptSummary: string | null
-  provenance: "observed" | "derived" | "inferred"
+  provenance: "observed" | "derived" | "inferred" | "unavailable"
   jobId: string
 }
 
 const provenanceLabels = {
-  observed: { text: "Observed \u2014 extracted directly", className: "bg-green-50 text-green-700 border-green-200" },
-  derived: { text: "Derived \u2014 from uploaded content", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  inferred: { text: "Inferred \u2014 AI synthesis", className: "bg-gray-50 text-gray-600 border-gray-200" },
+  observed: { text: "Direct source \u2014 transcript extracted", className: "bg-green-50 text-green-700 border-green-200" },
+  derived: { text: "Uploaded file \u2014 audio transcribed", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  inferred: { text: "No transcript \u2014 AI summary only", className: "bg-gray-50 text-gray-600 border-gray-200" },
+  unavailable: { text: "Content inaccessible", className: "bg-red-50 text-red-700 border-red-200" },
 }
 
 export function IngestionConfirmedCard({ title, duration, thumbnail, transcriptSummary, provenance }: Props) {
