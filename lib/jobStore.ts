@@ -6,7 +6,7 @@ import { cert, getApps, initializeApp } from "firebase-admin/app"
 import { getFirestore } from "firebase-admin/firestore"
 import { getStorage as getAdminStorage } from "firebase-admin/storage"
 
-const STORAGE_BUCKET = "digitalchemy-de4b7.appspot.com"
+const STORAGE_BUCKET = "digitalchemy-uploads"
 
 function initApp() {
   if (getApps().length > 0) return
