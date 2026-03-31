@@ -87,10 +87,15 @@ export function validateIntakeState(
   for (const step of visibleSteps) {
     if (step.required === false) continue
     const value = state[step.id]
+
+    // Empty check
     if (value === null || value === undefined || value === "") {
       missingFields.push({ id: step.id, label: step.label })
-    } else if (Array.isArray(value) && value.length === 0) {
+    } else if (Array.isArray(value) && (value as string[]).length === 0) {
       missingFields.push({ id: step.id, label: step.label })
+    } else if (typeof value === "object" && !Array.isArray(value) && "originalName" in value) {
+      // ParsedFileContent — counts as filled
+      continue
     }
   }
 

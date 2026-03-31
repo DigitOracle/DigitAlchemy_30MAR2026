@@ -18,6 +18,7 @@ export function IntakePanel({ workflow, onStateChange }: IntakePanelProps) {
   }, [workflow.id])
 
   const handleChange = (stepId: string, value: IntakeState[string]) => {
+    console.log("[IntakePanel] state change:", stepId, value)
     const newState = { ...state, [stepId]: value }
     setState(newState)
     const visibleSteps = getVisibleSteps(workflow.intakeSteps, newState)
