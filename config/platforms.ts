@@ -17,7 +17,7 @@ export const PLATFORMS: Record<string, PlatformConfig> = {
     oauthEnabled: false,
     apiKeyEnv: "HEYGEN_API_KEY",
     apiBase: "https://api.heygen.com",
-    videoEndpoint: "/v2/video/{videoId}",
+    videoEndpoint: "/v1/video_status.get?video_id={videoId}",
     icon: "HG",
   },
   instagram: { id: "instagram", label: "Instagram", oauthEnabled: false, icon: "IG" },

@@ -81,7 +81,7 @@ export async function attemptMediaAccess(
 
     try {
       const config = PLATFORMS.heygen
-      const endpoint = `${config.apiBase}/v2/video/${videoId}`
+      const endpoint = `${config.apiBase}/v1/video_status.get?video_id=${videoId}`
       const res = await fetch(endpoint, {
         headers: { "X-Api-Key": apiKey },
       })
