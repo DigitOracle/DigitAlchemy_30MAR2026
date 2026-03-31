@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { createJob, updateJobStatus, updateSection, setSectionStreaming } from "@/lib/jobStore"
-import { createJobV2, updateJobStatusV2 } from "@/lib/firestore/jobs"
+import { createJobV2, updateJobStatusV2, updateJobV2 } from "@/lib/firestore/jobs"
+import { attemptMediaAccess } from "@/lib/media/access"
 import { getAllServers, serversToRegistryString } from "@/lib/registry"
 import { agentsToProfileString } from "@/lib/agentProfiles"
 import Anthropic from "@anthropic-ai/sdk"
@@ -87,6 +88,53 @@ export async function POST(req: NextRequest): Promise<Response> {
         const connected = servers.filter((s) => s.status === "connected").slice(0, 12)
         const registryStr = serversToRegistryString(connected)
         const agentStr = agentsToProfileString()
+
+        // Attempt media access if URL provided
+        if (sourceUrl && isSocial) {
+          emit("processor.started", { processorId: "media-access", label: "Checking video access\u2026" })
+          const access = await attemptMediaAccess(sourceUrl, jobV2.id)
+
+          if (access.requiresOAuth && !access.oauthConfigured) {
+            emit("oauth_required", {
+              platform: access.detectedPlatform ?? "unknown",
+              connectUrl: `/api/oauth/connect/${access.detectedPlatform ?? "heygen"}`,
+            })
+            await updateJobStatusV2(jobV2.id, "error", "oauth_required")
+            await updateJobStatus(job.id, "failed", "OAuth required")
+            emit("job.failed", { jobId: job.id, error: "oauth_required" })
+            clearInterval(keepAlive)
+            controller.close()
+            return
+          }
+
+          if (access.requiresOAuth && access.oauthConfigured) {
+            emit("oauth_expired", {
+              platform: access.detectedPlatform ?? "unknown",
+              connectUrl: `/api/oauth/connect/${access.detectedPlatform ?? "heygen"}`,
+            })
+            await updateJobStatusV2(jobV2.id, "error", "oauth_expired")
+            await updateJobStatus(job.id, "failed", "OAuth expired")
+            emit("job.failed", { jobId: job.id, error: "oauth_expired" })
+            clearInterval(keepAlive)
+            controller.close()
+            return
+          }
+
+          if (access.success) {
+            await updateJobV2(jobV2.id, {
+              accessMethod: access.accessMethod,
+              oauthPlatform: access.detectedPlatform,
+              ingestion: {
+                title: access.videoMeta?.title ?? null,
+                duration: access.videoMeta?.duration ? `${Math.round(access.videoMeta.duration)}s` : null,
+                thumbnail: access.videoMeta?.thumbnailUrl ?? null,
+                transcriptSummary: null,
+                transcriptStatus: "pending",
+                provenance: access.accessMethod === "oauth" ? "observed" : "derived",
+              },
+            })
+          }
+        }
 
         // SECTION 1 — Intake summary (immediate)
         const intakeSectionData = { task: task.trim(), workflowLabel, intakeContext }
