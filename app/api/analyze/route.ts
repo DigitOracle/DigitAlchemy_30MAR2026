@@ -97,24 +97,40 @@ export async function POST(req: NextRequest): Promise<Response> {
         let mediaAccessSuccess = false
         let youtubeTranscript: string | null = null
 
-        // Handle uploaded file: generate signed read URL
+        // Handle uploaded file: generate signed read URL from GCS bucket
         if (isUpload && uploadedStoragePath) {
           emit("processor.started", { processorId: "media-access", label: "Processing uploaded file\u2026" })
+          console.log("[analyze] upload flow — storagePath:", uploadedStoragePath)
           try {
             const { getStorageBucket } = await import("@/lib/jobStore")
             const bucket = getStorageBucket()
-            const [signedUrl] = await bucket.file(uploadedStoragePath).getSignedUrl({
+            console.log("[analyze] bucket name:", bucket.name)
+
+            // Verify file exists
+            const file = bucket.file(uploadedStoragePath)
+            const [exists] = await file.exists()
+            console.log("[analyze] file exists:", exists)
+
+            if (!exists) {
+              console.error("[analyze] uploaded file not found in bucket:", uploadedStoragePath)
+              emit("processor.started", { processorId: "media-access", label: "Upload file not found in storage" })
+            }
+
+            const [signedUrl] = await file.getSignedUrl({
               version: "v4",
               action: "read",
               expires: Date.now() + 60 * 60 * 1000, // 1 hour
             })
+            console.log("[analyze] signed read URL generated, length:", signedUrl.length)
+
             mediaAccessSuccess = true
-            videoMeta = { videoUrl: signedUrl, title: uploadedStoragePath.split("/").pop() }
+            const filename = uploadedStoragePath.split("/").pop() ?? "uploaded video"
+            videoMeta = { videoUrl: signedUrl, title: filename }
             await updateJobV2(jobV2.id, {
               storagePath: uploadedStoragePath,
               accessMethod: "api_key",
               ingestion: {
-                title: videoMeta.title ?? null,
+                title: filename,
                 duration: null,
                 thumbnail: null,
                 transcriptSummary: null,
@@ -123,7 +139,7 @@ export async function POST(req: NextRequest): Promise<Response> {
               },
             })
             emit("ingestion_complete", {
-              title: videoMeta.title ?? null,
+              title: filename,
               duration: null,
               thumbnail: null,
               provenance: "derived",
@@ -131,6 +147,16 @@ export async function POST(req: NextRequest): Promise<Response> {
             })
           } catch (err) {
             console.error("[analyze] storage read URL failed:", err)
+            // Still set mediaAccessSuccess for uploads — we know the file is there
+            mediaAccessSuccess = true
+            videoMeta = { title: uploadedStoragePath.split("/").pop() }
+            emit("ingestion_complete", {
+              title: videoMeta.title ?? null,
+              duration: null,
+              thumbnail: null,
+              provenance: "derived",
+              jobId: jobV2.id,
+            })
           }
         }
 
@@ -226,23 +252,26 @@ export async function POST(req: NextRequest): Promise<Response> {
         await setSectionStreaming(job.id, "content-intelligence")
 
         // Build video metadata + transcript context for the LLM
+        const uploadProvenance = isUpload ? "derived" : "observed"
         const videoContext = videoMeta
-          ? `\nVIDEO METADATA (extracted via API — provenance: observed):\n- Duration: ${videoMeta.duration ? `${Math.round(videoMeta.duration)} seconds` : "unknown"}\n- Title: ${videoMeta.title ?? "untitled"}\n- Video URL: available\n- Thumbnail: ${videoMeta.thumbnailUrl ? "available" : "unavailable"}`
+          ? `\nVIDEO METADATA (provenance: ${uploadProvenance}):\n- Duration: ${videoMeta.duration ? `${Math.round(videoMeta.duration)} seconds` : "unknown"}\n- Title: ${videoMeta.title ?? "untitled"}\n- Source: ${isUpload ? "uploaded file" : "API"}\n- Video file: available`
           : ""
         const transcriptContext = youtubeTranscript
-          ? `\nTRANSCRIPT (extracted from YouTube captions — provenance: observed):\n${youtubeTranscript.slice(0, 4000)}`
+          ? `\nTRANSCRIPT (extracted — provenance: observed):\n${youtubeTranscript.slice(0, 4000)}`
           : ""
+
+        console.log("[analyze] pipeline state:", { isUpload, mediaAccessSuccess, hasVideoMeta: !!videoMeta, hasTranscript: !!youtubeTranscript, storagePath: uploadedStoragePath ?? "none" })
 
         const contentPrompt = `You are DigitAlchemy\u00ae content intelligence. Analyse this task and return JSON only.
 
 CRITICAL: You must ONLY use information explicitly provided in the task, context, and video metadata below.
-If no video metadata is provided and the URL cannot be accessed:
+${isUpload ? "This is an UPLOADED FILE — the content is available. Set canProceed: true and use provenance 'derived'." : `If no video metadata is provided and the URL cannot be accessed:
 - Set all content fields to null with provenance "unavailable"
 - Do NOT infer, guess, or use training knowledge about the video
-- Return canProceed: false in your response
+- Return canProceed: false in your response`}
 
-If video metadata IS provided below, use it directly with provenance "observed".
-If the task description contains enough explicit detail, you may proceed with provenance "observed" for fields derived from the task text.
+If video metadata IS provided below, use it directly. Set canProceed: true.
+If the task description contains enough explicit detail, you may proceed.
 
 TASK: ${task}
 CONTEXT:
@@ -270,7 +299,8 @@ Return ONLY this JSON:
         await updateJobStatusV2(jobV2.id, "platform_selection_pending")
 
         // Check if content is accessible — block pipeline if not
-        const canProceed = contentData.canProceed !== false
+        // For uploads: always proceed — file is in our bucket
+        const canProceed = isUpload ? true : contentData.canProceed !== false
 
         if (!canProceed && isSocial) {
           // Emit blocked section

@@ -18,7 +18,7 @@ function ping(): Uint8Array {
 
 async function callClaude(prompt: string, maxTokens = 1200): Promise<Record<string, unknown>> {
   const response = await client.messages.create({
-    model: "claude-sonnet-4-5-20250514",
+    model: "claude-sonnet-4-6",
     max_tokens: maxTokens,
     messages: [{ role: "user", content: prompt }],
   })

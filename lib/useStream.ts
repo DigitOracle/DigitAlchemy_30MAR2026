@@ -61,7 +61,14 @@ export function useStream() {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task, workflowId, workflowLabel, intakeContext }),
+        body: JSON.stringify({
+          task,
+          workflowId,
+          workflowLabel,
+          intakeContext,
+          // Extract storagePath to top-level so /api/analyze can detect upload flow
+          storagePath: intakeContext.storagePath ?? undefined,
+        }),
       })
 
       if (!response.ok || !response.body) {
