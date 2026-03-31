@@ -14,6 +14,7 @@ import { OAuthRequiredCard } from "@/components/sections/OAuthRequiredCard"
 import { IngestionConfirmedCard } from "@/components/sections/IngestionConfirmedCard"
 import { PlatformSelectionCard } from "@/components/sections/PlatformSelectionCard"
 import { PlatformWorkspace } from "@/components/console/PlatformWorkspace"
+import { OAuthStatusBanner } from "@/components/console/OAuthStatusBanner"
 import type { WorkflowDefinition, IntakeState, CompoundTaskPlan } from "@/types"
 import type { JobV2 } from "@/types/jobs"
 
@@ -47,6 +48,24 @@ export default function ConsolePage() {
   const [phase2Status, setPhase2Status] = useState<"idle" | "generating" | "complete" | "error">("idle")
   const [platformCards, setPlatformCards] = useState<CardState>({})
   const [rehydratedJob, setRehydratedJob] = useState<JobV2 | null>(null)
+  const [oauthToast, setOauthToast] = useState<string | null>(null)
+
+  // Handle OAuth success redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const oauth = params.get("oauth")
+    const platform = params.get("platform")
+    if (oauth === "success" && platform) {
+      setOauthToast(`${platform} connected successfully`)
+      setTimeout(() => setOauthToast(null), 5000)
+      params.delete("oauth")
+      params.delete("platform")
+      const newUrl = params.toString()
+        ? `${window.location.pathname}?${params.toString()}`
+        : window.location.pathname
+      window.history.replaceState({}, "", newUrl)
+    }
+  }, [])
 
   // Rehydrate from URL on mount
   useEffect(() => {
@@ -231,8 +250,17 @@ export default function ConsolePage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
+        {oauthToast && (
+          <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 mb-4 flex items-center gap-2 animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="text-sm text-green-700">{oauthToast}</span>
+          </div>
+        )}
+
+        <OAuthStatusBanner />
+
         {state.status === "idle" && !rehydratedJob && (
-          <div className="mb-6">
+          <div className="mb-6 mt-4">
             <h1 className="text-xl font-semibold text-gray-900">Task analysis</h1>
             <p className="text-sm text-gray-500 mt-1">
               Describe a task. Command Desk classifies it, gathers context, and streams intelligence as it arrives.
