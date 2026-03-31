@@ -8,20 +8,19 @@ import { getFirestore } from "firebase-admin/firestore"
 function initFirestore() {
   if (getApps().length > 0) return getFirestore()
 
-  const projectId = process.env.FIRESTORE_PROJECT_ID
-  const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL
-  const privateKey = process.env.FIRESTORE_PRIVATE_KEY
-    ?.replace(/\\n/g, "\n")           // Handle escaped \n
-    ?.replace(/\\\\n/g, "\n")         // Handle double-escaped \\n
-    ?.replace(/(\r\n|\r|\n)/g, "\n")  // Normalise line endings
-    ?? ""
-
-  if (!projectId || !clientEmail || !privateKey) {
-    throw new Error(`Firestore configuration error: missing env vars. Present: projectId=${!!projectId} clientEmail=${!!clientEmail} privateKey=${!!privateKey}`)
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+  if (!serviceAccount) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT env var is missing")
   }
 
+  const sa = JSON.parse(serviceAccount)
+
   initializeApp({
-    credential: cert({ projectId, clientEmail, privateKey }),
+    credential: cert({
+      projectId: sa.project_id,
+      clientEmail: sa.client_email,
+      privateKey: sa.private_key,
+    })
   })
 
   return getFirestore()

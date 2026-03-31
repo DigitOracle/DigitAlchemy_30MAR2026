@@ -5,29 +5,26 @@ import { getFirestore } from "firebase-admin/firestore"
 export const runtime = "nodejs"
 
 export async function GET() {
-  const projectId = process.env.FIRESTORE_PROJECT_ID
-  const clientEmail = process.env.FIRESTORE_CLIENT_EMAIL
-  const rawKey = process.env.FIRESTORE_PRIVATE_KEY
-  const privateKey = rawKey
-    ?.replace(/\\n/g, "\n")           // Handle escaped \n
-    ?.replace(/\\\\n/g, "\n")         // Handle double-escaped \\n
-    ?.replace(/(\r\n|\r|\n)/g, "\n")  // Normalise line endings
-    ?? ""
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT
 
   const checks = {
-    hasProjectId: !!projectId,
-    hasClientEmail: !!clientEmail,
-    hasPrivateKey: !!rawKey,
-    keyLooksPem: !!privateKey?.includes("BEGIN PRIVATE KEY") || !!rawKey?.includes("BEGIN PRIVATE KEY"),
+    hasServiceAccount: !!raw,
     appsAlreadyInit: getApps().length,
   }
 
   try {
     if (!getApps().length) {
-      if (!projectId || !clientEmail || !privateKey) {
-        throw new Error("Missing credentials: " + JSON.stringify(checks))
+      if (!raw) {
+        throw new Error("FIREBASE_SERVICE_ACCOUNT env var is missing")
       }
-      initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) })
+      const sa = JSON.parse(raw)
+      initializeApp({
+        credential: cert({
+          projectId: sa.project_id,
+          clientEmail: sa.client_email,
+          privateKey: sa.private_key,
+        })
+      })
     }
 
     const db = getFirestore()
