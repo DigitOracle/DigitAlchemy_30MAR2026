@@ -80,7 +80,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       }
 
       try {
-        emit("job.created", { jobId: job.id, workflowLabel })
+        emit("job.created", { jobId: job.id, jobIdV2: jobV2.id, workflowLabel })
         await updateJobStatus(job.id, "planning")
 
         // Load registry

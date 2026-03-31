@@ -24,6 +24,7 @@ export type StreamState = {
   currentProcessor: string | null
   error: string | null
   ingestion: IngestionMeta | null
+  jobIdV2: string | null
 }
 
 const SECTION_ORDER: SectionId[] = [
@@ -45,6 +46,7 @@ export function useStream() {
     currentProcessor: null,
     error: null,
     ingestion: null,
+    jobIdV2: null,
   })
 
   const startStream = useCallback(async (
@@ -53,7 +55,7 @@ export function useStream() {
     workflowLabel: string | null,
     intakeContext: Record<string, string | string[]>
   ) => {
-    setState({ status: "streaming", workflowLabel, sections: [], currentProcessor: null, error: null, ingestion: null })
+    setState({ status: "streaming", workflowLabel, sections: [], currentProcessor: null, error: null, ingestion: null, jobIdV2: null })
 
     try {
       const response = await fetch("/api/analyze", {
@@ -91,7 +93,11 @@ export function useStream() {
             try {
               const payload = JSON.parse(currentData)
 
-              if (currentEvent === "section.ready") {
+              if (currentEvent === "job.created") {
+                if (payload.jobIdV2) {
+                  setState((s) => ({ ...s, jobIdV2: payload.jobIdV2 }))
+                }
+              } else if (currentEvent === "section.ready") {
                 setState((s) => {
                   const exists = s.sections.find((sec) => sec.id === payload.sectionId)
                   const newSection: StreamingSection = {
@@ -138,7 +144,7 @@ export function useStream() {
   }, [])
 
   const reset = useCallback(() => {
-    setState({ status: "idle", workflowLabel: null, sections: [], currentProcessor: null, error: null, ingestion: null })
+    setState({ status: "idle", workflowLabel: null, sections: [], currentProcessor: null, error: null, ingestion: null, jobIdV2: null })
   }, [])
 
   return { state, startStream, reset }

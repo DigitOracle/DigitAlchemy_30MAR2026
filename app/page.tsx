@@ -16,8 +16,13 @@ import { PlatformWorkspace } from "@/components/console/PlatformWorkspace"
 import type { WorkflowDefinition, IntakeState, CompoundTaskPlan } from "@/types"
 import type { JobV2 } from "@/types/jobs"
 
-function SectionRenderer({ id, data }: { id: string; data: Record<string, unknown> }) {
-  if (data.blocked) return <BlockedCard data={data} />
+function SectionRenderer({ id, data, jobId, onUploadComplete }: {
+  id: string
+  data: Record<string, unknown>
+  jobId?: string
+  onUploadComplete?: (storagePath: string) => void
+}) {
+  if (data.blocked) return <BlockedCard data={data} jobId={jobId} onUploadComplete={onUploadComplete} />
   switch (id) {
     case "intake-summary": return <IntakeSummaryCard data={data} />
     case "execution-timeline": return <ExecutionTimelineCard data={data} />
@@ -150,6 +155,14 @@ export default function ConsolePage() {
       .catch(() => setPhase2Status("error"))
   }, [])
 
+  const handleUploadComplete = useCallback((_storagePath: string) => {
+    // Upload is complete — the /api/upload/complete route has already
+    // updated the job status. Re-submit the task to trigger Phase 1 SSE
+    // with the uploaded file as the source.
+    // For now, just reset and let the user re-submit.
+    // Future: auto-trigger /api/analyze with sourceType: 'upload'
+  }, [])
+
   const handlePlatformConfirm = async (platforms: string[]) => {
     if (!phase2JobId) return
     const res = await fetch("/api/platform-selection", {
@@ -270,7 +283,12 @@ export default function ConsolePage() {
             .filter((s) => s.status === "ready" && s.data && s.id !== "actions")
             .map((section) => (
               <div key={section.id} className="animate-fade-in">
-                <SectionRenderer id={section.id} data={section.data!} />
+                <SectionRenderer
+                  id={section.id}
+                  data={section.data!}
+                  jobId={state.jobIdV2 ?? undefined}
+                  onUploadComplete={handleUploadComplete}
+                />
               </div>
             ))}
 
