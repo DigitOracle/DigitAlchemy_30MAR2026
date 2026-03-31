@@ -251,6 +251,20 @@ export default function ConsolePage() {
             </div>
           )}
 
+          {/* Ingestion confirmed card */}
+          {state.ingestion && (
+            <div className="animate-fade-in">
+              <IngestionConfirmedCard
+                title={state.ingestion.title}
+                duration={state.ingestion.duration}
+                thumbnail={state.ingestion.thumbnail}
+                transcriptSummary={null}
+                provenance={state.ingestion.provenance as "observed" | "derived" | "inferred"}
+                jobId={state.ingestion.jobId}
+              />
+            </div>
+          )}
+
           {/* Phase 1 — Progressive section rendering */}
           {state.sections
             .filter((s) => s.status === "ready" && s.data && s.id !== "actions")

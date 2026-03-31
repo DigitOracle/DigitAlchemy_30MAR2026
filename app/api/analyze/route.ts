@@ -90,22 +90,36 @@ export async function POST(req: NextRequest): Promise<Response> {
         const agentStr = agentsToProfileString()
 
         // Attempt media access if URL provided (HeyGen API key, public URL, etc.)
+        let videoMeta: { title?: string; duration?: number; thumbnailUrl?: string; videoUrl?: string; captionUrl?: string } | null = null
+        let mediaAccessSuccess = false
+
         if (sourceUrl && isSocial) {
           emit("processor.started", { processorId: "media-access", label: "Fetching video metadata\u2026" })
           const access = await attemptMediaAccess(sourceUrl, jobV2.id)
 
-          if (access.success) {
+          if (access.success && access.videoMeta) {
+            mediaAccessSuccess = true
+            videoMeta = access.videoMeta
             await updateJobV2(jobV2.id, {
               accessMethod: access.accessMethod,
               oauthPlatform: access.detectedPlatform,
               ingestion: {
-                title: access.videoMeta?.title ?? null,
-                duration: access.videoMeta?.duration ? `${Math.round(access.videoMeta.duration)}s` : null,
-                thumbnail: access.videoMeta?.thumbnailUrl ?? null,
+                title: videoMeta.title ?? null,
+                duration: videoMeta.duration ? `${Math.round(videoMeta.duration)}s` : null,
+                thumbnail: videoMeta.thumbnailUrl ?? null,
                 transcriptSummary: null,
                 transcriptStatus: "pending",
                 provenance: "observed",
               },
+            })
+
+            // Emit ingestion confirmed
+            emit("ingestion_complete", {
+              title: videoMeta.title ?? null,
+              duration: videoMeta.duration ? `${Math.round(videoMeta.duration)}s` : null,
+              thumbnail: videoMeta.thumbnailUrl ?? null,
+              provenance: "observed",
+              jobId: jobV2.id,
             })
           }
         }
@@ -138,19 +152,25 @@ export async function POST(req: NextRequest): Promise<Response> {
         emit("processor.started", { processorId: "content-intelligence", label: "Analysing content\u2026" })
         await setSectionStreaming(job.id, "content-intelligence")
 
+        // Build video metadata context for the LLM
+        const videoContext = videoMeta
+          ? `\nVIDEO METADATA (extracted via API — provenance: observed):\n- Duration: ${videoMeta.duration ? `${Math.round(videoMeta.duration)} seconds` : "unknown"}\n- Title: ${videoMeta.title ?? "untitled"}\n- Video URL: available\n- Thumbnail: available`
+          : ""
+
         const contentPrompt = `You are DigitAlchemy\u00ae content intelligence. Analyse this task and return JSON only.
 
-CRITICAL: You must ONLY use information explicitly provided in the task and context.
-If the video URL is a HeyGen app link, YouTube link without transcript, or any URL you cannot directly access:
+CRITICAL: You must ONLY use information explicitly provided in the task, context, and video metadata below.
+If no video metadata is provided and the URL cannot be accessed:
 - Set all content fields to null with provenance "unavailable"
 - Do NOT infer, guess, or use training knowledge about the video
 - Return canProceed: false in your response
 
-If the task description contains enough explicit detail (topic, subject, audience) to analyse WITHOUT accessing the URL, you may proceed with provenance "observed" for fields derived from the task text.
+If video metadata IS provided below, use it directly with provenance "observed".
+If the task description contains enough explicit detail, you may proceed with provenance "observed" for fields derived from the task text.
 
 TASK: ${task}
 CONTEXT:
-${contextStr}
+${contextStr}${videoContext}
 
 Return ONLY this JSON:
 {
@@ -198,16 +218,17 @@ Return ONLY this JSON:
 
           const transcriptPrompt = `You are DigitAlchemy\u00ae transcript analyst. Return JSON only.
 
-CRITICAL: Only use information from the task description and content analysis below. Do NOT infer or fabricate transcript content from training data.
+CRITICAL: Only use information from the task description, video metadata, and content analysis below. Do NOT fabricate transcript content from training data.
+${mediaAccessSuccess ? "Video was successfully accessed via API. Use the metadata to inform your analysis." : "Video could not be accessed directly. Derive insights from the task description only."}
 
 TASK: ${task}
-CONTENT DETECTED: ${JSON.stringify(contentData)}
+CONTENT DETECTED: ${JSON.stringify(contentData)}${videoContext}
 CONTEXT: ${contextStr}
 
 Return ONLY this JSON:
 {
-  "status": { "value": "string describing transcript availability", "provenance": "observed|inferred", "confidence": "medium" },
-  "keyQuotes": [{ "value": "string", "provenance": "observed|inferred", "confidence": "medium" }],
+  "status": { "value": "string describing transcript availability", "provenance": "${mediaAccessSuccess ? "observed" : "inferred"}", "confidence": "${mediaAccessSuccess ? "high" : "medium"}" },
+  "keyQuotes": [{ "value": "string", "provenance": "inferred", "confidence": "medium" }],
   "hookCandidates": [{ "value": "string", "provenance": "inferred", "confidence": "high|medium", "note": "why this works as a hook" }]
 }
 
@@ -216,6 +237,23 @@ Provide 2-3 keyQuotes and 3 hookCandidates based on the topic and content detect
           const transcriptData = await callClaude(transcriptPrompt, 800)
           emit("section.ready", { sectionId: "transcript", label: "Transcript & key moments", data: transcriptData })
           await updateSection(job.id, "transcript", transcriptData)
+
+          // Update v2 job with transcript summary
+          const transcriptStatus = transcriptData.status as { value?: string } | undefined
+          if (transcriptStatus?.value) {
+            try {
+              await updateJobV2(jobV2.id, {
+                ingestion: {
+                  title: videoMeta?.title ?? null,
+                  duration: videoMeta?.duration ? `${Math.round(videoMeta.duration)}s` : null,
+                  thumbnail: videoMeta?.thumbnailUrl ?? null,
+                  transcriptSummary: transcriptStatus.value,
+                  transcriptStatus: "complete",
+                  provenance: mediaAccessSuccess ? "observed" : "inferred",
+                },
+              })
+            } catch { /* non-critical */ }
+          }
         }
 
         // PASS 3 — Trend Intelligence (social only, if content accessible)
