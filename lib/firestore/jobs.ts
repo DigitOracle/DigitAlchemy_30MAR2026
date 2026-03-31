@@ -24,6 +24,7 @@ export async function createJobV2(input: CreateJobInput): Promise<JobV2> {
     phase: 1,
     sourceUrl: input.sourceUrl ?? null,
     sourceType: input.sourceType ?? null,
+    storagePath: null,
     accessMethod: null,
     ingestion: {
       title: null,

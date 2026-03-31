@@ -53,6 +53,7 @@ export type JobV2 = {
   phase: JobPhase
   sourceUrl: string | null
   sourceType: SourceType
+  storagePath: string | null
   accessMethod: AccessMethod
   ingestion: IngestionData
   selectedPlatforms: string[]

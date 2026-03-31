@@ -4,9 +4,12 @@
 import type { Job, JobSection, SectionId } from "@/types"
 import { cert, getApps, initializeApp } from "firebase-admin/app"
 import { getFirestore } from "firebase-admin/firestore"
+import { getStorage as getAdminStorage } from "firebase-admin/storage"
 
-function initFirestore() {
-  if (getApps().length > 0) return getFirestore()
+const STORAGE_BUCKET = "digitalchemy-de4b7.appspot.com"
+
+function initApp() {
+  if (getApps().length > 0) return
 
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
   if (!serviceAccount) {
@@ -20,14 +23,19 @@ function initFirestore() {
       projectId: sa.project_id,
       clientEmail: sa.client_email,
       privateKey: sa.private_key,
-    })
+    }),
+    storageBucket: STORAGE_BUCKET,
   })
-
-  return getFirestore()
 }
 
 export function getDb() {
-  return initFirestore()
+  initApp()
+  return getFirestore()
+}
+
+export function getStorageBucket() {
+  initApp()
+  return getAdminStorage().bucket()
 }
 
 const COLLECTION = "console_jobs"
