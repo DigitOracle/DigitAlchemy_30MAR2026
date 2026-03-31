@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { createJob, updateJobStatus, updateSection, setSectionStreaming } from "@/lib/jobStore"
 import { createJobV2, updateJobStatusV2, updateJobV2 } from "@/lib/firestore/jobs"
 import { attemptMediaAccess } from "@/lib/media/access"
+import { transcribeFromUrl } from "@/lib/transcription/whisper"
 import { getAllServers, serversToRegistryString } from "@/lib/registry"
 import { agentsToProfileString } from "@/lib/agentProfiles"
 import Anthropic from "@anthropic-ai/sdk"
@@ -254,10 +255,42 @@ Return ONLY this JSON:
           emit("processor.started", { processorId: "transcript", label: "Extracting transcript\u2026" })
           await setSectionStreaming(job.id, "transcript")
 
-          const transcriptPrompt = `You are DigitAlchemy\u00ae transcript analyst. Return JSON only.
+          // Attempt Groq Whisper transcription if we have a video URL
+          let whisperTranscript: string | null = null
+          let whisperSucceeded = false
+          const transcriptionVideoUrl = videoMeta?.videoUrl
+          if (transcriptionVideoUrl) {
+            const whisperResult = await transcribeFromUrl(transcriptionVideoUrl)
+            if (whisperResult.status === "complete" && whisperResult.transcript) {
+              whisperTranscript = whisperResult.transcript
+              whisperSucceeded = true
+            }
+            // If Whisper failed, fall through to Claude summary — no pipeline block
+          }
 
-CRITICAL: Only use information from the task description, video metadata, and content analysis below. Do NOT fabricate transcript content from training data.
-${mediaAccessSuccess ? "Video was successfully accessed via API. Use the metadata to inform your analysis." : "Video could not be accessed directly. Derive insights from the task description only."}
+          // Determine provenance: observed if HeyGen URL + Whisper, derived if upload + Whisper, inferred if Claude fallback
+          const transcriptProvenance = whisperSucceeded
+            ? (isUpload ? "derived" : "observed")
+            : "inferred"
+
+          const transcriptPrompt = whisperSucceeded
+            ? `You are DigitAlchemy\u00ae transcript analyst. A real transcript was extracted via Whisper. Return JSON only.
+
+TRANSCRIPT (extracted via audio transcription — provenance: ${transcriptProvenance}):
+${whisperTranscript!.slice(0, 4000)}
+
+TASK: ${task}
+CONTEXT: ${contextStr}
+
+Return ONLY this JSON:
+{
+  "status": { "value": "Transcript extracted via Whisper audio transcription", "provenance": "${transcriptProvenance}", "confidence": "high" },
+  "keyQuotes": [{ "value": "exact quote from transcript", "provenance": "${transcriptProvenance}", "confidence": "high" }],
+  "hookCandidates": [{ "value": "hook derived from transcript", "provenance": "${transcriptProvenance}", "confidence": "high", "note": "why this works" }]
+}
+
+Extract 2-3 real keyQuotes from the transcript and 3 hookCandidates.`
+            : `You are DigitAlchemy\u00ae transcript analyst. No audio transcript available. Return JSON only.
 
 TASK: ${task}
 CONTENT DETECTED: ${JSON.stringify(contentData)}${videoContext}
@@ -265,9 +298,9 @@ CONTEXT: ${contextStr}
 
 Return ONLY this JSON:
 {
-  "status": { "value": "string describing transcript availability", "provenance": "${mediaAccessSuccess ? "observed" : "inferred"}", "confidence": "${mediaAccessSuccess ? "high" : "medium"}" },
+  "status": { "value": "No audio transcript available — AI summary only", "provenance": "inferred", "confidence": "medium" },
   "keyQuotes": [{ "value": "string", "provenance": "inferred", "confidence": "medium" }],
-  "hookCandidates": [{ "value": "string", "provenance": "inferred", "confidence": "high|medium", "note": "why this works as a hook" }]
+  "hookCandidates": [{ "value": "string", "provenance": "inferred", "confidence": "medium", "note": "why this works as a hook" }]
 }
 
 Provide 2-3 keyQuotes and 3 hookCandidates based on the topic and content detected.`
@@ -276,22 +309,20 @@ Provide 2-3 keyQuotes and 3 hookCandidates based on the topic and content detect
           emit("section.ready", { sectionId: "transcript", label: "Transcript & key moments", data: transcriptData })
           await updateSection(job.id, "transcript", transcriptData)
 
-          // Update v2 job with transcript summary
-          const transcriptStatus = transcriptData.status as { value?: string } | undefined
-          if (transcriptStatus?.value) {
-            try {
-              await updateJobV2(jobV2.id, {
-                ingestion: {
-                  title: videoMeta?.title ?? null,
-                  duration: videoMeta?.duration ? `${Math.round(videoMeta.duration)}s` : null,
-                  thumbnail: videoMeta?.thumbnailUrl ?? null,
-                  transcriptSummary: transcriptStatus.value,
-                  transcriptStatus: "complete",
-                  provenance: mediaAccessSuccess ? "observed" : "inferred",
-                },
-              })
-            } catch { /* non-critical */ }
-          }
+          // Update v2 job with transcript info
+          const tStatus = transcriptData.status as { value?: string } | undefined
+          try {
+            await updateJobV2(jobV2.id, {
+              ingestion: {
+                title: videoMeta?.title ?? null,
+                duration: videoMeta?.duration ? `${Math.round(videoMeta.duration)}s` : null,
+                thumbnail: videoMeta?.thumbnailUrl ?? null,
+                transcriptSummary: whisperTranscript?.slice(0, 500) ?? tStatus?.value ?? null,
+                transcriptStatus: whisperSucceeded ? "complete" : "failed",
+                provenance: transcriptProvenance as "observed" | "derived" | "inferred" | "unavailable",
+              },
+            })
+          } catch { /* non-critical */ }
         }
 
         // PASS 3 — Trend Intelligence (social only, if content accessible)
