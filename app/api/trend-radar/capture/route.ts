@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { captureTrends } from "@/lib/trendRadar/capture"
 import type { CaptureRequest, CaptureResponse } from "@/lib/trendRadar/types"
 
+export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 export const maxDuration = 60
 

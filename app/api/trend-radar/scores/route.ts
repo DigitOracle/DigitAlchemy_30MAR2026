@@ -5,6 +5,7 @@ import { computeScores } from "@/lib/trendRadar/score"
 import { classifyAndSort } from "@/lib/trendRadar/classify"
 import type { ScoresResponse, TrendPlatform, ProductionLag } from "@/lib/trendRadar/types"
 
+export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 const VALID_PLATFORMS = new Set(["tiktok", "instagram", "youtube", "linkedin", "x", "facebook"])
