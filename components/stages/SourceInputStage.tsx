@@ -5,7 +5,6 @@ type Props = {
   mode: "link" | "upload"
   onSubmitUrl: (url: string, task: string) => void
   onUploadComplete: (storagePath: string, filename: string) => void
-  jobId: string | null
   onBack: () => void
 }
 
@@ -26,7 +25,7 @@ function detectPlatformLabel(url: string): string | null {
   return null
 }
 
-export function SourceInputStage({ mode, onSubmitUrl, onUploadComplete, jobId, onBack }: Props) {
+export function SourceInputStage({ mode, onSubmitUrl, onUploadComplete, onBack }: Props) {
   // Link mode state
   const [url, setUrl] = useState("")
   const [task, setTask] = useState("")
@@ -47,9 +46,8 @@ export function SourceInputStage({ mode, onSubmitUrl, onUploadComplete, jobId, o
 
   const handleUpload = async () => {
     if (!selectedFile) return
-    // Need a jobId — create one first via a minimal analyze call
-    const createJobId = jobId ?? await createTempJob(selectedFile.name)
-    if (!createJobId) { setUploadError("Failed to create job"); setUploadState("error"); return }
+    // Generate a client-side UUID for the storage path — no Firestore job needed until upload completes
+    const createJobId = crypto.randomUUID()
 
     try {
       setUploadState("presigning")
@@ -72,14 +70,6 @@ export function SourceInputStage({ mode, onSubmitUrl, onUploadComplete, jobId, o
         xhr.send(selectedFile)
       })
 
-      setUploadState("completing")
-      const completeRes = await fetch("/api/upload/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: createJobId, storagePath, filename: selectedFile.name }),
-      })
-      if (!completeRes.ok) throw new Error("Finalize failed")
-
       setUploadState("done")
       onUploadComplete(storagePath, selectedFile.name)
     } catch (err) {
@@ -99,9 +89,11 @@ export function SourceInputStage({ mode, onSubmitUrl, onUploadComplete, jobId, o
       {mode === "link" && (
         <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Video URL</label>
+            <label htmlFor="source-url" className="block text-xs font-medium text-gray-600 mb-1.5">Video URL</label>
             <div className="relative">
               <input
+                id="source-url"
+                name="url"
                 type="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
@@ -118,8 +110,10 @@ export function SourceInputStage({ mode, onSubmitUrl, onUploadComplete, jobId, o
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Task description <span className="text-gray-400">(optional)</span></label>
+            <label htmlFor="source-task" className="block text-xs font-medium text-gray-600 mb-1.5">Task description <span className="text-gray-400">(optional)</span></label>
             <textarea
+              id="source-task"
+              name="task"
               value={task}
               onChange={(e) => setTask(e.target.value)}
               placeholder="e.g. Generate Instagram and TikTok content for this video"
@@ -158,7 +152,7 @@ export function SourceInputStage({ mode, onSubmitUrl, onUploadComplete, jobId, o
                   </div>
                 )}
               </div>
-              <input ref={inputRef} type="file" accept="video/mp4,video/quicktime,video/webm" onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)} className="hidden" />
+              <input id="source-file" name="file" ref={inputRef} type="file" accept="video/mp4,video/quicktime,video/webm" onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)} className="hidden" />
               {selectedFile && (
                 <button onClick={handleUpload} className="w-full bg-[#190A46] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-[#190A46]/90 transition-colors">
                   Upload &amp; Analyse &rarr;
@@ -197,32 +191,3 @@ export function SourceInputStage({ mode, onSubmitUrl, onUploadComplete, jobId, o
   )
 }
 
-async function createTempJob(filename: string): Promise<string | null> {
-  try {
-    const res = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ task: `Analyze uploaded video: ${filename}`, workflowId: "social-video-optimization", workflowLabel: "Social Video Intelligence", intakeContext: {} }),
-    })
-    // The response is an SSE stream — we need to parse the job.created event
-    if (!res.ok || !res.body) return null
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ""
-    // Read just enough to get the jobIdV2
-    for (let i = 0; i < 10; i++) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const match = buffer.match(/"jobIdV2":"([^"]+)"/)
-      if (match) {
-        reader.cancel()
-        return match[1]
-      }
-    }
-    reader.cancel()
-    return null
-  } catch {
-    return null
-  }
-}

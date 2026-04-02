@@ -5,6 +5,8 @@ type Props = {
   duration: string | null
   thumbnail: string | null
   transcriptSummary: string | null
+  topic: string | null
+  language: string | null
   provenance: "observed" | "derived" | "inferred" | "unavailable"
 }
 
@@ -15,9 +17,8 @@ const provenanceLabels = {
   unavailable: { text: "Content inaccessible", className: "bg-red-50 text-red-700 border-red-200" },
 }
 
-export function IngestionConfirmedStage({ title, duration, thumbnail, transcriptSummary, provenance }: Props) {
+export function IngestionConfirmedStage({ title, duration, thumbnail, transcriptSummary, topic, language, provenance }: Props) {
   const prov = provenanceLabels[provenance]
-  const lang = provenance === "observed" ? "Detected" : "Unknown"
 
   return (
     <div className="bg-white border border-green-200 rounded-xl p-5 shadow-sm animate-fade-in">
@@ -33,9 +34,10 @@ export function IngestionConfirmedStage({ title, duration, thumbnail, transcript
         )}
         <div className="min-w-0 space-y-1">
           {title && <p className="text-sm font-medium text-gray-900 truncate">{title}</p>}
+          {topic && <p className="text-sm text-gray-700">Topic: {topic}</p>}
           <div className="flex gap-3 text-xs text-gray-500">
             {duration && <span>{duration}</span>}
-            <span>Language: {lang}</span>
+            {language && <span>Language: {language}</span>}
           </div>
         </div>
       </div>

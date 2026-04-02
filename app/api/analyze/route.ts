@@ -253,8 +253,13 @@ export async function POST(req: NextRequest): Promise<Response> {
 
         // Build video metadata + transcript context for the LLM
         const uploadProvenance = isUpload ? "derived" : "observed"
+        // For uploads, label the filename explicitly as a filename — not as a "Title"
+        // This prevents Claude from using the filename as the topic
+        const titleLabel = isUpload
+          ? `- Filename (NOT the topic): ${videoMeta?.title ?? "unknown"}`
+          : `- Title: ${videoMeta?.title ?? "untitled"}`
         const videoContext = videoMeta
-          ? `\nVIDEO METADATA (provenance: ${uploadProvenance}):\n- Duration: ${videoMeta.duration ? `${Math.round(videoMeta.duration)} seconds` : "unknown"}\n- Title: ${videoMeta.title ?? "untitled"}\n- Source: ${isUpload ? "uploaded file" : "API"}\n- Video file: available`
+          ? `\nVIDEO METADATA (provenance: ${uploadProvenance}):\n- Duration: ${videoMeta.duration ? `${Math.round(videoMeta.duration)} seconds` : "unknown"}\n${titleLabel}\n- Source: ${isUpload ? "uploaded file" : "API"}\n- Video file: available`
           : ""
         const transcriptContext = youtubeTranscript
           ? `\nTRANSCRIPT (extracted — provenance: observed):\n${youtubeTranscript.slice(0, 4000)}`
@@ -286,9 +291,17 @@ Return ONLY this JSON:
   "language": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
   "audienceFit": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
   "topic": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
+  "summary": { "value": "2-4 sentence plain-English description of what this content is about|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
   "subject": { "value": "string|null", "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" },
   "keywords": { "value": ["string"]|null, "provenance": "observed|inferred|unavailable", "confidence": "high|medium|low" }
-}`
+}
+
+IMPORTANT:
+- "topic" should be a short plain-English label (e.g. "DigitAlchemy product demo", "cooking tutorial", "fitness routine")
+- "summary" should be 2-4 sentences describing what the content covers and its purpose
+- Do NOT use the filename as the topic unless there is truly nothing else to work with
+- If a transcript is provided, derive the topic and summary from it, not from the filename
+- If no transcript and no meaningful metadata exist, set topic/summary confidence to "low"`
 
         const contentData = await callClaude(contentPrompt, 800)
         emit("section.ready", { sectionId: "content-intelligence", label: "Content intelligence", data: contentData })
@@ -354,10 +367,17 @@ CONTEXT: ${contextStr}
 Return ONLY this JSON:
 {
   "status": { "value": "Transcript extracted via Whisper audio transcription", "provenance": "${transcriptProvenance}", "confidence": "high" },
+  "topic": { "value": "short plain-English topic/title for this content (5-10 words max)", "provenance": "${transcriptProvenance}", "confidence": "high" },
+  "summary": { "value": "2-4 sentence summary of what the speaker/content covers", "provenance": "${transcriptProvenance}", "confidence": "high" },
+  "transcriptExcerpt": { "value": "first 2-3 meaningful sentences from the transcript verbatim", "provenance": "${transcriptProvenance}", "confidence": "high" },
   "keyQuotes": [{ "value": "exact quote from transcript", "provenance": "${transcriptProvenance}", "confidence": "high" }],
   "hookCandidates": [{ "value": "hook derived from transcript", "provenance": "${transcriptProvenance}", "confidence": "high", "note": "why this works" }]
 }
 
+IMPORTANT:
+- "topic" must be a short plain-English label derived from what is actually said in the transcript (e.g. "Blissful Breeze massage promotion", "DigitAlchemy product walkthrough"). NEVER use the filename.
+- "summary" must be a real 2-4 sentence description of the content, NOT a status message
+- "transcriptExcerpt" must be actual words from the transcript, verbatim
 Extract 2-3 real keyQuotes from the transcript and 3 hookCandidates.`
             : `You are DigitAlchemy\u00ae transcript analyst. No audio transcript available. Return JSON only.
 
@@ -368,25 +388,32 @@ CONTEXT: ${contextStr}
 Return ONLY this JSON:
 {
   "status": { "value": "No audio transcript available — AI summary only", "provenance": "inferred", "confidence": "medium" },
+  "topic": { "value": "short plain-English topic/title based on available context, or null", "provenance": "inferred", "confidence": "medium" },
+  "summary": { "value": "2-4 sentence description based on available metadata and task context, or null if nothing meaningful", "provenance": "inferred", "confidence": "medium" },
+  "transcriptExcerpt": null,
   "keyQuotes": [{ "value": "string", "provenance": "inferred", "confidence": "medium" }],
   "hookCandidates": [{ "value": "string", "provenance": "inferred", "confidence": "medium", "note": "why this works as a hook" }]
 }
 
+IMPORTANT: "topic" must be a descriptive label, NOT the filename. If you cannot determine a meaningful topic, return null.
 Provide 2-3 keyQuotes and 3 hookCandidates based on the topic and content detected.`
 
           const transcriptData = await callClaude(transcriptPrompt, 800)
           emit("section.ready", { sectionId: "transcript", label: "Transcript & key moments", data: transcriptData })
           await updateSection(job.id, "transcript", transcriptData)
 
-          // Update v2 job with transcript info
-          const tStatus = transcriptData.status as { value?: string } | undefined
+          // Update v2 job with transcript info — prefer real summary over raw transcript or status string
+          const tSummary = (transcriptData.summary as { value?: string })?.value ?? null
+          const tExcerpt = (transcriptData.transcriptExcerpt as { value?: string })?.value ?? null
+          const ciSummary = (contentData.summary as { value?: string })?.value ?? null
+          const realSummary = tSummary ?? ciSummary ?? (whisperTranscript ? whisperTranscript.slice(0, 500) : null)
           try {
             await updateJobV2(jobV2.id, {
               ingestion: {
                 title: videoMeta?.title ?? null,
                 duration: videoMeta?.duration ? `${Math.round(videoMeta.duration)}s` : null,
                 thumbnail: videoMeta?.thumbnailUrl ?? null,
-                transcriptSummary: whisperTranscript?.slice(0, 500) ?? tStatus?.value ?? null,
+                transcriptSummary: realSummary,
                 transcriptStatus: whisperSucceeded ? "complete" : "failed",
                 provenance: transcriptProvenance as "observed" | "derived" | "inferred" | "unavailable",
               },
@@ -422,7 +449,6 @@ Provide 2-3 keyQuotes and 3 hookCandidates based on the topic and content detect
       "Cache-Control": "no-cache, no-transform",
       "Connection": "keep-alive",
       "X-Accel-Buffering": "no",
-      "Access-Control-Allow-Origin": "*",
     },
   })
 }

@@ -3,5 +3,7 @@
 node_modules/
 .next/
 out/
+*.tsbuildinfo
+.claude/
 
 .vercel

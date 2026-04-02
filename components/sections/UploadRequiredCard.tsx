@@ -114,6 +114,8 @@ export function UploadRequiredCard({ jobId, onUploadComplete }: Props) {
             )}
           </div>
           <input
+            id="upload-file"
+            name="file"
             ref={inputRef}
             type="file"
             accept="video/mp4,video/quicktime,video/webm"

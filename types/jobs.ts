@@ -31,12 +31,18 @@ export type IngestionData = {
 }
 
 export type PlatformCards = {
-  trending: Record<string, unknown> | null
-  audio: Record<string, unknown> | null
+  platformTrends: Record<string, unknown> | null
+  topicTrends: Record<string, unknown> | null
+  trendingAudio: Record<string, unknown> | null
+  commercialAudio: Record<string, unknown> | null
+  vibeSuggestions: Record<string, unknown> | null
   hooks: Record<string, unknown> | null
   captions: Record<string, unknown> | null
   schedule: Record<string, unknown> | null
   provenance: ProvenanceLevel
+  // Legacy compat — old jobs may have these
+  trending?: Record<string, unknown> | null
+  audio?: Record<string, unknown> | null
 }
 
 export type AccessAttempt = {
@@ -45,6 +51,13 @@ export type AccessAttempt = {
   result: AccessResult
   detectedPlatform: string | null
   oauthAvailable: boolean
+}
+
+export type ConfirmedFocus = {
+  topic: string
+  summary: string
+  keywords: string[]
+  editedByUser: boolean
 }
 
 export type JobV2 = {
@@ -56,6 +69,7 @@ export type JobV2 = {
   storagePath: string | null
   accessMethod: AccessMethod
   ingestion: IngestionData
+  confirmedFocus: ConfirmedFocus | null
   selectedPlatforms: string[]
   cards: Record<string, PlatformCards>
   accessAttempts: AccessAttempt[]

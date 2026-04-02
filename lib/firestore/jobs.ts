@@ -34,6 +34,7 @@ export async function createJobV2(input: CreateJobInput): Promise<JobV2> {
       transcriptStatus: "pending",
       provenance: "unavailable",
     },
+    confirmedFocus: null,
     selectedPlatforms: [],
     cards: {},
     accessAttempts: [],

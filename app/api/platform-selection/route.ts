@@ -5,10 +5,10 @@ export const runtime = "nodejs"
 
 export async function POST(req: NextRequest) {
   try {
-    const { jobId, platforms } = await req.json()
+    const { jobId, platforms, confirmedFocus } = await req.json()
 
-    if (!jobId || !Array.isArray(platforms) || platforms.length === 0) {
-      return NextResponse.json({ error: "jobId and platforms[] required" }, { status: 400 })
+    if (!jobId) {
+      return NextResponse.json({ error: "jobId required" }, { status: 400 })
     }
 
     const job = await getJobV2(jobId)
@@ -16,11 +16,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 })
     }
 
-    await updateJobV2(jobId, {
+    // Content focus confirmation (called before platform selection)
+    if (confirmedFocus && !platforms) {
+      await updateJobV2(jobId, { confirmedFocus })
+      return NextResponse.json({ ok: true })
+    }
+
+    if (!Array.isArray(platforms) || platforms.length === 0) {
+      return NextResponse.json({ error: "platforms[] required" }, { status: 400 })
+    }
+
+    const update: Record<string, unknown> = {
       selectedPlatforms: platforms,
       status: "generating",
       phase: 2,
-    })
+    }
+    if (confirmedFocus) update.confirmedFocus = confirmedFocus
+
+    await updateJobV2(jobId, update)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

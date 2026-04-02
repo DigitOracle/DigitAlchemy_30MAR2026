@@ -1,8 +1,12 @@
 import { Supadata } from "@supadata/js"
 
-const supadata = new Supadata({ apiKey: process.env.SUPADATA_API_KEY! })
-
 export async function getSupadataTranscript(url: string): Promise<{ text: string; provenance: "observed" } | null> {
+  const apiKey = process.env.SUPADATA_API_KEY
+  if (!apiKey) {
+    console.warn("[supadata] SUPADATA_API_KEY not set, skipping")
+    return null
+  }
+  const supadata = new Supadata({ apiKey })
   try {
     const result = await supadata.transcript({ url, text: true })
     if (!result) return null
