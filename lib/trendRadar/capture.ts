@@ -13,7 +13,7 @@ function snapId(platform: string, scope: string): string {
 
 // ── Provider adapters (call existing APIs, extract entities) ──
 
-async function captureScrapeCreatorsTikTok(): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
+async function captureScrapeCreatorsTikTok(region: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
   const apiKey = process.env.SCRAPECREATORS_API_KEY
   if (!apiKey) return null
   const BASE = "https://api.scrapecreators.com"
@@ -21,9 +21,9 @@ async function captureScrapeCreatorsTikTok(): Promise<{ entities: TrendEntity[];
 
   try {
     const [songsRes, hashtagsRes, videosRes] = await Promise.all([
-      fetch(`${BASE}/v1/tiktok/songs/popular`, { headers, signal: AbortSignal.timeout(12000) }),
-      fetch(`${BASE}/v1/tiktok/hashtags/popular`, { headers, signal: AbortSignal.timeout(12000) }),
-      fetch(`${BASE}/v1/tiktok/videos/popular`, { headers, signal: AbortSignal.timeout(12000) }),
+      fetch(`${BASE}/v1/tiktok/songs/popular?region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
+      fetch(`${BASE}/v1/tiktok/hashtags/popular?region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
+      fetch(`${BASE}/v1/tiktok/videos/popular?region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
     ])
 
     const entities: TrendEntity[] = []
@@ -74,15 +74,15 @@ async function captureScrapeCreatorsTikTok(): Promise<{ entities: TrendEntity[];
   }
 }
 
-async function captureScrapeCreatorsTikTokByTopic(topic: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
+async function captureScrapeCreatorsTikTokByTopic(topic: string, region: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
   const apiKey = process.env.SCRAPECREATORS_API_KEY
   if (!apiKey || !topic) return null
   const BASE = "https://api.scrapecreators.com"
   const headers = { "x-api-key": apiKey }
   try {
     const [keywordRes, hashtagRes] = await Promise.all([
-      fetch(`${BASE}/v1/tiktok/search/keyword?keyword=${encodeURIComponent(topic)}&count=15`, { headers, signal: AbortSignal.timeout(12000) }),
-      fetch(`${BASE}/v1/tiktok/search/hashtag?keyword=${encodeURIComponent(topic.replace(/\s+/g, ""))}&count=15`, { headers, signal: AbortSignal.timeout(12000) }),
+      fetch(`${BASE}/v1/tiktok/search/keyword?keyword=${encodeURIComponent(topic)}&count=15&region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
+      fetch(`${BASE}/v1/tiktok/search/hashtag?keyword=${encodeURIComponent(topic.replace(/\s+/g, ""))}&count=15&region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
     ])
     const entities: TrendEntity[] = []
     if (keywordRes.ok) {
@@ -109,7 +109,7 @@ async function captureScrapeCreatorsTikTokByTopic(topic: string): Promise<{ enti
   } catch { return null }
 }
 
-async function captureApify(topic: string, platform: TrendPlatform): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
+async function captureApify(topic: string, platform: TrendPlatform, region: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
   const apiKey = process.env.APIFY_API_KEY
   if (!apiKey) return null
   const actorMap: Record<string, string> = { instagram: "apify~instagram-hashtag-scraper", tiktok: "clockworks~tiktok-scraper", youtube: "bernardo~youtube-scraper" }
@@ -119,13 +119,28 @@ async function captureApify(topic: string, platform: TrendPlatform): Promise<{ e
     const res = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs?token=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hashtags: [topic.replace(/\s+/g, "")], resultsLimit: 15 }),
+      body: JSON.stringify({ hashtags: [topic.replace(/\s+/g, "")], resultsLimit: 15, country: region }),
       signal: AbortSignal.timeout(30000),
     })
     if (!res.ok) return null
     const run = await res.json()
+    const runId = run?.data?.id
     const datasetId = run?.data?.defaultDatasetId
-    if (!datasetId) return null
+    if (!runId || !datasetId) return null
+
+    // Poll for run completion (Apify runs are async)
+    const pollDeadline = Date.now() + 30000
+    while (Date.now() < pollDeadline) {
+      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${apiKey}`, { signal: AbortSignal.timeout(5000) })
+      if (statusRes.ok) {
+        const statusData = await statusRes.json()
+        const status = statusData?.data?.status
+        if (status === "SUCCEEDED") break
+        if (status === "FAILED" || status === "ABORTED" || status === "TIMED-OUT") return null
+      }
+      await new Promise((r) => setTimeout(r, 2000))
+    }
+
     const itemsRes = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=25`, { signal: AbortSignal.timeout(10000) })
     if (!itemsRes.ok) return null
     const items = await itemsRes.json()
@@ -141,17 +156,20 @@ async function captureApify(topic: string, platform: TrendPlatform): Promise<{ e
   } catch { return null }
 }
 
-async function captureXpoz(topic: string, platform: TrendPlatform): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
+async function captureXpoz(topic: string, platform: TrendPlatform, regionLabel: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
   const MCP_URL = process.env.XPOZ_MCP_URL
+  const accessKey = process.env.XPOZ_ACCESS_KEY
   if (!MCP_URL || !topic) return null
   const xpozMap: Record<string, string> = { instagram: "getInstagramPostsByKeywords", tiktok: "getTiktokPostsByKeywords", x: "getTwitterPostsByKeywords" }
   const toolName = xpozMap[platform]
   if (!toolName) return null
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json, text/event-stream" }
+    if (accessKey) headers["Authorization"] = `Bearer ${accessKey}`
     const res = await fetch(MCP_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: toolName, arguments: { keywords: topic, count: 15 } } }),
+      headers,
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: toolName, arguments: { query: `${topic} ${regionLabel}`, count: 15 } } }),
       signal: AbortSignal.timeout(15000),
     })
     if (!res.ok) return null
@@ -183,11 +201,11 @@ async function captureXpoz(topic: string, platform: TrendPlatform): Promise<{ en
   } catch { return null }
 }
 
-async function captureScrapeCreatorsInstagram(topic: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
+async function captureScrapeCreatorsInstagram(topic: string, region: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
   const apiKey = process.env.SCRAPECREATORS_API_KEY
   if (!apiKey || !topic) return null
   try {
-    const res = await fetch(`https://api.scrapecreators.com/v2/instagram/reels/search?keyword=${encodeURIComponent(topic)}`, {
+    const res = await fetch(`https://api.scrapecreators.com/v2/instagram/reels/search?keyword=${encodeURIComponent(topic)}&region=${region}`, {
       headers: { "x-api-key": apiKey },
       signal: AbortSignal.timeout(12000),
     })
@@ -206,56 +224,100 @@ async function captureScrapeCreatorsInstagram(topic: string): Promise<{ entities
   } catch { return null }
 }
 
-// ── Main capture orchestrator (inference-last) ──
+async function capturePerplexityFallback(topic: string, platform: TrendPlatform, regionLabel: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
+  const apiKey = process.env.PERPLEXITY_API_KEY
+  if (!apiKey) return null
+  try {
+    const res = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "sonar",
+        messages: [{ role: "user", content: `What are the current trending hashtags and content themes on ${platform} related to "${topic}" in ${regionLabel}? List specific hashtags. Be concise.` }],
+        search_recency_filter: "week",
+        max_tokens: 400,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const text = (data?.choices?.[0]?.message?.content ?? "") as string
+    if (!text) return null
+    const tagMatches = text.match(/#[\w\u00C0-\u024F]+/g) ?? []
+    if (tagMatches.length === 0) return null
+    const entities: TrendEntity[] = []
+    for (const [i, t] of [...new Set(tagMatches)].slice(0, 15).entries()) {
+      entities.push(buildEntity(t, "hashtag", i + 1, null, null))
+    }
+    return { entities: dedupeEntities(entities), source: "context_guided", confidence: "low" }
+  } catch { return null }
+}
+
+const REGION_LABELS: Record<string, string> = {
+  AE: "the UAE",
+  SA: "Saudi Arabia",
+  KW: "Kuwait",
+  QA: "Qatar",
+  US: "the United States",
+}
+
+// ── Main capture orchestrator (inference-last, Perplexity fallback) ──
 
 export async function captureTrends(
   platform: TrendPlatform,
   scope: TrendScope,
-  niche: string | null
+  niche: string | null,
+  region: string = "AE"
 ): Promise<TrendSnapshot> {
   const topic = scope === "platform_wide" ? "trending" : (niche ?? "trending")
+  const regionLabel = REGION_LABELS[region] || region
   let entities: TrendEntity[] = []
   let source = "none"
   let confidence: SourceConfidence = "low"
 
-  // ── Platform-wide: ScrapeCreators → Apify → xpoz ──
+  // ── Platform-wide: ScrapeCreators → Apify → xpoz → Perplexity ──
   if (scope === "platform_wide") {
     if (platform === "tiktok") {
-      const sc = await captureScrapeCreatorsTikTok()
+      const sc = await captureScrapeCreatorsTikTok(region)
       if (sc) { entities = sc.entities; source = sc.source; confidence = sc.confidence }
     }
     if (entities.length === 0) {
-      const apify = await captureApify("trending", platform)
+      const apify = await captureApify("trending", platform, region)
       if (apify) { entities = apify.entities; source = apify.source; confidence = apify.confidence }
     }
     if (entities.length === 0) {
-      const xpoz = await captureXpoz("trending", platform)
+      const xpoz = await captureXpoz("trending", platform, regionLabel)
       if (xpoz) { entities = xpoz.entities; source = xpoz.source; confidence = xpoz.confidence }
+    }
+    if (entities.length === 0) {
+      const pplx = await capturePerplexityFallback("trending", platform, regionLabel)
+      if (pplx) { entities = pplx.entities; source = pplx.source; confidence = pplx.confidence }
     }
   }
 
-  // ── Topic-aligned: ScrapeCreators(topic) → Apify → xpoz ──
+  // ── Topic-aligned: ScrapeCreators(topic) → Apify → xpoz → Perplexity ──
   if (scope === "topic_aligned" && niche) {
     if (platform === "tiktok") {
-      const sc = await captureScrapeCreatorsTikTokByTopic(niche)
+      const sc = await captureScrapeCreatorsTikTokByTopic(niche, region)
       if (sc) { entities = sc.entities; source = sc.source; confidence = sc.confidence }
     }
     if (platform === "instagram" && entities.length === 0) {
-      const sc = await captureScrapeCreatorsInstagram(niche)
+      const sc = await captureScrapeCreatorsInstagram(niche, region)
       if (sc) { entities = sc.entities; source = sc.source; confidence = sc.confidence }
     }
     if (entities.length === 0) {
-      const apify = await captureApify(topic, platform)
+      const apify = await captureApify(topic, platform, region)
       if (apify) { entities = apify.entities; source = apify.source; confidence = apify.confidence }
     }
     if (entities.length === 0) {
-      const xpoz = await captureXpoz(topic, platform)
+      const xpoz = await captureXpoz(topic, platform, regionLabel)
       if (xpoz) { entities = xpoz.entities; source = xpoz.source; confidence = xpoz.confidence }
     }
+    if (entities.length === 0) {
+      const pplx = await capturePerplexityFallback(topic, platform, regionLabel)
+      if (pplx) { entities = pplx.entities; source = pplx.source; confidence = pplx.confidence }
+    }
   }
-
-  // No Perplexity / Claude fallback — capture layer only stores scraped data
-  // Inference is added at the scoring/classification layer, not here
 
   // Assign final ranks by deduped order
   const deduped = dedupeEntities(entities)
@@ -267,7 +329,7 @@ export async function captureTrends(
     id: snapId(platform, scope),
     platform,
     scope,
-    region: "global",
+    region,
     capturedAt: new Date().toISOString(),
     source,
     sourceConfidence: confidence,

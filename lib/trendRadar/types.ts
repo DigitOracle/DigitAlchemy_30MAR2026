@@ -51,7 +51,7 @@ export type TrendClassification =
   | "recurring_pattern"
   | "niche_advantage"
 
-export type ProductionLag = "same_day" | "24h" | "48h" | "72h"
+export type ProductionLag = "same_day" | "24h" | "48h" | "72h" | "1w" | "2w" | "4w" | "6m" | "12m"
 
 // ── Snapshot (raw capture) ──
 

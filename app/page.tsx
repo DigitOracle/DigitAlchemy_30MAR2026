@@ -75,6 +75,8 @@ export default function ConsolePage() {
   const [error, setError] = useState<string | null>(null)
   const [reNiche, setReNiche] = useState("")
   const [reLag, setReLag] = useState<string>("same_day")
+  const [reRegion, setReRegion] = useState<string>("AE")
+  const [reIndustry, setReIndustry] = useState<string | null>(null)
   const [confirmedFocus, setConfirmedFocus] = useState<{ topic: string; summary: string; keywords: string[]; editedByUser: boolean } | null>(null)
 
   const ingestion = state.ingestion
@@ -238,7 +240,7 @@ export default function ConsolePage() {
       const response = await fetch("/api/reverse-engineer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, niche }),
+        body: JSON.stringify({ platform, niche, region: reRegion, lag: reLag, industry: reIndustry }),
       })
       if (!response.ok || !response.body) { setStage("error"); return }
       const reader = response.body.getReader()
@@ -277,13 +279,13 @@ export default function ConsolePage() {
         await fetch("/api/trend-radar/capture", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ platform, scope: "platform_wide" }),
+          body: JSON.stringify({ platform, scope: "platform_wide", region: reRegion }),
         })
         if (niche) {
           await fetch("/api/trend-radar/capture", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ platform, scope: "topic_aligned", niche }),
+            body: JSON.stringify({ platform, scope: "topic_aligned", niche, region: reRegion }),
           })
         }
       } catch { /* non-critical */ }
@@ -397,7 +399,9 @@ export default function ConsolePage() {
   }
 
   // ── Reverse-engineer: confirm ──
-  const handleReConfirm = (platform: string, niche: string, lag: string) => {
+  const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null) => {
+    setReRegion(region)
+    setReIndustry(industry)
     startReverseEngineerStream(platform, niche, lag)
   }
 
@@ -414,6 +418,8 @@ export default function ConsolePage() {
     setError(null)
     setReNiche("")
     setReLag("same_day")
+    setReRegion("AE")
+    setReIndustry(null)
     setConfirmedFocus(null)
     window.history.replaceState({}, "", window.location.pathname)
   }
@@ -461,12 +467,19 @@ export default function ConsolePage() {
   }
 
   if (appMode === "reverse_engineer") {
+    const regionLabels: Record<string, string> = { AE: "UAE", SA: "KSA", KW: "Kuwait", QA: "Qatar", US: "US" }
     if (selectedPlatforms.length > 0 && stage !== "re_setup") {
+      chips.push({ id: "re_region", label: "Region", summary: regionLabels[reRegion] ?? reRegion, completed: true })
       chips.push({ id: "re_platform", label: "Platform", summary: selectedPlatforms[0], completed: true })
+      if (reIndustry) {
+        const industryLabels: Record<string, string> = { real_estate: "Real Estate", automotive: "Automotive", hospitality: "Hospitality", food_beverage: "Food & Beverage", fashion_beauty: "Fashion & Beauty", fitness_wellness: "Fitness & Wellness", ecommerce: "E-commerce", education: "Education", healthcare: "Healthcare", financial_services: "Finance" }
+        chips.push({ id: "re_industry", label: "Industry", summary: industryLabels[reIndustry] ?? reIndustry, completed: true })
+      }
     }
     if ((stage === "generating" || stage === "complete")) {
       chips.push({ id: "re_scope", label: "Scope", summary: reNiche || "Broad Trends", completed: true })
-      chips.push({ id: "re_lag", label: "Publish In", summary: reLag.replace("_", " "), completed: true })
+      const lagChipLabels: Record<string, string> = { same_day: "Same Day", "24h": "24h", "48h": "48h", "72h": "72h", "1w": "1 Week", "2w": "2 Weeks", "4w": "4 Weeks", "6m": "6 Months", "12m": "12 Months" }
+      chips.push({ id: "re_lag", label: "Publish In", summary: lagChipLabels[reLag] ?? reLag, completed: true })
     }
   }
 

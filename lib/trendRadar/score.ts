@@ -66,6 +66,11 @@ function productionLagFit(decay: number, persist: number, v24h: number): Record<
     "24h": Math.max(0, Math.round(100 - decay * 0.6 - (persist < 50 ? 20 : 0))),
     "48h": Math.max(0, Math.round(100 - decay * 0.9 - (v24h < -20 ? 30 : 0))),
     "72h": Math.max(0, Math.round(persist - decay * 0.5)),
+    "1w": Math.max(0, Math.round(persist * 0.8 - decay * 0.7)),
+    "2w": Math.max(0, Math.round(persist * 0.6 - decay * 0.9 - (v24h < 0 ? 30 : 0))),
+    "4w": Math.max(0, Math.round(persist * 0.5 - decay - (v24h < -10 ? 40 : 0))),
+    "6m": Math.max(0, Math.round(persist * 0.3)),
+    "12m": Math.max(0, Math.round(persist * 0.2)),
   }
 }
 
@@ -219,7 +224,8 @@ function generateWhyStillMatters(
   else if (echo >= 50) parts.push("Showing up in more than one data source.")
 
   // Verdict
-  const lagLabel = lag === "same_day" ? "today" : `within ${lag.replace("h", " hours")}`
+  const lagLabels: Record<string, string> = { same_day: "today", "24h": "within 24 hours", "48h": "within 48 hours", "72h": "within 72 hours", "1w": "within 1 week", "2w": "within 2 weeks", "4w": "within 4 weeks" }
+  const lagLabel = lagLabels[lag] ?? `within ${lag}`
   if (worth === "yes") {
     parts.push(`Good to create content around this ${lagLabel}.`)
   } else if (worth === "maybe") {
@@ -284,7 +290,7 @@ function computePublishWindowFit(
   if ((lagFit[selectedLag] ?? 0) >= 50) return selectedLag
 
   // Find best available window
-  const ordered: ProductionLag[] = ["same_day", "24h", "48h", "72h"]
+  const ordered: ProductionLag[] = ["same_day", "24h", "48h", "72h", "1w", "2w", "4w", "6m", "12m"]
   for (const l of ordered) {
     if ((lagFit[l] ?? 0) >= 50) return l
   }
@@ -313,7 +319,8 @@ function generateOutlookRationale(
   tier: ConfidenceTier,
   selectedLag: ProductionLag
 ): string {
-  const lagLabel = selectedLag === "same_day" ? "same-day" : selectedLag.replace("h", "-hour")
+  const lagDisplayLabels: Record<string, string> = { same_day: "same-day", "24h": "24-hour", "48h": "48-hour", "72h": "72-hour", "1w": "1-week", "2w": "2-week", "4w": "4-week", "6m": "6-month", "12m": "12-month" }
+  const lagLabel = lagDisplayLabels[selectedLag] ?? selectedLag
 
   // Direction-specific opening
   const directionPhrases: Record<TrendDirection, string> = {
@@ -340,7 +347,7 @@ function generateOutlookRationale(
   } else if (bestWindow === selectedLag) {
     rationale += ` It fits well with your ${lagLabel} production timeline.`
   } else {
-    const betterLabel = bestWindow === "same_day" ? "same-day" : bestWindow.replace("h", "-hour")
+    const betterLabel = lagDisplayLabels[bestWindow] ?? bestWindow
     rationale += ` Better suited for ${betterLabel} production than ${lagLabel}.`
   }
 

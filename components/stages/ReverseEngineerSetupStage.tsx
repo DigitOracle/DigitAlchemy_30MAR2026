@@ -2,19 +2,72 @@
 import { useState } from "react"
 import { PLATFORMS } from "@/config/platforms"
 
-type ProductionLag = "same_day" | "24h" | "48h" | "72h"
+type ProductionLag = "same_day" | "24h" | "48h" | "72h" | "1w" | "2w" | "4w" | "6m" | "12m"
+
+const REGIONS = [
+  { code: "AE", label: "United Arab Emirates", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/AE.svg" },
+  { code: "SA", label: "Saudi Arabia", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/SA.svg" },
+  { code: "KW", label: "Kuwait", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/KW.svg" },
+  { code: "QA", label: "Qatar", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/QA.svg" },
+  { code: "US", label: "United States", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/US.svg" },
+]
+
+const INDUSTRIES = [
+  { id: "real_estate", label: "Real Estate", icon: "🏢" },
+  { id: "automotive", label: "Automotive", icon: "🚗" },
+  { id: "hospitality", label: "Hospitality", icon: "🏨" },
+  { id: "food_beverage", label: "Food & Beverage", icon: "🍽️" },
+  { id: "fashion_beauty", label: "Fashion & Beauty", icon: "👗" },
+  { id: "fitness_wellness", label: "Fitness & Wellness", icon: "💪" },
+  { id: "ecommerce", label: "E-commerce", icon: "🛒" },
+  { id: "education", label: "Education", icon: "🎓" },
+  { id: "healthcare", label: "Healthcare", icon: "🏥" },
+  { id: "financial_services", label: "Finance", icon: "💰" },
+]
 
 type Props = {
-  onConfirm: (platform: string, niche: string, lag: ProductionLag) => void
+  onConfirm: (platform: string, niche: string, lag: ProductionLag, region: string, industry: string | null) => void
 }
 
 const scanPlatforms = Object.values(PLATFORMS).filter((p) => p.id !== "heygen")
 
-const LAG_OPTIONS: { value: ProductionLag; label: string }[] = [
-  { value: "same_day", label: "Same Day" },
-  { value: "24h", label: "24 Hours" },
-  { value: "48h", label: "48 Hours" },
-  { value: "72h", label: "72 Hours" },
+const TIME_GROUPS = [
+  {
+    id: "react_now",
+    title: "React now",
+    subtitle: "What should I post today?",
+    color: "border-red-300 bg-red-50",
+    selectedColor: "border-red-500 bg-red-100",
+    options: [
+      { value: "same_day" as ProductionLag, label: "Same Day" },
+      { value: "24h" as ProductionLag, label: "24 Hours" },
+      { value: "48h" as ProductionLag, label: "48 Hours" },
+      { value: "72h" as ProductionLag, label: "72 Hours" },
+    ],
+  },
+  {
+    id: "plan_ahead",
+    title: "Plan ahead",
+    subtitle: "What should I build toward?",
+    color: "border-amber-300 bg-amber-50",
+    selectedColor: "border-amber-500 bg-amber-100",
+    options: [
+      { value: "1w" as ProductionLag, label: "1 Week" },
+      { value: "2w" as ProductionLag, label: "2 Weeks" },
+      { value: "4w" as ProductionLag, label: "4 Weeks" },
+    ],
+  },
+  {
+    id: "analyse_history",
+    title: "Analyse history",
+    subtitle: "What has worked in my industry?",
+    color: "border-blue-300 bg-blue-50",
+    selectedColor: "border-blue-500 bg-blue-100",
+    options: [
+      { value: "6m" as ProductionLag, label: "6 Months" },
+      { value: "12m" as ProductionLag, label: "12 Months" },
+    ],
+  },
 ]
 
 const PLATFORM_LOGOS: Record<string, string> = {
@@ -30,11 +83,58 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
   const [platform, setPlatform] = useState<string | null>(null)
   const [niche, setNiche] = useState("")
   const [lag, setLag] = useState<ProductionLag>("same_day")
+  const [region, setRegion] = useState("AE")
+  const [industry, setIndustry] = useState<string | null>(null)
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm animate-fade-in max-w-lg mx-auto">
-      <h3 className="text-sm font-semibold text-gray-900 mb-1">Which platform do you want to scan?</h3>
-      <p className="text-xs text-gray-500 mb-4">Select one platform to find what’s trending now.</p>
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-500 mb-1.5">
+          Target region
+        </label>
+        <div className="flex flex-row gap-3">
+          {REGIONS.map((r) => (
+            <button
+              key={r.code}
+              onClick={() => setRegion(r.code)}
+              className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-lg border-2 text-xs font-medium transition-colors ${
+                region === r.code
+                  ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"
+                  : "border-gray-200 text-gray-500 hover:border-gray-300"
+              }`}
+            >
+              <img src={r.flag} alt={r.label} width={36} height={24} className="object-contain rounded-sm" style={{ width: 36, height: 24 }} />
+              <span className="text-[10px]">{r.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-500 mb-0.5">
+          Industry <span className="text-gray-400">(optional)</span>
+        </label>
+        <p className="text-[10px] text-gray-400 mb-1.5">Select your industry for tailored recommendations. Skip for general scanning.</p>
+        <div className="grid grid-cols-5 gap-2">
+          {INDUSTRIES.map((ind) => (
+            <button
+              key={ind.id}
+              onClick={() => setIndustry(industry === ind.id ? null : ind.id)}
+              className={`flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg border-2 text-xs font-medium transition-colors ${
+                industry === ind.id
+                  ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"
+                  : "border-gray-200 text-gray-500 hover:border-gray-300"
+              }`}
+            >
+              <span className="text-base">{ind.icon}</span>
+              <span className="text-[10px] leading-tight text-center">{ind.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <h3 className="text-sm font-semibold text-gray-900 mb-1">Choose a platform to scan</h3>
+      <p className="text-xs text-gray-500 mb-4">Select one platform to find what&apos;s trending now.</p>
 
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-5">
         {scanPlatforms.map((p) => (
@@ -75,28 +175,42 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
 
       <div className="mb-5">
         <label className="block text-xs font-medium text-gray-500 mb-1.5">
-          How soon can you publish?
+          What are you looking for?
         </label>
-        <div className="grid grid-cols-4 gap-2">
-          {LAG_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setLag(opt.value)}
-              className={`px-2 py-2 rounded-lg border-2 text-xs font-medium transition-colors ${
-                lag === opt.value
-                  ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"
-                  : "border-gray-200 text-gray-500 hover:border-gray-300"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="grid grid-cols-3 gap-2">
+          {TIME_GROUPS.map((group) => {
+            const groupSelected = group.options.some((o) => o.value === lag)
+            return (
+              <div
+                key={group.id}
+                className={`rounded-lg border-2 p-2.5 transition-colors ${groupSelected ? group.selectedColor : group.color}`}
+              >
+                <p className="text-sm font-semibold text-gray-900 leading-tight">{group.title}</p>
+                <p className="text-[10px] text-gray-500 mb-2 leading-tight">{group.subtitle}</p>
+                <div className="flex flex-wrap gap-1">
+                  {group.options.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setLag(opt.value)}
+                      className={`px-2 py-1 rounded border text-[10px] font-medium transition-colors ${
+                        lag === opt.value
+                          ? "border-[#b87333] bg-[#b87333]/10 text-[#b87333]"
+                          : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
         </div>
         <p className="text-[10px] text-gray-400 mt-1">Trend Radar scores trends based on whether they will still matter by publish time.</p>
       </div>
 
       <button
-        onClick={() => platform && onConfirm(platform, niche.trim(), lag)}
+        onClick={() => platform && onConfirm(platform, niche.trim(), lag, region, industry)}
         disabled={!platform}
         className="w-full bg-[#b87333] text-white text-sm font-medium py-2.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#b87333]/90 transition-colors"
       >

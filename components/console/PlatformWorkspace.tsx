@@ -56,7 +56,10 @@ function resolveBadge(data: CardData): string | null {
 
 function resolveCardLabel(key: string, defaultLabel: string, data: CardData): string {
   if (!data || typeof data !== "object") return defaultLabel
-  const source = (data as Record<string, unknown>).source as string | undefined
+  const rec = data as Record<string, unknown>
+  // Use backend-provided label if present (dynamic based on production lag)
+  if (typeof rec.label === "string" && rec.label) return rec.label
+  const source = rec.source as string | undefined
   if (key === "platformTrends" && source && !LIVE_SOURCES.has(source)) {
     return "Context-Guided Platform Signals"
   }
@@ -110,7 +113,7 @@ function ReverseEngineerDashboard({ platform, cards }: { platform: string; cards
           {cards.platformTrends ? <PlatformTrendsCard data={cards.platformTrends} platform={platform} /> : <Skeleton />}
         </GridCard>
 
-        <GridCard title="Trending Audio" badge={resolveBadge(cards.trendingAudio ?? null)}>
+        <GridCard title={resolveCardLabel("trendingAudio", "Trending Audio", cards.trendingAudio ?? null)} badge={resolveBadge(cards.trendingAudio ?? null)}>
           {cards.trendingAudio ? <TrendingAudioCard data={cards.trendingAudio} platform={platform} /> : <Skeleton />}
         </GridCard>
 
@@ -124,15 +127,15 @@ function ReverseEngineerDashboard({ platform, cards }: { platform: string; cards
       {/* ── LAYER B: Create ── */}
       <SectionLabel>Create</SectionLabel>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        <GridCard title="Video Ideas" badge={resolveBadge(cards.videoIdeas ?? null)} wide>
+        <GridCard title={resolveCardLabel("videoIdeas", "Video Ideas", cards.videoIdeas ?? null)} badge={resolveBadge(cards.videoIdeas ?? null)} wide>
           {cards.videoIdeas ? <VideoIdeasCard data={cards.videoIdeas} platform={platform} /> : <Skeleton />}
         </GridCard>
 
-        <GridCard title="Hook Ideas" badge={resolveBadge(cards.hooks ?? null)}>
+        <GridCard title={resolveCardLabel("hooks", "Hook Ideas", cards.hooks ?? null)} badge={resolveBadge(cards.hooks ?? null)}>
           {cards.hooks ? <SubjectHookCard data={cards.hooks} platform={platform} /> : <Skeleton />}
         </GridCard>
 
-        <GridCard title="Caption Starters" badge={resolveBadge(cards.captions ?? null)}>
+        <GridCard title={resolveCardLabel("captions", "Caption Starters", cards.captions ?? null)} badge={resolveBadge(cards.captions ?? null)}>
           {cards.captions ? <CaptionsCopyCard data={cards.captions} platform={platform} /> : <Skeleton />}
         </GridCard>
       </div>
@@ -140,11 +143,11 @@ function ReverseEngineerDashboard({ platform, cards }: { platform: string; cards
       {/* ── LAYER C: Support ── */}
       <SectionLabel>Support</SectionLabel>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        <GridCard title="Licensed Audio">
+        <GridCard title={resolveCardLabel("commercialAudio", "Licensed Audio", cards.commercialAudio ?? null)}>
           {cards.commercialAudio ? <CommercialAudioCard data={cards.commercialAudio} platform={platform} /> : <Skeleton />}
         </GridCard>
 
-        <GridCard title="Vibe Direction">
+        <GridCard title={resolveCardLabel("vibeSuggestions", "Vibe Direction", cards.vibeSuggestions ?? null)}>
           {cards.vibeSuggestions ? <VibeSuggestionsCard data={cards.vibeSuggestions} platform={platform} /> : <Skeleton />}
         </GridCard>
       </div>

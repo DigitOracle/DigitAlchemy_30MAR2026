@@ -12,7 +12,7 @@ const VALID_SCOPES = new Set(["platform_wide", "topic_aligned"])
 
 export async function POST(req: NextRequest): Promise<NextResponse<CaptureResponse | { error: string }>> {
   try {
-    const body = await req.json() as CaptureRequest
+    const body = await req.json() as CaptureRequest & { region?: string }
 
     if (!body.platform || !VALID_PLATFORMS.has(body.platform)) {
       return NextResponse.json({ error: "Valid platform required" }, { status: 400 })
@@ -24,9 +24,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<CaptureRespon
       return NextResponse.json({ error: "niche required for topic_aligned scope" }, { status: 400 })
     }
 
-    console.log(`[trend-radar] capture starting: ${body.platform}/${body.scope}${body.niche ? `/${body.niche}` : ""}`)
+    const region = body.region || "AE"
+    console.log(`[trend-radar] capture starting: ${body.platform}/${body.scope}${body.niche ? `/${body.niche}` : ""} region=${region}`)
 
-    const snapshot = await captureTrends(body.platform, body.scope, body.niche ?? null)
+    const snapshot = await captureTrends(body.platform, body.scope, body.niche ?? null, region)
 
     return NextResponse.json({
       ok: true,

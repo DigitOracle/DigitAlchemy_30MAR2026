@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 const VALID_PLATFORMS = new Set(["tiktok", "instagram", "youtube", "linkedin", "x", "facebook"])
-const VALID_LAGS = new Set(["same_day", "24h", "48h", "72h"])
+const VALID_LAGS = new Set(["same_day", "24h", "48h", "72h", "1w", "2w", "4w"])
 
 export async function GET(req: NextRequest): Promise<NextResponse<ScoresResponse | { error: string }>> {
   try {
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ScoresResponse
       return NextResponse.json({ error: "Valid platform required" }, { status: 400 })
     }
     if (!VALID_LAGS.has(productionLag)) {
-      return NextResponse.json({ error: "lag must be same_day, 24h, 48h, or 72h" }, { status: 400 })
+      return NextResponse.json({ error: "lag must be same_day, 24h, 48h, 72h, 1w, 2w, or 4w" }, { status: 400 })
     }
 
     // Fetch recent snapshots (platform_wide — the main signal)
