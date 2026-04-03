@@ -25,8 +25,16 @@ const INDUSTRIES = [
   { id: "financial_services", label: "Finance", icon: "💰" },
 ]
 
+const AUDIENCES = [
+  { id: "gen_z", label: "Gen Z", subtitle: "18-24" },
+  { id: "millennials", label: "Millennials", subtitle: "25-40" },
+  { id: "gen_x", label: "Gen X", subtitle: "41-56" },
+  { id: "boomers", label: "Boomers", subtitle: "57+" },
+  { id: "all_ages", label: "All Ages", subtitle: "Broad" },
+]
+
 type Props = {
-  onConfirm: (platform: string, niche: string, lag: ProductionLag, region: string, industry: string | null) => void
+  onConfirm: (platform: string, niche: string, lag: ProductionLag, region: string, industry: string | null, audience: string | null) => void
 }
 
 const scanPlatforms = Object.values(PLATFORMS).filter((p) => p.id !== "heygen")
@@ -86,6 +94,7 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
   const [lagChosen, setLagChosen] = useState(false)
   const [region, setRegion] = useState("AE")
   const [industry, setIndustry] = useState<string | null>(null)
+  const [audience, setAudience] = useState<string | null>(null)
 
   const activeBranch = ["same_day", "24h", "48h", "72h"].includes(lag) ? "react_now"
     : ["1w", "2w", "4w"].includes(lag) ? "plan_ahead"
@@ -227,6 +236,29 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
         </div>
       </div>
 
+      {/* Audience selector — all branches, optional */}
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${lagChosen ? "max-h-[120px] opacity-100 mb-4" : "max-h-0 opacity-0"}`}>
+        <label className="block text-xs font-medium text-gray-500 mb-1.5">
+          Target audience <span className="text-gray-400">(optional)</span>
+        </label>
+        <div className="flex gap-2">
+          {AUDIENCES.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setAudience(audience === a.id ? null : a.id)}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2 rounded-lg border-2 text-xs font-medium transition-colors ${
+                audience === a.id
+                  ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"
+                  : "border-gray-200 text-gray-500 hover:border-gray-300"
+              }`}
+            >
+              <span className="text-[11px] font-semibold">{a.label}</span>
+              <span className="text-[9px] text-gray-400">{a.subtitle}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Niche input — React Now + Plan Ahead only */}
       <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showNiche ? "max-h-[120px] opacity-100 mb-4" : "max-h-0 opacity-0"}`}>
         <label htmlFor="re-niche" className="block text-xs font-medium text-gray-500 mb-1.5">
@@ -247,7 +279,7 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
       {/* Submit button */}
       </div>
       <button
-        onClick={() => platform && canSubmit && lagChosen && onConfirm(platform, activeBranch === "analyse_history" ? "" : niche.trim(), lag, region, industry)}
+        onClick={() => platform && canSubmit && lagChosen && onConfirm(platform, activeBranch === "analyse_history" ? "" : niche.trim(), lag, region, industry, audience)}
         disabled={!canSubmit || !lagChosen}
         className="w-full bg-[#b87333] text-white text-sm font-medium py-2.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#b87333]/90 transition-colors"
       >

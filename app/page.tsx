@@ -77,6 +77,7 @@ export default function ConsolePage() {
   const [reLag, setReLag] = useState<string>("same_day")
   const [reRegion, setReRegion] = useState<string>("AE")
   const [reIndustry, setReIndustry] = useState<string | null>(null)
+  const [reAudience, setReAudience] = useState<string | null>(null)
   const [confirmedFocus, setConfirmedFocus] = useState<{ topic: string; summary: string; keywords: string[]; editedByUser: boolean } | null>(null)
 
   const ingestion = state.ingestion
@@ -223,7 +224,7 @@ export default function ConsolePage() {
   }, [])
 
   // ── Reverse-engineer: SSE stream + Trend Radar ──
-  const startReverseEngineerStream = useCallback(async (platform: string, niche: string, lag: string, region: string, industry: string | null) => {
+  const startReverseEngineerStream = useCallback(async (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null) => {
     setStage("generating")
     setSelectedPlatforms([platform])
     setReNiche(niche)
@@ -236,7 +237,7 @@ export default function ConsolePage() {
       const response = await fetch("/api/reverse-engineer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, niche, region, lag, industry }),
+        body: JSON.stringify({ platform, niche, region, lag, industry, audience }),
       })
       if (!response.ok || !response.body) { setStage("error"); return }
       const reader = response.body.getReader()
@@ -395,10 +396,11 @@ export default function ConsolePage() {
   }
 
   // ── Reverse-engineer: confirm ──
-  const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null) => {
+  const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null) => {
     setReRegion(region)
     setReIndustry(industry)
-    startReverseEngineerStream(platform, niche, lag, region, industry)
+    setReAudience(audience)
+    startReverseEngineerStream(platform, niche, lag, region, industry, audience)
   }
 
   // ── Full reset ──
@@ -416,6 +418,7 @@ export default function ConsolePage() {
     setReLag("same_day")
     setReRegion("AE")
     setReIndustry(null)
+    setReAudience(null)
     setConfirmedFocus(null)
     window.history.replaceState({}, "", window.location.pathname)
   }
@@ -470,6 +473,10 @@ export default function ConsolePage() {
       if (reIndustry) {
         const industryLabels: Record<string, string> = { real_estate: "Real Estate", automotive: "Automotive", hospitality: "Hospitality", food_beverage: "Food & Beverage", fashion_beauty: "Fashion & Beauty", fitness_wellness: "Fitness & Wellness", ecommerce: "E-commerce", education: "Education", healthcare: "Healthcare", financial_services: "Finance" }
         chips.push({ id: "re_industry", label: "Industry", summary: industryLabels[reIndustry] ?? reIndustry, completed: true })
+      }
+      if (reAudience) {
+        const audienceLabels: Record<string, string> = { gen_z: "Gen Z", millennials: "Millennials", gen_x: "Gen X", boomers: "Boomers", all_ages: "All Ages" }
+        chips.push({ id: "re_audience", label: "Audience", summary: audienceLabels[reAudience] ?? reAudience, completed: true })
       }
     }
     if ((stage === "generating" || stage === "complete")) {

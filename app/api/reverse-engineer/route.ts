@@ -476,7 +476,7 @@ const REGION_LABELS: Record<string, string> = {
 
 export async function POST(req: NextRequest): Promise<Response> {
   const body = await req.json()
-  const { platform, niche, region = "AE", lag = "same_day", industry = null } = body as { platform: string; niche: string; region: string; lag: string; industry: string | null }
+  const { platform, niche, region = "AE", lag = "same_day", industry = null, audience = null } = body as { platform: string; niche: string; region: string; lag: string; industry: string | null; audience: string | null }
   const regionLabel = REGION_LABELS[region] || region
   const INDUSTRY_LABELS: Record<string, string> = {
     real_estate: "real estate and property development",
@@ -491,6 +491,15 @@ export async function POST(req: NextRequest): Promise<Response> {
     financial_services: "financial services and fintech",
   }
   const industryLabel = industry ? INDUSTRY_LABELS[industry] ?? industry : null
+  const AUDIENCE_LABELS: Record<string, string> = {
+    gen_z: "Gen Z (18-24) — digital natives, short-form video dominant, TikTok/Instagram primary, authentic raw content, fast-paced hooks, trend-aware language, evening/late-night posting",
+    millennials: "Millennials (25-40) — multi-platform users, Instagram/YouTube/Facebook, value lifestyle + educational content, moderate production quality, respond to storytelling and value propositions",
+    gen_x: "Gen X (41-56) — Facebook/YouTube primary, longer attention spans, prefer educational and practical content, professional tone, morning/lunch posting times, respond to expertise and authority",
+    boomers: "Boomers (57+) — Facebook/YouTube dominant, longest attention spans, prefer detailed educational content, trust-building tone, morning posting, respond to credibility and straightforward value",
+    all_ages: "All age groups — use a universal tone that balances authenticity with professionalism, cover multiple formats from short to long",
+  }
+  const audienceLabel = audience ? AUDIENCE_LABELS[audience] ?? audience : null
+  const audiencePromptBlock = audienceLabel ? `\nTARGET AUDIENCE: ${audienceLabel}\nTailor all content recommendations specifically for this demographic. Consider their platform preferences, content consumption habits, attention span, preferred content formats, and cultural references.` : ""
   const isLongTerm = ["1w", "2w", "4w", "6m", "12m"].includes(lag)
   const timeHorizon = ["same_day", "24h", "48h", "72h"].includes(lag) ? "react_now"
     : ["1w", "2w", "4w"].includes(lag) ? "plan_ahead"
@@ -522,7 +531,7 @@ export async function POST(req: NextRequest): Promise<Response> {
           const haProvenance = ha.sources.includes("perplexity_deep") ? "observed_live" : "inferred"
           const truncatedTrends = ha.trends.slice(0, 3000)
 
-          const fallbackRule = "\nIMPORTANT: If specific verified data points are not available from the research, provide industry-standard estimates and general best practices for this vertical. Frame estimates clearly as 'Industry benchmarks suggest...' or 'Based on general social media research...'. NEVER output 'DATA_UNAVAILABLE' \u2014 always provide actionable guidance even when exact data is limited."
+          const fallbackRule = "\nIMPORTANT: If specific verified data points are not available from the research, provide industry-standard estimates and general best practices for this vertical. Frame estimates clearly as 'Industry benchmarks suggest...' or 'Based on general social media research...'. NEVER output 'DATA_UNAVAILABLE' \u2014 always provide actionable guidance even when exact data is limited." + audiencePromptBlock
 
           // CARD 1: Top Performing Content Formats
           emitStatus("Analysing content formats\u2026")
@@ -625,7 +634,7 @@ Rules:
 - ${hasNiche ? `Focus all ideas on the "${niche}" niche` : "Cover diverse evergreen themes"}
 - Focus on durability, not virality. These must work over ${lagLabel}, not just today.
 - All recommendations must be culturally relevant and specific to ${regionLabel}. Reference local events, cultural moments, and regional audience behaviour.${industryLabel ? `\n- All recommendations must be specifically relevant to the ${industryLabel} industry. Reference industry-specific content formats, audience expectations, and competitive landscape.` : ""}
-- Do NOT present Claude suggestions as live data`
+- Do NOT present Claude suggestions as live data${audiencePromptBlock}`
           : `You are DigitAlchemy\u00ae trend analyst for ${config.label}. Given platform trend data, generate actionable content ideas. Return JSON only.
 
 PLATFORM: ${config.label}
@@ -650,7 +659,7 @@ Rules:
 - captionStarters: exactly 3 (short, long, story)
 - ${hasNiche ? `Focus all ideas on the "${niche}" niche` : "Cover diverse trending themes"}
 - All recommendations must be culturally relevant and specific to ${regionLabel}. Reference local events, cultural moments, and regional audience behaviour.${industryLabel ? `\n- All recommendations must be specifically relevant to the ${industryLabel} industry. Reference industry-specific content formats, audience expectations, and competitive landscape.` : ""}
-- Do NOT present Claude suggestions as live data`
+- Do NOT present Claude suggestions as live data${audiencePromptBlock}`
 
         emitStatus(`Generating ${config.label} content ideas\u2026`)
         const ideaData = await callClaude(ideaPrompt, 1500)
@@ -734,11 +743,11 @@ Rules:
           emitSSE("card", { platform, cardType: "hooks", data: { hooks: hooksData, label: "Hook Ideas" } })
 
           emitStatus("Generating hashtag strategy\u2026")
-          const hashtagData = await callClaude(`Return JSON only. Based on the trend data, recommend a hashtag strategy for ${config.label} in ${regionLabel}${industryCtx}. Include: (1) 3-5 high-volume hashtags to ride, (2) 3-5 mid-tier hashtags with less competition, (3) 2-3 niche hashtags for discoverability. Explain why each group matters.\nTREND CONTEXT: ${platformTrends.hashtags.join(", ") || "none"}\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "highVolume": [{ "tag": "string", "why": "string" }], "midTier": [{ "tag": "string", "why": "string" }], "niche": [{ "tag": "string", "why": "string" }], "source": "claude", "provenance": "inferred" }`, 600)
+          const hashtagData = await callClaude(`Return JSON only. Based on the trend data, recommend a hashtag strategy for ${config.label} in ${regionLabel}${industryCtx}. Include: (1) 3-5 high-volume hashtags to ride, (2) 3-5 mid-tier hashtags with less competition, (3) 2-3 niche hashtags for discoverability. Explain why each group matters.\nTREND CONTEXT: ${platformTrends.hashtags.join(", ") || "none"}\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "highVolume": [{ "tag": "string", "why": "string" }], "midTier": [{ "tag": "string", "why": "string" }], "niche": [{ "tag": "string", "why": "string" }], "source": "claude", "provenance": "inferred" }`, 600)
           emitSSE("card", { platform, cardType: "hashtagStrategy", data: { ...hashtagData, label: "Hashtag Strategy" } })
 
           emitStatus("Analysing best post formats\u2026")
-          const formatData = await callClaude(`Return JSON only. Based on current trends on ${config.label} in ${regionLabel}${industryCtx}, recommend the best post formats right now. Consider: talking head, B-roll montage, carousel, duet/stitch, photo dump, behind-the-scenes, tutorial, reaction. Rank the top 3 formats and explain why they\u2019re working.\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "formats": [{ "name": "string", "rank": 1, "why": "string" }], "source": "claude", "provenance": "inferred" }`, 500)
+          const formatData = await callClaude(`Return JSON only. Based on current trends on ${config.label} in ${regionLabel}${industryCtx}, recommend the best post formats right now. Consider: talking head, B-roll montage, carousel, duet/stitch, photo dump, behind-the-scenes, tutorial, reaction. Rank the top 3 formats and explain why they\u2019re working.\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "formats": [{ "name": "string", "rank": 1, "why": "string" }], "source": "claude", "provenance": "inferred" }`, 500)
           emitSSE("card", { platform, cardType: "postFormat", data: { ...formatData, label: "Post Format Recommendation" } })
 
         } else if (timeHorizon === "plan_ahead") {
@@ -754,15 +763,15 @@ Rules:
           emitSSE("card", { platform, cardType: "hooks", data: { hooks: hooksData, label: "Proven Hook Patterns" } })
 
           emitStatus("Building content cadence plan\u2026")
-          const cadenceData = await callClaude(`Return JSON only. For a ${industryOrVertical} on ${config.label} in ${regionLabel}, recommend an optimal posting cadence for the next ${lagLabel}. Include: recommended posts per week, best days to post, content mix ratio (e.g. 40% educational, 30% entertaining, 30% promotional). Base this on what consistently performs in this market.\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "postsPerWeek": number, "bestDays": ["string"], "contentMix": [{ "type": "string", "percentage": number }], "notes": "string", "source": "claude", "provenance": "inferred" }`, 500)
+          const cadenceData = await callClaude(`Return JSON only. For a ${industryOrVertical} on ${config.label} in ${regionLabel}, recommend an optimal posting cadence for the next ${lagLabel}. Include: recommended posts per week, best days to post, content mix ratio (e.g. 40% educational, 30% entertaining, 30% promotional). Base this on what consistently performs in this market.\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "postsPerWeek": number, "bestDays": ["string"], "contentMix": [{ "type": "string", "percentage": number }], "notes": "string", "source": "claude", "provenance": "inferred" }`, 500)
           emitSSE("card", { platform, cardType: "cadencePlan", data: { ...cadenceData, label: "Content Cadence Plan" } })
 
           emitStatus("Generating content pillar recommendations\u2026")
-          const pillarsData = await callClaude(`Return JSON only. Recommend 3-4 recurring content pillars (show formats) for a ${industryOrVertical} on ${config.label} in ${regionLabel}. Each pillar should be a repeatable series concept with a name, format, frequency, and example topic. These should work consistently over ${lagLabel}.\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "pillars": [{ "name": "string", "format": "string", "frequency": "string", "exampleTopic": "string", "why": "string" }], "source": "claude", "provenance": "inferred" }`, 600)
+          const pillarsData = await callClaude(`Return JSON only. Recommend 3-4 recurring content pillars (show formats) for a ${industryOrVertical} on ${config.label} in ${regionLabel}. Each pillar should be a repeatable series concept with a name, format, frequency, and example topic. These should work consistently over ${lagLabel}.\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "pillars": [{ "name": "string", "format": "string", "frequency": "string", "exampleTopic": "string", "why": "string" }], "source": "claude", "provenance": "inferred" }`, 600)
           emitSSE("card", { platform, cardType: "contentPillars", data: { ...pillarsData, label: "Content Pillar Recommendations" } })
 
           emitStatus("Analysing competitive positioning\u2026")
-          const compData = await callClaude(`Return JSON only. Analyse the content landscape for ${industryOrVertical} on ${config.label} in ${regionLabel}. Identify: what content is oversaturated, where the whitespace opportunities are, and what would make a brand stand out. Be specific about content gaps.\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "oversaturated": ["string"], "whitespace": ["string"], "standoutStrategy": "string", "source": "claude", "provenance": "inferred" }`, 600)
+          const compData = await callClaude(`Return JSON only. Analyse the content landscape for ${industryOrVertical} on ${config.label} in ${regionLabel}. Identify: what content is oversaturated, where the whitespace opportunities are, and what would make a brand stand out. Be specific about content gaps.\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "oversaturated": ["string"], "whitespace": ["string"], "standoutStrategy": "string", "source": "claude", "provenance": "inferred" }`, 600)
           emitSSE("card", { platform, cardType: "competitivePosition", data: { ...compData, label: "Competitive Positioning" } })
 
         }
