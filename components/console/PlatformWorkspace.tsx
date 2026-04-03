@@ -87,10 +87,65 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{children}</p>
 }
 
-// ── Reverse-engineer dashboard layout ──
+// ── Card type → specialised renderer map ──
+const CARD_RENDERERS: Record<string, (data: CardData, platform: string) => React.ReactNode> = {
+  platformTrends: (d, p) => <PlatformTrendsCard data={d!} platform={p} />,
+  topicTrends: (d, p) => <TopicTrendsCard data={d!} platform={p} />,
+  trendingAudio: (d, p) => <TrendingAudioCard data={d!} platform={p} />,
+  videoIdeas: (d, p) => <VideoIdeasCard data={d!} platform={p} />,
+  hooks: (d, p) => <SubjectHookCard data={d!} platform={p} />,
+  captions: (d, p) => <CaptionsCopyCard data={d!} platform={p} />,
+  commercialAudio: (d, p) => <CommercialAudioCard data={d!} platform={p} />,
+  vibeSuggestions: (d, p) => <VibeSuggestionsCard data={d!} platform={p} />,
+}
+
+// Generic renderer for unknown card types — renders JSON-like content
+function GenericCardContent({ data }: { data: CardData }) {
+  if (!data) return null
+  const rec = data as Record<string, unknown>
+  // Try to find the main content array/string
+  const contentKeys = Object.keys(rec).filter((k) => !["label", "source", "provenance", "mode", "fetchedAt", "sourceElapsedMs"].includes(k))
+  return (
+    <div className="space-y-2 text-xs text-gray-700">
+      {contentKeys.map((key) => {
+        const val = rec[key]
+        if (Array.isArray(val)) {
+          return (
+            <div key={key}>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">{key.replace(/([A-Z])/g, " $1").trim()}</p>
+              <ul className="space-y-1">
+                {(val as unknown[]).slice(0, 10).map((item, i) => (
+                  <li key={i} className="text-xs text-gray-600">
+                    {typeof item === "string" ? item : typeof item === "object" && item !== null
+                      ? Object.values(item as Record<string, unknown>).filter((v) => typeof v === "string").join(" — ")
+                      : String(item)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+        if (typeof val === "string" && val.length > 0) {
+          return <p key={key} className="text-xs text-gray-600">{val}</p>
+        }
+        return null
+      })}
+    </div>
+  )
+}
+
+// Trend analysis cards that use the dedicated panel
+const TREND_ANALYSIS_KEYS = new Set(["trendRadar", "trendOutlook", "safeToProduceNow", "whyStillMatters", "tooLate"])
+
+// ── Reverse-engineer dashboard — dynamic card rendering ──
 function ReverseEngineerDashboard({ platform, cards }: { platform: string; cards: Record<string, CardData> }) {
   const config = PLATFORMS[platform]
-  const hasNiche = !!cards.topicTrends
+
+  // Collect cards that have data, in insertion order (JS object key order)
+  const activeCards = Object.entries(cards).filter(
+    ([key, data]) => data !== null && !TREND_ANALYSIS_KEYS.has(key)
+  )
+  const hasTrendAnalysis = TREND_ANALYSIS_KEYS.has("trendRadar") && cards.trendRadar !== null
 
   return (
     <div>
@@ -103,67 +158,37 @@ function ReverseEngineerDashboard({ platform, cards }: { platform: string; cards
         <span className="text-[10px] bg-[#b87333]/10 text-[#b87333] px-1.5 py-0.5 rounded">trend scan</span>
       </div>
 
-      {/* ── LAYER A: Snapshot ── */}
-      <SectionLabel>Snapshot</SectionLabel>
+      {/* Dynamic card grid — cards appear as SSE events arrive */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        <GridCard
-          title={resolveCardLabel("platformTrends", "What\u2019s Hot Right Now", cards.platformTrends ?? null)}
-          badge={resolveBadge(cards.platformTrends ?? null)}
-        >
-          {cards.platformTrends ? <PlatformTrendsCard data={cards.platformTrends} platform={platform} /> : <Skeleton />}
-        </GridCard>
-
-        <GridCard title={resolveCardLabel("trendingAudio", "Trending Audio", cards.trendingAudio ?? null)} badge={resolveBadge(cards.trendingAudio ?? null)}>
-          {cards.trendingAudio ? <TrendingAudioCard data={cards.trendingAudio} platform={platform} /> : <Skeleton />}
-        </GridCard>
-
-        {hasNiche && (
-          <GridCard title="Best Fit for Your Topic" badge={resolveBadge(cards.topicTrends ?? null)}>
-            {cards.topicTrends ? <TopicTrendsCard data={cards.topicTrends} platform={platform} /> : <Skeleton />}
-          </GridCard>
-        )}
+        {activeCards.map(([cardType, data]) => {
+          const label = resolveCardLabel(cardType, cardType.replace(/([A-Z])/g, " $1").trim(), data)
+          const badge = resolveBadge(data)
+          const renderer = CARD_RENDERERS[cardType]
+          return (
+            <div key={cardType} className="animate-fade-in">
+              <GridCard title={label} badge={badge} wide={cardType === "videoIdeas"}>
+                {renderer ? renderer(data, platform) : <GenericCardContent data={data} />}
+              </GridCard>
+            </div>
+          )
+        })}
       </div>
 
-      {/* ── LAYER B: Create ── */}
-      <SectionLabel>Create</SectionLabel>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        <GridCard title={resolveCardLabel("videoIdeas", "Video Ideas", cards.videoIdeas ?? null)} badge={resolveBadge(cards.videoIdeas ?? null)} wide>
-          {cards.videoIdeas ? <VideoIdeasCard data={cards.videoIdeas} platform={platform} /> : <Skeleton />}
-        </GridCard>
-
-        <GridCard title={resolveCardLabel("hooks", "Hook Ideas", cards.hooks ?? null)} badge={resolveBadge(cards.hooks ?? null)}>
-          {cards.hooks ? <SubjectHookCard data={cards.hooks} platform={platform} /> : <Skeleton />}
-        </GridCard>
-
-        <GridCard title={resolveCardLabel("captions", "Caption Starters", cards.captions ?? null)} badge={resolveBadge(cards.captions ?? null)}>
-          {cards.captions ? <CaptionsCopyCard data={cards.captions} platform={platform} /> : <Skeleton />}
-        </GridCard>
-      </div>
-
-      {/* ── LAYER C: Support ── */}
-      <SectionLabel>Support</SectionLabel>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        <GridCard title={resolveCardLabel("commercialAudio", "Licensed Audio", cards.commercialAudio ?? null)}>
-          {cards.commercialAudio ? <CommercialAudioCard data={cards.commercialAudio} platform={platform} /> : <Skeleton />}
-        </GridCard>
-
-        <GridCard title={resolveCardLabel("vibeSuggestions", "Vibe Direction", cards.vibeSuggestions ?? null)}>
-          {cards.vibeSuggestions ? <VibeSuggestionsCard data={cards.vibeSuggestions} platform={platform} /> : <Skeleton />}
-        </GridCard>
-      </div>
-
-      {/* ── Trend Analysis (merged panel with tabs) ── */}
-      <SectionLabel>Trend Analysis</SectionLabel>
-      <div className="border border-gray-100 rounded-xl bg-white shadow-sm overflow-hidden p-4 mb-3">
-        <TrendAnalysisPanel
-          platform={platform}
-          trendRadar={cards.trendRadar ?? null}
-          trendOutlook={cards.trendOutlook ?? null}
-          safeToProduceNow={cards.safeToProduceNow ?? null}
-          whyStillMatters={cards.whyStillMatters ?? null}
-          tooLate={cards.tooLate ?? null}
-        />
-      </div>
+      {/* Trend Analysis panel — shown when data arrives */}
+      {hasTrendAnalysis && (
+        <div className="animate-fade-in">
+          <div className="border border-gray-100 rounded-xl bg-white shadow-sm overflow-hidden p-4 mb-3">
+            <TrendAnalysisPanel
+              platform={platform}
+              trendRadar={cards.trendRadar ?? null}
+              trendOutlook={cards.trendOutlook ?? null}
+              safeToProduceNow={cards.safeToProduceNow ?? null}
+              whyStillMatters={cards.whyStillMatters ?? null}
+              tooLate={cards.tooLate ?? null}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

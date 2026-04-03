@@ -228,11 +228,7 @@ export default function ConsolePage() {
     setSelectedPlatforms([platform])
     setReNiche(niche)
     setReLag(lag)
-    const initial: CardState = { [platform]: {
-      platformTrends: null, topicTrends: null, trendingAudio: null, videoIdeas: null,
-      hooks: null, captions: null, commercialAudio: null, vibeSuggestions: null,
-      trendRadar: null, trendOutlook: null, safeToProduceNow: null, whyStillMatters: null, tooLate: null,
-    }}
+    const initial: CardState = { [platform]: {} }
     setPlatformCards(initial)
 
     try {

@@ -83,11 +83,28 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
   const [platform, setPlatform] = useState<string | null>(null)
   const [niche, setNiche] = useState("")
   const [lag, setLag] = useState<ProductionLag>("same_day")
+  const [lagChosen, setLagChosen] = useState(false)
   const [region, setRegion] = useState("AE")
   const [industry, setIndustry] = useState<string | null>(null)
 
+  const activeBranch = ["same_day", "24h", "48h", "72h"].includes(lag) ? "react_now"
+    : ["1w", "2w", "4w"].includes(lag) ? "plan_ahead"
+    : "analyse_history"
+
+  const showIndustry = activeBranch === "plan_ahead" || activeBranch === "analyse_history"
+  const showNiche = activeBranch !== "analyse_history"
+  const industryRequired = activeBranch === "analyse_history"
+
+  const canSubmit = !!platform && (!industryRequired || !!industry)
+
+  const buttonLabel = activeBranch === "analyse_history" ? "Analyse History"
+    : activeBranch === "plan_ahead" ? "Plan Content"
+    : "Scan Trends"
+
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm animate-fade-in max-w-lg mx-auto">
+
+      {/* ── STEP 1: Region (always visible) ── */}
       <div className="mb-4">
         <label className="block text-xs font-medium text-gray-500 mb-1.5">
           Target region
@@ -110,29 +127,8 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
         </div>
       </div>
 
-      <div className="mb-4">
-        <label className="block text-xs font-medium text-gray-500 mb-0.5">
-          Industry <span className="text-gray-400">(optional)</span>
-        </label>
-        <p className="text-[10px] text-gray-400 mb-1.5">Select your industry for tailored recommendations. Skip for general scanning.</p>
-        <div className="grid grid-cols-5 gap-2">
-          {INDUSTRIES.map((ind) => (
-            <button
-              key={ind.id}
-              onClick={() => setIndustry(industry === ind.id ? null : ind.id)}
-              className={`flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg border-2 text-xs font-medium transition-colors ${
-                industry === ind.id
-                  ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"
-                  : "border-gray-200 text-gray-500 hover:border-gray-300"
-              }`}
-            >
-              <span className="text-base">{ind.icon}</span>
-              <span className="text-[10px] leading-tight text-center">{ind.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
+      {/* ── STEP 2: Platform (appears after region) ── */}
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${region ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"}`}>
       <h3 className="text-sm font-semibold text-gray-900 mb-1">Choose a platform to scan</h3>
       <p className="text-xs text-gray-500 mb-4">Select one platform to find what&apos;s trending now.</p>
 
@@ -157,23 +153,11 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
         ))}
       </div>
 
-      <div className="mb-4">
-        <label htmlFor="re-niche" className="block text-xs font-medium text-gray-500 mb-1.5">
-          Niche / topic <span className="text-gray-400">(optional)</span>
-        </label>
-        <input
-          id="re-niche"
-          name="niche"
-          type="text"
-          value={niche}
-          onChange={(e) => setNiche(e.target.value)}
-          placeholder="e.g. fitness, cooking, AI tools — leave blank for broad trends"
-          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#b87333]/20 focus:border-[#b87333] transition-colors"
-        />
-        <p className="text-[10px] text-gray-400 mt-1">Blank = broad platform-wide scan. Filled = niche-specific trend scan.</p>
       </div>
 
-      <div className="mb-5">
+      {/* ── STEP 3: Time horizon (appears after platform) ── */}
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${platform ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"}`}>
+      <div className="mb-4">
         <label className="block text-xs font-medium text-gray-500 mb-1.5">
           What are you looking for?
         </label>
@@ -183,7 +167,8 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
             return (
               <div
                 key={group.id}
-                className={`rounded-lg border-2 p-2.5 transition-colors ${groupSelected ? group.selectedColor : group.color}`}
+                className={`rounded-lg border-2 p-2.5 transition-colors cursor-pointer ${groupSelected ? group.selectedColor : group.color}`}
+                onClick={() => { if (!groupSelected) { setLag(group.options[0].value); setLagChosen(true) } }}
               >
                 <p className="text-sm font-semibold text-gray-900 leading-tight">{group.title}</p>
                 <p className="text-[10px] text-gray-500 mb-2 leading-tight">{group.subtitle}</p>
@@ -191,7 +176,7 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
                   {group.options.map((opt) => (
                     <button
                       key={opt.value}
-                      onClick={() => setLag(opt.value)}
+                      onClick={(e) => { e.stopPropagation(); setLag(opt.value); setLagChosen(true) }}
                       className={`px-2 py-1 rounded border text-[10px] font-medium transition-colors ${
                         lag === opt.value
                           ? "border-[#b87333] bg-[#b87333]/10 text-[#b87333]"
@@ -209,12 +194,64 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
         <p className="text-[10px] text-gray-400 mt-1">Trend Radar scores trends based on whether they will still matter by publish time.</p>
       </div>
 
+      </div>
+
+      {/* ── STEP 4: Conditional fields based on branch (appears after time selection) ── */}
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${lagChosen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"}`}>
+
+      {/* Industry selector — Plan Ahead (optional) or Analyse History (required) */}
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showIndustry ? "max-h-[300px] opacity-100 mb-4" : "max-h-0 opacity-0"}`}>
+        <label className="block text-xs font-medium text-gray-500 mb-0.5">
+          {industryRequired ? "Select your industry" : <>Industry <span className="text-gray-400">(optional)</span></>}
+        </label>
+        <p className="text-[10px] text-gray-400 mb-1.5">
+          {industryRequired
+            ? "Historical analysis requires an industry selection."
+            : "Select your industry for tailored recommendations. Skip for general scanning."}
+        </p>
+        <div className="grid grid-cols-5 gap-2">
+          {INDUSTRIES.map((ind) => (
+            <button
+              key={ind.id}
+              onClick={() => setIndustry(industry === ind.id ? null : ind.id)}
+              className={`flex flex-col items-center gap-1 px-1 py-2.5 rounded-lg border-2 text-xs font-medium transition-colors ${
+                industry === ind.id
+                  ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"
+                  : "border-gray-200 text-gray-500 hover:border-gray-300"
+              }`}
+            >
+              <span className="text-base">{ind.icon}</span>
+              <span className="text-[10px] leading-tight text-center">{ind.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Niche input — React Now + Plan Ahead only */}
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showNiche ? "max-h-[120px] opacity-100 mb-4" : "max-h-0 opacity-0"}`}>
+        <label htmlFor="re-niche" className="block text-xs font-medium text-gray-500 mb-1.5">
+          Niche / topic <span className="text-gray-400">(optional)</span>
+        </label>
+        <input
+          id="re-niche"
+          name="niche"
+          type="text"
+          value={niche}
+          onChange={(e) => setNiche(e.target.value)}
+          placeholder="e.g. fitness, cooking, AI tools — leave blank for broad trends"
+          className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#b87333]/20 focus:border-[#b87333] transition-colors"
+        />
+        <p className="text-[10px] text-gray-400 mt-1">Blank = broad platform-wide scan. Filled = niche-specific trend scan.</p>
+      </div>
+
+      {/* Submit button */}
+      </div>
       <button
-        onClick={() => platform && onConfirm(platform, niche.trim(), lag, region, industry)}
-        disabled={!platform}
+        onClick={() => platform && canSubmit && lagChosen && onConfirm(platform, activeBranch === "analyse_history" ? "" : niche.trim(), lag, region, industry)}
+        disabled={!canSubmit || !lagChosen}
         className="w-full bg-[#b87333] text-white text-sm font-medium py-2.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#b87333]/90 transition-colors"
       >
-        Scan Trends &rarr;
+        {buttonLabel} &rarr;
       </button>
     </div>
   )
