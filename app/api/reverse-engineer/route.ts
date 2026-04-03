@@ -526,9 +526,44 @@ export async function POST(req: NextRequest): Promise<Response> {
         // ANALYSE HISTORY — dedicated pipeline with deep research
         // ══════════════════════════════════════════════════════
         if (timeHorizon === "analyse_history" && industryLabel) {
-          const ha = await fetchHistoricalAnalysis(industryLabel, platform, region, regionLabel, lagLabel, emitStatus)
-          const haSourceLabel = ha.sources.includes("perplexity_deep") ? "perplexity" : "claude"
-          const haProvenance = ha.sources.includes("perplexity_deep") ? "observed_live" : "inferred"
+          // Check Firestore cache (7-day TTL)
+          const cacheKey = `historical_cache_${platform}_${region}_${industry}_${lag}`
+          let ha: { trends: string; liveHashtags: string[]; liveContext: string; sources: string[] } | null = null
+          try {
+            const { getFirestore } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore")
+            const db = getFirestore()
+            const cacheDoc = await db.collection("historical_cache").doc(cacheKey).get()
+            if (cacheDoc.exists) {
+              const data = cacheDoc.data()
+              const cachedAt = data?.cachedAt?.toDate?.() || new Date(0)
+              const ageMs = Date.now() - cachedAt.getTime()
+              const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
+              if (ageMs < SEVEN_DAYS) {
+                ha = { trends: data?.trends ?? "", liveHashtags: data?.liveHashtags ?? [], liveContext: "", sources: data?.sources ?? ["cache"] }
+                emitStatus("Using cached analysis (refreshed within 7 days)\u2026")
+              }
+            }
+          } catch { /* cache miss, proceed normally */ }
+
+          // Fetch fresh if no cache hit
+          if (!ha) {
+            ha = await fetchHistoricalAnalysis(industryLabel, platform, region, regionLabel, lagLabel, emitStatus)
+            // Write to cache (non-blocking, non-critical)
+            try {
+              const { getFirestore, FieldValue } = require("firebase-admin/firestore") as typeof import("firebase-admin/firestore")
+              const db = getFirestore()
+              await db.collection("historical_cache").doc(cacheKey).set({
+                trends: ha.trends,
+                liveHashtags: ha.liveHashtags,
+                sources: ha.sources,
+                cachedAt: FieldValue.serverTimestamp(),
+                platform, region, industry, lag,
+              })
+            } catch { /* cache write failed, non-critical */ }
+          }
+
+          const haSourceLabel = ha.sources.includes("perplexity_deep") ? "perplexity" : ha.sources.includes("cache") ? "cached" : "claude"
+          const haProvenance = ha.sources.includes("perplexity_deep") || ha.sources.includes("cache") ? "observed_live" : "inferred"
           const truncatedTrends = ha.trends.slice(0, 3000)
 
           const fallbackRule = "\nIMPORTANT: If specific verified data points are not available from the research, provide industry-standard estimates and general best practices for this vertical. Frame estimates clearly as 'Industry benchmarks suggest...' or 'Based on general social media research...'. NEVER output 'DATA_UNAVAILABLE' \u2014 always provide actionable guidance even when exact data is limited." + audiencePromptBlock
@@ -721,7 +756,7 @@ Rules:
           let audioLicensing: Record<string, unknown> = {}
           if (trendingSounds.length > 0) {
             emitStatus("Checking audio licensing\u2026")
-            audioLicensing = await callClaude(`Return JSON only. For each of these trending tracks on ${config.label}, indicate whether it is commercially licensed and safe for business/brand use. Mark tracks as [COMMERCIAL \u2713] or [PERSONAL USE ONLY]. This is critical for creators who monetize content or represent brands.\n\nTRACKS:\n${trendingSounds.join("\n")}\n\nReturn: { "tracks": [{ "track": "string", "license": "COMMERCIAL" | "PERSONAL_USE_ONLY", "note": "string" }] }`, 500)
+            audioLicensing = await callClaude(`Return JSON only. For each of these trending tracks on ${config.label}, indicate whether it is commercially licensed and safe for business/brand use. Mark tracks as [COMMERCIAL \u2713] if they are from known commercial music libraries (TikTok Commercial Music Library, Epidemic Sound, Artlist, Shutterstock Music) or are royalty-free. Mark tracks as [PERSONAL USE ONLY] if they are copyrighted artist tracks not cleared for commercial use. If licensing status is unknown, mark as [CHECK LICENSE]. This is critical for creators who monetize content or represent brands.\n\nTRACKS:\n${trendingSounds.join("\n")}\n\nReturn: { "tracks": [{ "track": "string", "license": "COMMERCIAL" | "PERSONAL_USE_ONLY" | "CHECK_LICENSE", "note": "string" }] }`, 500)
           }
           emitSSE("card", { platform, cardType: "trendingAudio", data: {
             trendingSounds,

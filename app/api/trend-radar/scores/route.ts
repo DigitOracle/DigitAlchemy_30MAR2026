@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 const VALID_PLATFORMS = new Set(["tiktok", "instagram", "youtube", "linkedin", "x", "facebook"])
-const VALID_LAGS = new Set(["same_day", "24h", "48h", "72h", "1w", "2w", "4w"])
+const VALID_LAGS = new Set(["same_day", "24h", "48h", "72h", "1w", "2w", "4w", "6m", "12m"])
 
 export async function GET(req: NextRequest): Promise<NextResponse<ScoresResponse | { error: string }>> {
   try {
