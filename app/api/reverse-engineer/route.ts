@@ -320,6 +320,85 @@ async function fetchNicheTrends(topic: string, platform: string, region: string,
 
 const LIVE_SOURCES = new Set(["scrape_creators_tiktok", "scrape_creators_instagram_support", "apify_live_scrape", "xpoz_social_signal", "official_platform"])
 
+// ── Google Trends data via Apify (12-month keyword analysis) ──
+
+async function fetchGoogleTrends(industry: string, region: string, regionLabel: string, emitStatus: (msg: string) => void): Promise<string | null> {
+  const apiKey = process.env.APIFY_API_KEY
+  if (!apiKey) return null
+
+  const baseWord = industry.split(" and ")[0].split(",")[0].trim()
+  const keywords = [baseWord, `${baseWord} ${regionLabel}`, `${baseWord} TikTok`]
+
+  emitStatus(`Analysing 12 months of search data for ${industry}\u2026`)
+
+  try {
+    const res = await fetch(`https://api.apify.com/v2/acts/automation-lab~google-trends-scraper/runs?token=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "keyword", keywords, geo: region, timeRange: "today 12-m", outputType: "flat" }),
+      signal: AbortSignal.timeout(100000),
+    })
+    if (!res.ok) return null
+    const run = await res.json()
+    const runId = run?.data?.id
+    const datasetId = run?.data?.defaultDatasetId
+    if (!runId || !datasetId) return null
+
+    // Poll for completion (~75s typical)
+    const pollDeadline = Date.now() + 100000
+    while (Date.now() < pollDeadline) {
+      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${apiKey}`, { signal: AbortSignal.timeout(5000) })
+      if (statusRes.ok) {
+        const statusData = await statusRes.json()
+        const status = statusData?.data?.status
+        if (status === "SUCCEEDED") break
+        if (status === "FAILED" || status === "ABORTED" || status === "TIMED-OUT") return null
+      }
+      await new Promise((r) => setTimeout(r, 3000))
+    }
+
+    const itemsRes = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${apiKey}&limit=250`, { signal: AbortSignal.timeout(10000) })
+    if (!itemsRes.ok) return null
+    const items = (await itemsRes.json()) as Record<string, unknown>[]
+
+    const interestOverTime = items.filter((i) => i.type === "interestOverTime")
+    const relatedQueries = items.filter((i) => i.type === "relatedQuery")
+    const regional = items.filter((i) => i.type === "regionalInterest")
+
+    let summary = `GOOGLE TRENDS DATA (12 months, ${regionLabel}):\n`
+
+    if (interestOverTime.length > 0) {
+      summary += "\nMonthly search interest (0-100 scale):\n"
+      const byKeyword: Record<string, { date: string; value: number }[]> = {}
+      for (const i of interestOverTime) {
+        const kw = i.keyword as string
+        if (!byKeyword[kw]) byKeyword[kw] = []
+        byKeyword[kw].push({ date: (i.formattedDate ?? i.date ?? "") as string, value: (i.value ?? 0) as number })
+      }
+      for (const [kw, data] of Object.entries(byKeyword)) {
+        summary += `\n"${kw}":\n`
+        for (const d of data) summary += `  ${d.date}: ${d.value}\n`
+      }
+    }
+
+    if (relatedQueries.length > 0) {
+      summary += "\nRelated searches people also look for:\n"
+      for (const i of relatedQueries.slice(0, 15)) {
+        summary += `  "${i.query}" \u2014 interest: ${i.value} (${i.relatedType ?? ""})\n`
+      }
+    }
+
+    if (regional.length > 0) {
+      summary += "\nSearch interest by sub-region:\n"
+      for (const i of regional.slice(0, 10)) {
+        summary += `  ${i.region}: ${i.value}\n`
+      }
+    }
+
+    return summary
+  } catch { return null }
+}
+
 // ── Historical analysis pipeline (Analyse History branch) ──
 
 async function fetchHistoricalAnalysis(
@@ -333,6 +412,10 @@ async function fetchHistoricalAnalysis(
   const sources: string[] = []
   const parts: string[] = []
 
+  // SOURCE 0: Google Trends (12-month keyword analysis via Apify)
+  const googleTrendsData = await fetchGoogleTrends(industry, region, regionLabel, emitStatus)
+  if (googleTrendsData) { sources.push("google_trends") }
+
   // SOURCE 1: Perplexity deep search (no recency filter — we want historical data)
   emitStatus(`Researching ${industry} history on ${platform} via Perplexity\u2026`)
   const pplxApiKey = process.env.PERPLEXITY_API_KEY
@@ -344,7 +427,7 @@ async function fetchHistoricalAnalysis(
         headers: { Authorization: `Bearer ${pplxApiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "sonar-pro",
-          messages: [{ role: "user", content: `Analyse the social media content landscape for the ${industry} industry on ${platform} in ${regionLabel} over the last ${lagLabel}. Provide:\n1. The top 10 most successful accounts in this vertical with their approximate follower counts and content styles\n2. The content formats that consistently drive the highest engagement (video, carousel, photo, short-form, long-form)\n3. Posting frequency patterns of top performers (posts per week, best days, best times)\n4. Seasonal engagement patterns (which months peak, which dip, tied to local events like Ramadan, Eid, National Day, DSF)\n5. The most consistently used hashtags in this vertical\n6. Content topics that drive the most engagement\n7. Average engagement rates for this vertical (likes, comments, shares per post)\n8. Content gaps - what works in other markets but nobody in ${regionLabel} is doing\nBe specific with numbers, account names, and data points. Reference real accounts and real trends.` }],
+          messages: [{ role: "user", content: `Analyse the social media content landscape for the ${industry} industry on ${platform} in ${regionLabel} over the last ${lagLabel}. Provide:\n1. The top 10 most successful accounts in this vertical with their approximate follower counts and content styles\n2. The content formats that consistently drive the highest engagement (video, carousel, photo, short-form, long-form)\n3. Posting frequency patterns of top performers (posts per week, best days, best times)\n4. Seasonal engagement patterns (which months peak, which dip, tied to local events like Ramadan, Eid, National Day, DSF)\n5. The most consistently used hashtags in this vertical\n6. Content topics that drive the most engagement\n7. Average engagement rates for this vertical (likes, comments, shares per post)\n8. Content gaps - what works in other markets but nobody in ${regionLabel} is doing\nBe specific with numbers, account names, and data points. Reference real accounts and real trends.${googleTrendsData ? `\n\nHere is real Google Trends search data for this industry:\n${googleTrendsData}\n\nUse this data to ground your analysis in real search patterns.` : ""}` }],
           max_tokens: 2000,
         }),
         signal: AbortSignal.timeout(30000),
@@ -377,7 +460,9 @@ async function fetchHistoricalAnalysis(
     sources.push("apify_live_scrape")
   }
 
-  const trends = parts.join("\n\n") || `No deep research data available for ${industry} on ${platform} in ${regionLabel}. Use general knowledge about this vertical.`
+  const allParts = [...parts]
+  if (googleTrendsData) allParts.push(googleTrendsData)
+  const trends = allParts.join("\n\n") || `No deep research data available for ${industry} on ${platform} in ${regionLabel}. Use general knowledge about this vertical.`
   return { trends, liveHashtags, liveContext, sources }
 }
 
@@ -469,7 +554,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
           // CARD 4: Seasonal Patterns
           emitStatus("Mapping seasonal calendar\u2026")
-          const seasonalData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nMap out a 12-month seasonal calendar for ${industryLabel} on ${config.label} in ${regionLabel}. For each month: note the key events (Ramadan, Eid Al Fitr, Eid Al Adha, UAE National Day, DSF, summer, back-to-school), expected engagement level (high/medium/low), and recommended content themes for that period. Format as a month-by-month guide.${fallbackRule}\nReturn: { "calendar": [{ "month": "string", "events": ["string"], "engagementLevel": "string", "recommendedThemes": ["string"] }], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 900)
+          const seasonalData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nMap out a 12-month seasonal calendar for ${industryLabel} on ${config.label} in ${regionLabel}. For each month: note the key events (Ramadan, Eid Al Fitr, Eid Al Adha, UAE National Day, DSF, summer, back-to-school), expected engagement level (high/medium/low), and recommended content themes for that period. Format as a month-by-month guide. Use the Google Trends search interest data provided to identify real seasonal peaks and valleys. Map the search interest numbers to specific months and correlate with local events.${fallbackRule}\nReturn: { "calendar": [{ "month": "string", "events": ["string"], "engagementLevel": "string", "recommendedThemes": ["string"] }], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 900)
           emitSSE("card", { platform, cardType: "seasonalPatterns", data: { ...seasonalData, label: "Seasonal Patterns" } })
 
           // CARD 5: Vertical Leaders
