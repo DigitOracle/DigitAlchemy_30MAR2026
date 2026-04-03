@@ -223,7 +223,7 @@ export default function ConsolePage() {
   }, [])
 
   // ── Reverse-engineer: SSE stream + Trend Radar ──
-  const startReverseEngineerStream = useCallback(async (platform: string, niche: string, lag: string) => {
+  const startReverseEngineerStream = useCallback(async (platform: string, niche: string, lag: string, region: string, industry: string | null) => {
     setStage("generating")
     setSelectedPlatforms([platform])
     setReNiche(niche)
@@ -240,7 +240,7 @@ export default function ConsolePage() {
       const response = await fetch("/api/reverse-engineer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, niche, region: reRegion, lag: reLag, industry: reIndustry }),
+        body: JSON.stringify({ platform, niche, region, lag, industry }),
       })
       if (!response.ok || !response.body) { setStage("error"); return }
       const reader = response.body.getReader()
@@ -279,13 +279,13 @@ export default function ConsolePage() {
         await fetch("/api/trend-radar/capture", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ platform, scope: "platform_wide", region: reRegion }),
+          body: JSON.stringify({ platform, scope: "platform_wide", region }),
         })
         if (niche) {
           await fetch("/api/trend-radar/capture", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ platform, scope: "topic_aligned", niche, region: reRegion }),
+            body: JSON.stringify({ platform, scope: "topic_aligned", niche, region }),
           })
         }
       } catch { /* non-critical */ }
@@ -402,7 +402,7 @@ export default function ConsolePage() {
   const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null) => {
     setReRegion(region)
     setReIndustry(industry)
-    startReverseEngineerStream(platform, niche, lag)
+    startReverseEngineerStream(platform, niche, lag, region, industry)
   }
 
   // ── Full reset ──
