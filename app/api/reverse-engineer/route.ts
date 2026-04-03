@@ -320,6 +320,67 @@ async function fetchNicheTrends(topic: string, platform: string, region: string,
 
 const LIVE_SOURCES = new Set(["scrape_creators_tiktok", "scrape_creators_instagram_support", "apify_live_scrape", "xpoz_social_signal", "official_platform"])
 
+// ── Historical analysis pipeline (Analyse History branch) ──
+
+async function fetchHistoricalAnalysis(
+  industry: string,
+  platform: string,
+  region: string,
+  regionLabel: string,
+  lagLabel: string,
+  emitStatus: (msg: string) => void
+): Promise<{ trends: string; liveHashtags: string[]; liveContext: string; sources: string[] }> {
+  const sources: string[] = []
+  const parts: string[] = []
+
+  // SOURCE 1: Perplexity deep search (no recency filter — we want historical data)
+  emitStatus(`Researching ${industry} history on ${platform} via Perplexity\u2026`)
+  const pplxApiKey = process.env.PERPLEXITY_API_KEY
+  let pplxText = ""
+  if (pplxApiKey) {
+    try {
+      const res = await fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${pplxApiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "sonar-pro",
+          messages: [{ role: "user", content: `Analyse the social media content landscape for the ${industry} industry on ${platform} in ${regionLabel} over the last ${lagLabel}. Provide:\n1. The top 10 most successful accounts in this vertical with their approximate follower counts and content styles\n2. The content formats that consistently drive the highest engagement (video, carousel, photo, short-form, long-form)\n3. Posting frequency patterns of top performers (posts per week, best days, best times)\n4. Seasonal engagement patterns (which months peak, which dip, tied to local events like Ramadan, Eid, National Day, DSF)\n5. The most consistently used hashtags in this vertical\n6. Content topics that drive the most engagement\n7. Average engagement rates for this vertical (likes, comments, shares per post)\n8. Content gaps - what works in other markets but nobody in ${regionLabel} is doing\nBe specific with numbers, account names, and data points. Reference real accounts and real trends.` }],
+          max_tokens: 2000,
+        }),
+        signal: AbortSignal.timeout(30000),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        pplxText = data?.choices?.[0]?.message?.content ?? ""
+        if (pplxText) { parts.push(pplxText); sources.push("perplexity_deep") }
+      }
+    } catch { /* non-critical */ }
+  }
+
+  // SOURCE 2: ScrapeCreators keyword search for current industry data
+  let liveHashtags: string[] = []
+  let liveContext = ""
+  emitStatus(`Cross-referencing live ${platform} data for ${industry}\u2026`)
+  if (platform === "tiktok") {
+    const sc = await fetchScrapeCreatorsTikTokByTopic(industry, region, industry)
+    if (sc) { liveHashtags = sc.hashtags; liveContext = sc.context; sources.push("scrape_creators_tiktok") }
+  } else if (platform === "instagram") {
+    const sc = await fetchScrapeCreatorsInstagram(industry, region, industry)
+    if (sc) { liveHashtags = sc.hashtags; liveContext = sc.context; sources.push("scrape_creators_instagram") }
+  }
+
+  // SOURCE 3: Apify search for industry content
+  emitStatus(`Fetching ${industry} content samples via Apify\u2026`)
+  const apify = await fetchApifyTrends(industry, platform, region, industry)
+  if (apify && apify.hashtags.length > 0) {
+    liveHashtags = [...new Set([...liveHashtags, ...apify.hashtags])].slice(0, 20)
+    sources.push("apify_live_scrape")
+  }
+
+  const trends = parts.join("\n\n") || `No deep research data available for ${industry} on ${platform} in ${regionLabel}. Use general knowledge about this vertical.`
+  return { trends, liveHashtags, liveContext, sources }
+}
+
 const REGION_LABELS: Record<string, string> = {
   AE: "the UAE",
   SA: "Saudi Arabia",
@@ -367,6 +428,72 @@ export async function POST(req: NextRequest): Promise<Response> {
       const emitStatus = (label: string) => emitSSE("processor.started", { label })
 
       try {
+        // ══════════════════════════════════════════════════════
+        // ANALYSE HISTORY — dedicated pipeline with deep research
+        // ══════════════════════════════════════════════════════
+        if (timeHorizon === "analyse_history" && industryLabel) {
+          const ha = await fetchHistoricalAnalysis(industryLabel, platform, region, regionLabel, lagLabel, emitStatus)
+          const haSourceLabel = ha.sources.includes("perplexity_deep") ? "perplexity" : "claude"
+          const haProvenance = ha.sources.includes("perplexity_deep") ? "observed_live" : "inferred"
+          const truncatedTrends = ha.trends.slice(0, 3000)
+
+          const fallbackRule = "\nIMPORTANT: If specific verified data points are not available from the research, provide industry-standard estimates and general best practices for this vertical. Frame estimates clearly as 'Industry benchmarks suggest...' or 'Based on general social media research...'. NEVER output 'DATA_UNAVAILABLE' \u2014 always provide actionable guidance even when exact data is limited."
+
+          // CARD 1: Top Performing Content Formats
+          emitStatus("Analysing content formats\u2026")
+          const formatsData = await callClaude(`Return JSON only. Based on this data about ${industryLabel} on ${config.label} in ${regionLabel} over ${lagLabel}:\n${truncatedTrends}\n\nLIVE HASHTAGS: ${ha.liveHashtags.join(", ") || "none"}\n\nAnalyse the content formats. Create a breakdown showing: which formats (video, carousel, photo, Reels, Stories) get the highest engagement and why. Include estimated percentage split and engagement rate per format. Be specific with numbers.${fallbackRule}\nReturn: { "formats": [{ "name": "string", "percentageOfContent": "string", "engagementRate": "string", "why": "string" }], "summary": "string", "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 700)
+          emitSSE("card", { platform, cardType: "platformTrends", data: {
+            ...formatsData,
+            hashtags: ha.liveHashtags,
+            source: haSourceLabel,
+            provenance: haProvenance,
+            fetchedAt,
+            label: `Top Performing Content in ${industryLabel}`,
+          }})
+
+          // CARD 2: Content Themes That Have Worked
+          emitStatus("Identifying proven content themes\u2026")
+          const themesData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nIdentify the top 5-7 content themes that have consistently driven engagement for ${industryLabel} in ${regionLabel}. For each theme: name it, explain why it works, give an example post concept, and estimate its engagement level relative to other themes.${fallbackRule}\nReturn: { "themes": [{ "name": "string", "why": "string", "examplePost": "string", "relativeEngagement": "string" }], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 800)
+          emitSSE("card", { platform, cardType: "videoIdeas", data: {
+            ...themesData,
+            ideas: (themesData.themes as unknown[]) ?? [],
+            source: haSourceLabel,
+            provenance: haProvenance,
+            label: "Content Themes That Have Worked",
+          }})
+
+          // CARD 3: Posting Pattern Analysis
+          emitStatus("Analysing posting patterns\u2026")
+          const patternsData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nAnalyse posting patterns for top ${industryLabel} accounts on ${config.label} in ${regionLabel}. Cover: optimal posts per week, best days of week, best times of day, content mix ratio (educational vs entertaining vs promotional), and whether consistency or burst posting works better.${fallbackRule}\nReturn: { "optimalFrequency": "string", "bestDays": ["string"], "bestTimes": ["string"], "contentMix": [{ "type": "string", "percentage": "string" }], "consistencyVsBurst": "string", "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 600)
+          emitSSE("card", { platform, cardType: "postingPatterns", data: { ...patternsData, label: "Posting Pattern Analysis" } })
+
+          // CARD 4: Seasonal Patterns
+          emitStatus("Mapping seasonal calendar\u2026")
+          const seasonalData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nMap out a 12-month seasonal calendar for ${industryLabel} on ${config.label} in ${regionLabel}. For each month: note the key events (Ramadan, Eid Al Fitr, Eid Al Adha, UAE National Day, DSF, summer, back-to-school), expected engagement level (high/medium/low), and recommended content themes for that period. Format as a month-by-month guide.${fallbackRule}\nReturn: { "calendar": [{ "month": "string", "events": ["string"], "engagementLevel": "string", "recommendedThemes": ["string"] }], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 900)
+          emitSSE("card", { platform, cardType: "seasonalPatterns", data: { ...seasonalData, label: "Seasonal Patterns" } })
+
+          // CARD 5: Vertical Leaders
+          emitStatus("Profiling vertical leaders\u2026")
+          const leadersData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nProfile the top 5 ${industryLabel} accounts on ${config.label} in ${regionLabel}. For each: account name, estimated followers, content style (professional/casual/educational/entertaining), posting frequency, signature content format, engagement rate, and one key lesson a new entrant can learn from them.${fallbackRule}\nReturn: { "leaders": [{ "account": "string", "followers": "string", "style": "string", "frequency": "string", "signatureFormat": "string", "engagementRate": "string", "keyLesson": "string" }], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 800)
+          emitSSE("card", { platform, cardType: "verticalLeaders", data: { ...leadersData, label: "Vertical Leaders" } })
+
+          // CARD 6: Engagement Benchmarks
+          emitStatus("Calculating engagement benchmarks\u2026")
+          const benchData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nProvide engagement benchmarks for ${industryLabel} on ${config.label} in ${regionLabel}. Include: average engagement rate (top 25%, median, bottom 25%), average views per post, average comments per post, average shares per post, follower growth rate benchmarks, and what a new entrant should target in months 1-3, 3-6, and 6-12.${fallbackRule}\nReturn: { "engagementRate": { "top25": "string", "median": "string", "bottom25": "string" }, "avgViews": "string", "avgComments": "string", "avgShares": "string", "growthRate": "string", "targets": { "months1to3": "string", "months3to6": "string", "months6to12": "string" }, "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 600)
+          emitSSE("card", { platform, cardType: "engagementBenchmarks", data: { ...benchData, label: "Engagement Benchmarks" } })
+
+          // CARD 7: Content Gaps
+          emitStatus("Identifying content gaps\u2026")
+          const gapsData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nIdentify content gaps for ${industryLabel} on ${config.label} in ${regionLabel}. Compare what top performers do in other markets (Saudi Arabia, USA, UK) that nobody in ${regionLabel} is doing yet. Identify underserved audience needs, missing content formats, and untapped topics. Be specific about the opportunity size.${fallbackRule}\nReturn: { "gaps": [{ "opportunity": "string", "workingIn": "string", "why": "string", "opportunitySize": "string" }], "underservedNeeds": ["string"], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 700)
+          emitSSE("card", { platform, cardType: "contentGaps", data: { ...gapsData, label: "Content Gaps" } })
+
+          emitSSE("complete", { platform })
+
+        } else {
+        // ══════════════════════════════════════════════════════
+        // REACT NOW + PLAN AHEAD — live scraper pipeline
+        // ══════════════════════════════════════════════════════
+
         // ── CARD 1: Platform Trends Now (inference-last) ──
         // When industry is selected, skip the platform-wide popular endpoints (they ignore topic)
         // and instead use the keyword/search chain which actually filters by industry.
@@ -385,34 +512,8 @@ export async function POST(req: NextRequest): Promise<Response> {
         // Claude adds themes + video ideas (synthesis on top of trend data)
         let themes: unknown[] = []
         let videoIdeas: unknown[] = []
-        const ideaPrompt = timeHorizon === "analyse_history"
-          ? `You are DigitAlchemy\u00ae content historian for ${config.label}. Based on the trend data, identify content themes that have shown consistent performance over ${lagLabel} in the ${industryLabel || "this"} industry in ${regionLabel}. Focus on formats that repeatedly drive engagement, not one-time viral moments. Reference seasonal patterns, recurring topics, and proven content structures. Return JSON only.
-
-PLATFORM: ${config.label}
-REGION: ${regionLabel}
-ANALYSIS WINDOW: ${lagLabel}
-OBSERVED HASHTAGS: ${platformTrends.hashtags.join(", ") || "none"}
-TREND CONTEXT: ${platformTrends.context.slice(0, 400) || "none"}
-${hasNiche ? `NICHE FOCUS: ${niche}` : "SCOPE: Broad industry themes"}
-${industryLabel ? `INDUSTRY: ${industryLabel}` : ""}
-
-Return ONLY this JSON:
-{
-  "themes": ["3-5 content themes that have driven consistent engagement over ${lagLabel} on ${config.label}"],
-  "videoIdeas": [{ "title": "proven content format", "hook": "hook pattern that has driven engagement consistently over months", "format": "series|educational|documentary|behind-scenes|case-study|interview|etc", "why": "why this format has staying power based on historical performance" }],
-  "hookConcepts": [{ "text": "hook pattern that has been proven to drive engagement consistently over months, not just viral one-offs, targeting ${industryLabel ? `${industryLabel} audiences` : "general audiences"}", "type": "opening|question|statistic|controversial" }],
-  "captionStarters": [{ "text": "messaging framework that resonates with ${industryLabel || "this industry"} audiences in ${regionLabel} over time", "variant": "short|long|story" }]
-}
-
-Rules:
-- videoIdeas: exactly 5, based on historically proven formats
-- hookConcepts: exactly 3, proven engagement patterns over months
-- captionStarters: exactly 3 (short, long, story), messaging that has resonated over time
-- ${hasNiche ? `Focus all ideas on the "${niche}" niche` : "Cover diverse proven themes"}
-- Focus on what has worked repeatedly, not what is trending today. Reference seasonal patterns, recurring audience interests, and proven content structures.
-- All recommendations must be culturally relevant and specific to ${regionLabel}. Reference local events, cultural moments, and regional audience behaviour.${industryLabel ? `\n- All recommendations must be specifically relevant to the ${industryLabel} industry. Reference industry-specific content formats, audience expectations, and competitive landscape.` : ""}
-- Do NOT present Claude suggestions as live data`
-          : timeHorizon === "plan_ahead"
+        // Note: analyse_history is handled above with dedicated pipeline
+        const ideaPrompt = timeHorizon === "plan_ahead"
           ? `You are DigitAlchemy\u00ae content strategist for ${config.label}. Given platform trend data, generate content themes worth investing in for a multi-week content calendar. Return JSON only.
 
 PLATFORM: ${config.label}
@@ -482,9 +583,7 @@ Rules:
           provenance: ptIsLive ? "observed_live" : "inferred",
           fetchedAt,
           opportunities: [],
-          label: timeHorizon === "analyse_history"
-            ? (industryLabel ? `Top Performing Content in ${industryLabel}` : "Top Performing Content")
-            : timeHorizon === "plan_ahead"
+          label: timeHorizon === "plan_ahead"
             ? (industryLabel ? `What\u2019s Consistently Performing in ${industryLabel}` : "What\u2019s Consistently Performing")
             : (industryLabel ? `What\u2019s Hot in ${industryLabel}` : "What\u2019s Hot Right Now"),
         }
@@ -525,8 +624,14 @@ Rules:
           // ── REACT NOW: trendingAudio, videoIdeas, hooks, hashtagStrategy, postFormat ──
 
           const trendingSounds = ptSongs.map((s) => `${s.title} \u2014 ${s.author}`)
+          let audioLicensing: Record<string, unknown> = {}
+          if (trendingSounds.length > 0) {
+            emitStatus("Checking audio licensing\u2026")
+            audioLicensing = await callClaude(`Return JSON only. For each of these trending tracks on ${config.label}, indicate whether it is commercially licensed and safe for business/brand use. Mark tracks as [COMMERCIAL \u2713] or [PERSONAL USE ONLY]. This is critical for creators who monetize content or represent brands.\n\nTRACKS:\n${trendingSounds.join("\n")}\n\nReturn: { "tracks": [{ "track": "string", "license": "COMMERCIAL" | "PERSONAL_USE_ONLY", "note": "string" }] }`, 500)
+          }
           emitSSE("card", { platform, cardType: "trendingAudio", data: {
             trendingSounds,
+            licensing: (audioLicensing.tracks as unknown[]) ?? [],
             source: trendingSounds.length > 0 ? ptSource : "inferred_fallback",
             mode: "live_trend",
             provenance: trendingSounds.length > 0 && ptIsLive ? "observed_live" : "inferred",
@@ -575,37 +680,11 @@ Rules:
           const compData = await callClaude(`Return JSON only. Analyse the content landscape for ${industryOrVertical} on ${config.label} in ${regionLabel}. Identify: what content is oversaturated, where the whitespace opportunities are, and what would make a brand stand out. Be specific about content gaps.\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "oversaturated": ["string"], "whitespace": ["string"], "standoutStrategy": "string", "source": "claude", "provenance": "inferred" }`, 600)
           emitSSE("card", { platform, cardType: "competitivePosition", data: { ...compData, label: "Competitive Positioning" } })
 
-        } else {
-          // ── ANALYSE HISTORY: videoIdeas, postingPatterns, seasonalPatterns, verticalLeaders, engagementBenchmarks, contentGaps ──
-
-          emitSSE("card", { platform, cardType: "videoIdeas", data: {
-            ideas: videoIdeas,
-            source: "claude", mode: "inferred_fallback", provenance: "inferred",
-            label: "Content Themes That Have Worked",
-          }})
-
-          emitStatus("Analysing posting patterns\u2026")
-          const patternsData = await callClaude(`Return JSON only. For ${industryOrVertical} on ${config.label} in ${regionLabel}, analyse optimal posting patterns over the last ${lagLabel}. Cover: best posting frequency, optimal times, consistency vs burst patterns, and how the algorithm rewards different cadences.\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "optimalFrequency": "string", "bestTimes": ["string"], "consistencyVsBurst": "string", "algorithmInsights": "string", "source": "claude", "provenance": "inferred" }`, 500)
-          emitSSE("card", { platform, cardType: "postingPatterns", data: { ...patternsData, label: "Posting Pattern Analysis" } })
-
-          emitStatus("Mapping seasonal patterns\u2026")
-          const seasonalData = await callClaude(`Return JSON only. Identify seasonal patterns for ${industryOrVertical} on ${config.label} in ${regionLabel} over the last ${lagLabel}. Map engagement peaks to: Ramadan, Eid, UAE National Day, DSF (Dubai Shopping Festival), summer, back-to-school, and any industry-specific events. What should a content calendar look like month by month?\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "seasonalPeaks": [{ "event": "string", "timing": "string", "contentOpportunity": "string" }], "monthlyCalendar": "string", "source": "claude", "provenance": "inferred" }`, 700)
-          emitSSE("card", { platform, cardType: "seasonalPatterns", data: { ...seasonalData, label: "Seasonal Patterns" } })
-
-          emitStatus("Identifying vertical leaders\u2026")
-          const leadersData = await callClaude(`Return JSON only. Identify the top 5 most successful ${industryLabel || ""} accounts on ${config.label} in ${regionLabel}. For each: describe their content style, posting frequency, engagement approach, and what makes them stand out. What can a new entrant learn from them?\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "leaders": [{ "account": "string", "style": "string", "frequency": "string", "engagement": "string", "standout": "string" }], "source": "claude", "provenance": "inferred" }`, 700)
-          emitSSE("card", { platform, cardType: "verticalLeaders", data: { ...leadersData, label: "Vertical Leaders" } })
-
-          emitStatus("Calculating engagement benchmarks\u2026")
-          const benchData = await callClaude(`Return JSON only. Provide engagement benchmarks for ${industryOrVertical} on ${config.label} in ${regionLabel}. Include: average engagement rate, average views per post, comments per post, and shares per post. Compare top performers vs average performers. What should a brand target?\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "avgEngagementRate": "string", "avgViews": "string", "avgComments": "string", "avgShares": "string", "topVsAverage": "string", "targets": "string", "source": "claude", "provenance": "inferred" }`, 500)
-          emitSSE("card", { platform, cardType: "engagementBenchmarks", data: { ...benchData, label: "Engagement Benchmarks" } })
-
-          emitStatus("Identifying content gaps\u2026")
-          const gapsData = await callClaude(`Return JSON only. Identify content gaps for ${industryOrVertical} on ${config.label} in ${regionLabel}. What content formats or topics are working well in other markets (Saudi Arabia, US, UK) that nobody in ${regionLabel} is doing yet? What underserved audience needs exist?\n${hasNiche ? `NICHE: ${niche}` : ""}\nReturn: { "gaps": [{ "opportunity": "string", "workingIn": "string", "why": "string" }], "underservedNeeds": ["string"], "source": "claude", "provenance": "inferred" }`, 600)
-          emitSSE("card", { platform, cardType: "contentGaps", data: { ...gapsData, label: "Content Gaps" } })
         }
 
         emitSSE("complete", { platform })
+
+        } // end of } else { (react_now / plan_ahead branch)
 
       } catch (err) {
         const message = err instanceof Error ? err.message : "Trend scan failed"
