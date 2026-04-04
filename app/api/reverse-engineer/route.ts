@@ -605,7 +605,10 @@ export async function POST(req: NextRequest): Promise<Response> {
   const lagDisplayLabels: Record<string, string> = { same_day: "today", "24h": "24 hours", "48h": "48 hours", "72h": "72 hours", "1w": "1 week", "2w": "2 weeks", "4w": "4 weeks", "6m": "6 months", "12m": "12 months" }
   const lagLabel = lagDisplayLabels[lag] ?? lag
 
+  console.log("[SSE] Request received:", { platform, region, timeHorizon, industry: industryLabel, audience: audienceLabel ? "set" : "none", quickPulse, lag })
+
   if (!platform || !PLATFORMS[platform]) {
+    console.error("[SSE] Invalid platform:", platform)
     return new Response(JSON.stringify({ error: "Valid platform required" }), { status: 400, headers: { "Content-Type": "application/json" } })
   }
 
@@ -615,8 +618,13 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const stream = new ReadableStream({
     async start(controller) {
-      const keepAlive = setInterval(() => { try { controller.enqueue(ping()) } catch { /* closed */ } }, 8000)
-      const emitSSE = (event: string, data: unknown) => { try { controller.enqueue(encodeEvent(event, data)) } catch { /* closed */ } }
+      console.log("[SSE] Stream started for", platform, region, timeHorizon)
+      let streamClosed = false
+      const safeEnqueue = (chunk: Uint8Array) => { if (!streamClosed) { try { controller.enqueue(chunk) } catch { /* closed */ } } }
+      const safeClose = () => { if (!streamClosed) { streamClosed = true; try { controller.close() } catch { /* already closed */ } } }
+
+      const keepAlive = setInterval(() => { safeEnqueue(ping()) }, 8000)
+      const emitSSE = (event: string, data: unknown) => { safeEnqueue(encodeEvent(event, data)) }
       const emitStatus = (label: string) => emitSSE("processor.started", { label })
 
       try {
@@ -658,18 +666,20 @@ export async function POST(req: NextRequest): Promise<Response> {
           if (quickPulse === "news" || quickPulse === "wikipedia" || quickPulse === "youtube") {
             emitSSE("complete", { platform })
             clearInterval(keepAlive)
-            controller.close()
+            safeClose()
             return
           }
         }
 
         // ── Supplementary context (fast, each individually wrapped) ──
+        console.log("[SSE] Starting supplementary context...")
         let gdeltContext: string | null = null
-        try { gdeltContext = await fetchGDELTContext(industryLabel || "social media", region, regionLabel) } catch (e) { console.error("[PROVIDER] GDELT failed:", e) }
+        try { gdeltContext = await fetchGDELTContext(industryLabel || "social media", region, regionLabel); console.log("[SSE] GDELT:", gdeltContext ? "OK" : "empty") } catch (e) { console.error("[PROVIDER] GDELT failed:", e) }
         let youtubeContext: string | null = null
-        if (platform === "youtube") { try { youtubeContext = await fetchYouTubeTrending(region, industryLabel) } catch (e) { console.error("[PROVIDER] YouTube failed:", e) } }
+        if (platform === "youtube") { try { youtubeContext = await fetchYouTubeTrending(region, industryLabel); console.log("[SSE] YouTube API:", youtubeContext ? "OK" : "empty") } catch (e) { console.error("[PROVIDER] YouTube failed:", e) } }
         let wikiContext: string | null = null
-        try { wikiContext = await fetchWikipediaTrending() } catch (e) { console.error("[PROVIDER] Wikipedia failed:", e) }
+        try { wikiContext = await fetchWikipediaTrending(); console.log("[SSE] Wikipedia:", wikiContext ? "OK" : "empty") } catch (e) { console.error("[PROVIDER] Wikipedia failed:", e) }
+        console.log("[SSE] Supplementary context done")
         const supplementaryContext = [gdeltContext, youtubeContext, wikiContext].filter(Boolean).join("\n\n")
         const supplementaryPromptBlock = supplementaryContext
           ? `\n\nSUPPLEMENTARY CONTEXT:\n${supplementaryContext}\nUse the above recent news headlines, YouTube trending data, and Wikipedia cultural pulse to understand the current context and explain WHY certain trends are happening.`
@@ -783,6 +793,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         // ── CARD 1: Platform Trends Now (inference-last) ──
         // When industry is selected, skip the platform-wide popular endpoints (they ignore topic)
         // and instead use the keyword/search chain which actually filters by industry.
+        console.log("[SSE] Starting platform trends fetch for", platform)
         let platformTrends: TrendResult
         if (industryLabel) {
           emitStatus(`Scanning ${config.label} trends for ${industryLabel} in ${regionLabel}\u2026`)
@@ -791,6 +802,7 @@ export async function POST(req: NextRequest): Promise<Response> {
           emitStatus(`Scanning ${config.label} platform trends in ${regionLabel}\u2026`)
           platformTrends = await fetchPlatformWideTrends(platform, region, regionLabel, emitStatus)
         }
+        console.log("[SSE] Platform trends done:", { source: platformTrends.source, hashtags: platformTrends.hashtags.length, hasSongs: (platformTrends.trendingSongs?.length ?? 0) > 0 })
         const ptSongs = platformTrends.trendingSongs ?? []
         const ptIsLive = LIVE_SOURCES.has(platformTrends.source)
         const ptSource = platformTrends.source === "context_guided" ? "perplexity" : platformTrends.source === "inferred_fallback" ? "claude" : platformTrends.source
@@ -854,8 +866,10 @@ Rules:
 - All recommendations must be culturally relevant and specific to ${regionLabel}. Reference local events, cultural moments, and regional audience behaviour.${industryLabel ? `\n- All recommendations must be specifically relevant to the ${industryLabel} industry. Reference industry-specific content formats, audience expectations, and competitive landscape.` : ""}
 - Do NOT present Claude suggestions as live data${audiencePromptBlock}${supplementaryPromptBlock}`
 
+        console.log("[SSE] Calling Claude for ideaPrompt...")
         emitStatus(`Generating ${config.label} content ideas\u2026`)
         const ideaData = await callClaude(ideaPrompt, 1500)
+        console.log("[SSE] Claude ideaPrompt done:", { themes: (ideaData.themes as unknown[])?.length ?? 0, videoIdeas: (ideaData.videoIdeas as unknown[])?.length ?? 0 })
         themes = (ideaData.themes as unknown[]) ?? []
         videoIdeas = (ideaData.videoIdeas as unknown[]) ?? []
 
@@ -977,11 +991,12 @@ Rules:
 
       } catch (err) {
         const message = err instanceof Error ? `${err.message} (${err.stack?.split("\n")[1]?.trim() ?? ""})` : "Trend scan failed"
-        console.error("[reverse-engineer] STREAM ERROR:", err)
+        console.error("[SSE] FATAL STREAM ERROR:", err instanceof Error ? err.message : err)
+        console.error("[SSE] Stack:", err instanceof Error ? err.stack : "no stack")
         emitSSE("error", { error: message })
       } finally {
         clearInterval(keepAlive)
-        controller.close()
+        safeClose()
       }
     }
   })

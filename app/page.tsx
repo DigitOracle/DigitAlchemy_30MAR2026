@@ -213,7 +213,7 @@ export default function ConsolePage() {
                   },
                 }))
               } else if (currentEvent === "complete") setStage("complete")
-              else if (currentEvent === "error") { setStage("error"); setError(payload.error) }
+              else if (currentEvent === "error") { console.error("[FRONTEND] SSE error event:", payload.error); setStage("error"); setError(payload.error) }
             } catch { /* ignore */ }
             currentEvent = ""; currentData = ""
           }
@@ -239,7 +239,8 @@ export default function ConsolePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platform, niche, region, lag, industry, audience, quickPulse }),
       })
-      if (!response.ok || !response.body) { setStage("error"); return }
+      console.log("[FRONTEND] RE response:", response.status, response.ok, !!response.body)
+      if (!response.ok || !response.body) { console.error("[FRONTEND] Bad RE response, setting error"); setStage("error"); setError(`HTTP ${response.status}`); return }
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = "", currentEvent = "", currentData = ""
@@ -264,7 +265,7 @@ export default function ConsolePage() {
                   },
                 }))
               } else if (currentEvent === "complete") { /* handled below */ }
-              else if (currentEvent === "error") { setStage("error"); setError(payload.error) }
+              else if (currentEvent === "error") { console.error("[FRONTEND] SSE error event:", payload.error); setStage("error"); setError(payload.error) }
             } catch { /* ignore */ }
             currentEvent = ""; currentData = ""
           }
