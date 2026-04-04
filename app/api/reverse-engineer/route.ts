@@ -932,31 +932,30 @@ Rules:
           videoIdeas = (ideaData.videoIdeas as unknown[]) ?? []
         }
 
-        const ytVideos = (platformTrends as TrendResult & { youtubeVideos?: YouTubeVideo[] }).youtubeVideos ?? []
-        const platformTrendsCard: Record<string, unknown> = {
-          hashtags: platformTrends.hashtags,
-          trendingSongs: ptSongs,
-          youtubeVideos: ytVideos,
-          themes,
-          notes: "",
-          source: ptSource,
-          sourceElapsedMs: platformTrends.sourceElapsedMs ?? null,
-          mode: ptIsLive ? "live_trend" : "context_guided",
-          provenance: ptIsLive ? "observed_live" : "inferred",
-          confidence: ptConfidence,
-          fetchedAt,
-          opportunities: [],
-          label: timeHorizon === "plan_ahead"
-            ? (industryLabel ? `What\u2019s Consistently Performing in ${industryLabel}` : "What\u2019s Consistently Performing")
-            : (industryLabel ? `What\u2019s Hot in ${industryLabel}` : "What\u2019s Hot Right Now"),
+        // Platform Trends + Niche Trends cards — only for Plan Ahead (React Now uses concept cards instead)
+        if (timeHorizon !== "react_now") {
+          const ytVideos = (platformTrends as TrendResult & { youtubeVideos?: YouTubeVideo[] }).youtubeVideos ?? []
+          const platformTrendsCard: Record<string, unknown> = {
+            hashtags: platformTrends.hashtags,
+            trendingSongs: ptSongs,
+            youtubeVideos: ytVideos,
+            themes,
+            notes: "",
+            source: ptSource,
+            sourceElapsedMs: platformTrends.sourceElapsedMs ?? null,
+            mode: ptIsLive ? "live_trend" : "context_guided",
+            provenance: ptIsLive ? "observed_live" : "inferred",
+            confidence: ptConfidence,
+            fetchedAt,
+            opportunities: [],
+            label: industryLabel ? `What\u2019s Consistently Performing in ${industryLabel}` : "What\u2019s Consistently Performing",
+          }
+          emitSSE("card", { platform, cardType: "platformTrends", data: platformTrendsCard })
         }
-        emitSSE("card", { platform, cardType: "platformTrends", data: platformTrendsCard })
 
-        // ── CARD 2: Niche Trends (if niche or industry+niche — inference-last) ──
-        // Combine niche + industry when both are set; use niche alone otherwise.
-        // When only industry is set (no niche), card 1 already covers industry trends, so skip card 2.
+        // Niche Trends — only for Plan Ahead
         const nicheTopic = hasNiche && industryLabel ? `${niche} ${industryLabel}` : hasNiche ? niche : null
-        if (nicheTopic) {
+        if (nicheTopic && timeHorizon !== "react_now") {
           emitStatus(`Searching ${config.label} trends for "${nicheTopic}" in ${regionLabel}\u2026`)
           const nicheTrends = await fetchNicheTrends(nicheTopic, platform, region, regionLabel, emitStatus, industryLabel)
           const ntIsLive = LIVE_SOURCES.has(nicheTrends.source)
