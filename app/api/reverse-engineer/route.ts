@@ -250,7 +250,7 @@ async function fetchPerplexityTrends(topic: string, platform: string, regionLabe
 // ── Inference-last chains ──
 
 /** Platform-wide: ScrapeCreators → Apify → xpoz → Perplexity */
-async function fetchPlatformWideTrends(platform: string, region: string, regionLabel: string, emit: (l: string) => void, industryLabel: string | null = null): Promise<TrendResult> {
+async function fetchPlatformWideTrends(platform: string, region: string, regionLabel: string, emit: (l: string) => void, industryLabel: string | null = null): Promise<TrendResult & { youtubeVideos?: YouTubeVideo[] }> {
   const trendKeyword = industryLabel ? `trending ${industryLabel}` : "trending"
 
   if (platform === "tiktok") {
@@ -258,6 +258,14 @@ async function fetchPlatformWideTrends(platform: string, region: string, regionL
     const sc = await fetchScrapeCreatorsTikTokPlatform(region)
     if (sc && (sc.songs.length > 0 || sc.hashtags.length > 0)) {
       return { hashtags: sc.hashtags, context: sc.songs.map((s) => `${s.title} \u2014 ${s.author}`).join("\n"), source: "scrape_creators_tiktok", trendingSongs: sc.songs }
+    }
+  }
+
+  if (platform === "youtube") {
+    emit("Fetching YouTube trending via official API\u2026")
+    const yt = await fetchYouTubeTrendingStructured(region, industryLabel)
+    if (yt && yt.videos.length > 0) {
+      return { hashtags: yt.hashtags, context: yt.context, source: "official_platform", youtubeVideos: yt.videos }
     }
   }
 
@@ -381,6 +389,47 @@ async function fetchGDELTContext(industry: string, region: string, regionLabel: 
 }
 
 // ── YouTube Data API trending + industry search ──
+
+type YouTubeVideo = { title: string; channel: string; views: number; tags: string[]; thumbnail: string; videoId: string; publishedAt: string }
+
+async function fetchYouTubeTrendingStructured(region: string, industry: string | null): Promise<{ videos: YouTubeVideo[]; hashtags: string[]; context: string } | null> {
+  const apiKey = process.env.YOUTUBE_API_KEY
+  if (!apiKey) return null
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=${region}&maxResults=10&key=${apiKey}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+    if (!res.ok) return null
+    const data = await res.json()
+    const items = (data?.items ?? []) as Record<string, unknown>[]
+    if (items.length === 0) return null
+
+    const videos: YouTubeVideo[] = []
+    const allTags: string[] = []
+    let context = ""
+
+    for (const v of items) {
+      const s = v.snippet as Record<string, unknown>
+      const stats = (v.statistics ?? {}) as Record<string, unknown>
+      const tags = (s.tags as string[] | undefined) ?? []
+      const thumbs = s.thumbnails as Record<string, Record<string, unknown>> | undefined
+      const video: YouTubeVideo = {
+        title: (s.title ?? "") as string,
+        channel: (s.channelTitle ?? "") as string,
+        views: Number(stats.viewCount ?? 0),
+        tags,
+        thumbnail: (thumbs?.medium?.url ?? thumbs?.default?.url ?? "") as string,
+        videoId: (v.id ?? "") as string,
+        publishedAt: ((s.publishedAt ?? "") as string).slice(0, 10),
+      }
+      videos.push(video)
+      allTags.push(...tags)
+      context += `"${video.title}" by ${video.channel} \u2014 ${video.views.toLocaleString()} views\n`
+    }
+
+    const hashtags = [...new Set(allTags.map((t) => t.toLowerCase().replace(/\s+/g, "").replace(/^#/, "")))].slice(0, 20)
+    return { videos, hashtags, context }
+  } catch { return null }
+}
 
 async function fetchYouTubeTrending(region: string, industry: string | null): Promise<string | null> {
   const apiKey = process.env.YOUTUBE_API_KEY
@@ -880,9 +929,11 @@ Rules:
         themes = (ideaData.themes as unknown[]) ?? []
         videoIdeas = (ideaData.videoIdeas as unknown[]) ?? []
 
+        const ytVideos = (platformTrends as TrendResult & { youtubeVideos?: YouTubeVideo[] }).youtubeVideos ?? []
         const platformTrendsCard: Record<string, unknown> = {
           hashtags: platformTrends.hashtags,
           trendingSongs: ptSongs,
+          youtubeVideos: ytVideos,
           themes,
           notes: "",
           source: ptSource,
@@ -932,24 +983,27 @@ Rules:
         if (timeHorizon === "react_now") {
           // ── REACT NOW: trendingAudio, videoIdeas, hooks, hashtagStrategy, postFormat ──
 
-          const trendingSounds = ptSongs.map((s) => `${s.title} \u2014 ${s.author}`)
-          const songObjects = ptSongs.map((s) => ({ title: s.title || "Unknown", author: s.author || "Unknown", relatedCount: s.relatedCount ?? 0, cover: s.cover ?? null, link: s.link ?? null, rank: s.rank, rankDiff: s.rankDiff }))
-          let audioLicensing: Record<string, unknown> = {}
-          if (trendingSounds.length > 0) {
-            emitStatus("Checking audio licensing\u2026")
-            audioLicensing = await callClaude(`Return JSON only. For each of these trending tracks on ${config.label}:\n1. Indicate licensing: COMMERCIAL (from TikTok Commercial Music Library, Epidemic Sound, Artlist, Shutterstock Music, or royalty-free), PERSONAL_USE_ONLY (copyrighted major-label track not cleared for business use), or CHECK_LICENSE (uncertain).\n2. Briefly explain why this sound is trending and how to use it.\n\nTRACKS:\n${trendingSounds.join("\n")}\n\nReturn: { "tracks": [{ "track": "string", "license": "COMMERCIAL" | "PERSONAL_USE_ONLY" | "CHECK_LICENSE", "note": "string", "whyTrending": "string" }] }`, 600)
+          // Trending Audio card — skip for YouTube (no audio trends from YT API)
+          if (platform !== "youtube") {
+            const trendingSounds = ptSongs.map((s) => `${s.title} \u2014 ${s.author}`)
+            const songObjects = ptSongs.map((s) => ({ title: s.title || "Unknown", author: s.author || "Unknown", relatedCount: s.relatedCount ?? 0, cover: s.cover ?? null, link: s.link ?? null, rank: s.rank, rankDiff: s.rankDiff }))
+            let audioLicensing: Record<string, unknown> = {}
+            if (trendingSounds.length > 0) {
+              emitStatus("Checking audio licensing\u2026")
+              audioLicensing = await callClaude(`Return JSON only. For each of these trending tracks on ${config.label}:\n1. Indicate licensing: COMMERCIAL (from TikTok Commercial Music Library, Epidemic Sound, Artlist, Shutterstock Music, or royalty-free), PERSONAL_USE_ONLY (copyrighted major-label track not cleared for business use), or CHECK_LICENSE (uncertain).\n2. Briefly explain why this sound is trending and how to use it.\n\nTRACKS:\n${trendingSounds.join("\n")}\n\nReturn: { "tracks": [{ "track": "string", "license": "COMMERCIAL" | "PERSONAL_USE_ONLY" | "CHECK_LICENSE", "note": "string", "whyTrending": "string" }] }`, 600)
+            }
+            emitSSE("card", { platform, cardType: "trendingAudio", data: {
+              trendingSounds,
+              songs: songObjects,
+              licensing: (audioLicensing.tracks as unknown[]) ?? [],
+              source: trendingSounds.length > 0 ? ptSource : "inferred_fallback",
+              mode: "live_trend",
+              provenance: trendingSounds.length > 0 && ptIsLive ? "observed_live" : "inferred",
+              fetchedAt,
+              confidence: ptConfidence,
+              label: "Trending Audio",
+            }})
           }
-          emitSSE("card", { platform, cardType: "trendingAudio", data: {
-            trendingSounds,
-            songs: songObjects,
-            licensing: (audioLicensing.tracks as unknown[]) ?? [],
-            source: trendingSounds.length > 0 ? ptSource : "inferred_fallback",
-            mode: "live_trend",
-            provenance: trendingSounds.length > 0 && ptIsLive ? "observed_live" : "inferred",
-            fetchedAt,
-            confidence: ptConfidence,
-            label: "Trending Audio",
-          }})
 
           emitSSE("card", { platform, cardType: "videoIdeas", data: {
             ideas: videoIdeas,
