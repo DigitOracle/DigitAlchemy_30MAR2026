@@ -320,6 +320,39 @@ async function fetchNicheTrends(topic: string, platform: string, region: string,
 
 const LIVE_SOURCES = new Set(["scrape_creators_tiktok", "scrape_creators_instagram_support", "apify_live_scrape", "xpoz_social_signal", "official_platform"])
 
+// ── Wikipedia Pageviews (cultural pulse — what the internet is obsessed with) ──
+
+async function fetchWikipediaTrending(): Promise<string | null> {
+  try {
+    const today = new Date()
+    const yesterday = new Date(today.getTime() - 86400000)
+    const y = yesterday.getFullYear()
+    const m = String(yesterday.getMonth() + 1).padStart(2, "0")
+    const d = String(yesterday.getDate()).padStart(2, "0")
+    const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/top/en.wikipedia.org/all-access/${y}/${m}/${d}`
+    const res = await fetch(url, {
+      headers: { "User-Agent": "DigitAlchemy/1.0 (contact@digitalabbot.io)" },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const articles = (data?.items?.[0]?.articles ?? []) as Record<string, unknown>[]
+    if (articles.length === 0) return null
+
+    const filtered = articles.filter((a) => {
+      const name = a.article as string
+      return !name.startsWith("Main_Page") && !name.startsWith("Special:") && !name.startsWith("Wikipedia:") && !name.startsWith("File:") && !name.includes("Featured_pictures")
+    }).slice(0, 15)
+
+    let summary = "WIKIPEDIA TRENDING (cultural pulse, yesterday):\n"
+    for (const [i, a] of filtered.entries()) {
+      const name = (a.article as string).replace(/_/g, " ")
+      summary += `${i + 1}. ${name} \u2014 ${Number(a.views).toLocaleString()} views\n`
+    }
+    return summary
+  } catch { return null }
+}
+
 // ── GDELT news context (explains WHY trends are happening) ──
 
 async function fetchGDELTContext(industry: string, region: string, regionLabel: string): Promise<string | null> {
@@ -590,9 +623,10 @@ export async function POST(req: NextRequest): Promise<Response> {
         // ── Supplementary context (fast, called for all branches) ──
         const gdeltContext = await fetchGDELTContext(industryLabel || "social media", region, regionLabel)
         const youtubeContext = platform === "youtube" ? await fetchYouTubeTrending(region, industryLabel) : null
-        const supplementaryContext = [gdeltContext, youtubeContext].filter(Boolean).join("\n\n")
+        const wikiContext = await fetchWikipediaTrending()
+        const supplementaryContext = [gdeltContext, youtubeContext, wikiContext].filter(Boolean).join("\n\n")
         const supplementaryPromptBlock = supplementaryContext
-          ? `\n\nSUPPLEMENTARY CONTEXT:\n${supplementaryContext}\nUse the above recent news headlines and YouTube trending data to understand the current context and explain WHY certain trends are happening.`
+          ? `\n\nSUPPLEMENTARY CONTEXT:\n${supplementaryContext}\nUse the above recent news headlines, YouTube trending data, and Wikipedia cultural pulse to understand the current context and explain WHY certain trends are happening.`
           : ""
 
         // ══════════════════════════════════════════════════════
