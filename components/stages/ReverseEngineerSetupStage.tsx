@@ -10,6 +10,7 @@ const REGIONS = [
   { code: "KW", label: "Kuwait", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/KW.svg" },
   { code: "QA", label: "Qatar", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/QA.svg" },
   { code: "US", label: "United States", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/US.svg" },
+  { code: "SG", label: "Singapore", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/SG.svg" },
 ]
 
 const INDUSTRIES = [

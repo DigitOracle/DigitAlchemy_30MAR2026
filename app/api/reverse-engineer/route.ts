@@ -536,6 +536,7 @@ const REGION_LABELS: Record<string, string> = {
   KW: "Kuwait",
   QA: "Qatar",
   US: "the United States",
+  SG: "Singapore",
 }
 
 export async function POST(req: NextRequest): Promise<Response> {

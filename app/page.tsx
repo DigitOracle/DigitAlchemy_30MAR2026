@@ -466,7 +466,7 @@ export default function ConsolePage() {
   }
 
   if (appMode === "reverse_engineer") {
-    const regionLabels: Record<string, string> = { AE: "UAE", SA: "KSA", KW: "Kuwait", QA: "Qatar", US: "US" }
+    const regionLabels: Record<string, string> = { AE: "UAE", SA: "KSA", KW: "Kuwait", QA: "Qatar", US: "US", SG: "SG" }
     if (selectedPlatforms.length > 0 && stage !== "re_setup") {
       chips.push({ id: "re_region", label: "Region", summary: regionLabels[reRegion] ?? reRegion, completed: true })
       chips.push({ id: "re_platform", label: "Platform", summary: selectedPlatforms[0], completed: true })
