@@ -864,10 +864,11 @@ export async function POST(req: NextRequest): Promise<Response> {
         const ptSource = platformTrends.source === "context_guided" ? "perplexity" : platformTrends.source === "inferred_fallback" ? "claude" : platformTrends.source
         const ptConfidence: "high" | "medium" | "low" = ptIsLive ? "medium" : "low"
 
-        // Claude adds themes + video ideas (synthesis on top of trend data)
+        // Claude adds themes + video ideas (Plan Ahead only — React Now uses concept cards)
         let themes: unknown[] = []
         let videoIdeas: unknown[] = []
-        // Note: analyse_history is handled above with dedicated pipeline
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let ideaData: Record<string, unknown> = {}
         const ideaPrompt = timeHorizon === "plan_ahead"
           ? `You are DigitAlchemy\u00ae content strategist for ${config.label}. Given platform trend data, generate content themes worth investing in for a multi-week content calendar. Return JSON only.
 
@@ -922,12 +923,14 @@ Rules:
 - All recommendations must be culturally relevant and specific to ${regionLabel}. Reference local events, cultural moments, and regional audience behaviour.${industryLabel ? `\n- All recommendations must be specifically relevant to the ${industryLabel} industry. Reference industry-specific content formats, audience expectations, and competitive landscape.` : ""}
 - Do NOT present Claude suggestions as live data${audiencePromptBlock}${supplementaryPromptBlock}`
 
-        console.log("[SSE] Calling Claude for ideaPrompt...")
-        emitStatus(`Generating ${config.label} content ideas\u2026`)
-        const ideaData = await callClaude(ideaPrompt, 1500)
-        console.log("[SSE] Claude ideaPrompt done:", { themes: (ideaData.themes as unknown[])?.length ?? 0, videoIdeas: (ideaData.videoIdeas as unknown[])?.length ?? 0 })
-        themes = (ideaData.themes as unknown[]) ?? []
-        videoIdeas = (ideaData.videoIdeas as unknown[]) ?? []
+        if (timeHorizon === "plan_ahead") {
+          console.log("[SSE] Calling Claude for ideaPrompt (plan_ahead)...")
+          emitStatus(`Generating ${config.label} content ideas\u2026`)
+          ideaData = await callClaude(ideaPrompt, 1500)
+          console.log("[SSE] Claude ideaPrompt done:", { themes: (ideaData.themes as unknown[])?.length ?? 0, videoIdeas: (ideaData.videoIdeas as unknown[])?.length ?? 0 })
+          themes = (ideaData.themes as unknown[]) ?? []
+          videoIdeas = (ideaData.videoIdeas as unknown[]) ?? []
+        }
 
         const ytVideos = (platformTrends as TrendResult & { youtubeVideos?: YouTubeVideo[] }).youtubeVideos ?? []
         const platformTrendsCard: Record<string, unknown> = {
@@ -981,46 +984,50 @@ Rules:
         const industryOrVertical = industryLabel || "this vertical"
 
         if (timeHorizon === "react_now") {
-          // ── REACT NOW: trendingAudio, videoIdeas, hooks, hashtagStrategy, postFormat ──
+          // ══════════════════════════════════════════════════════
+          // REACT NOW — bundled concept cards
+          // ══════════════════════════════════════════════════════
+          const today = new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+          const songsList = ptSongs.map((s) => `${s.title} \u2014 ${s.author}`).join("\n") || "none"
+          const hashtagsList = platformTrends.hashtags.join(", ") || "none"
+          const platformContext = platformTrends.context.slice(0, 600) || "none"
 
-          // Trending Audio card — skip for YouTube (no audio trends from YT API)
-          if (platform !== "youtube") {
-            const trendingSounds = ptSongs.map((s) => `${s.title} \u2014 ${s.author}`)
-            const songObjects = ptSongs.map((s) => ({ title: s.title || "Unknown", author: s.author || "Unknown", relatedCount: s.relatedCount ?? 0, cover: s.cover ?? null, link: s.link ?? null, rank: s.rank, rankDiff: s.rankDiff }))
-            let audioLicensing: Record<string, unknown> = {}
-            if (trendingSounds.length > 0) {
-              emitStatus("Checking audio licensing\u2026")
-              audioLicensing = await callClaude(`Return JSON only. For each of these trending tracks on ${config.label}:\n1. Indicate licensing: COMMERCIAL (from TikTok Commercial Music Library, Epidemic Sound, Artlist, Shutterstock Music, or royalty-free), PERSONAL_USE_ONLY (copyrighted major-label track not cleared for business use), or CHECK_LICENSE (uncertain).\n2. Briefly explain why this sound is trending and how to use it.\n\nTRACKS:\n${trendingSounds.join("\n")}\n\nReturn: { "tracks": [{ "track": "string", "license": "COMMERCIAL" | "PERSONAL_USE_ONLY" | "CHECK_LICENSE", "note": "string", "whyTrending": "string" }] }`, 600)
-            }
-            emitSSE("card", { platform, cardType: "trendingAudio", data: {
-              trendingSounds,
-              songs: songObjects,
-              licensing: (audioLicensing.tracks as unknown[]) ?? [],
-              source: trendingSounds.length > 0 ? ptSource : "inferred_fallback",
-              mode: "live_trend",
-              provenance: trendingSounds.length > 0 && ptIsLive ? "observed_live" : "inferred",
-              fetchedAt,
-              confidence: ptConfidence,
-              label: "Trending Audio",
-            }})
+          // ── CARD 1: Trend Scan Summary ──
+          emitStatus("Scanning and summarising trends\u2026")
+          const summaryData = await callClaude(`Return JSON only. You are a social media trend analyst for ${regionLabel}. Today is ${today}. Given this live data scraped from ${config.label}:\n\nPLATFORM DATA:\nHashtags: ${hashtagsList}\nAudio: ${songsList}\nContext: ${platformContext}\n\nNEWS CONTEXT:\n${supplementaryContext.slice(0, 400) || "none"}\n${audiencePromptBlock}\n\nProduce a trend scan summary:\n1. Total trends detected and how many are usable for content\n2. Top 5 usable trends right now \u2014 for each: trend title, category (seasonal/viral/educational/humorous/cultural), one sentence why it\u2019s trending\n3. Any trends that are STALE or EXPIRED (events that have already passed as of ${today}) \u2014 mark these clearly\n4. Top 3 recommended for immediate posting\n\nBe specific to ${regionLabel}. Reference actual data from the scrape, not generic advice.\nReturn: { "totalDetected": number, "usable": number, "topTrends": [{ "title": "string", "category": "string", "why": "string" }], "stale": ["string"], "recommended": ["string"] }`, 800)
+          emitSSE("card", { platform, cardType: "trendSummary", data: { ...summaryData, source: ptSource, confidence: ptConfidence, label: "Trend Scan Summary" } })
+
+          // ── CARDS 2-5: Ready-to-Make Video Concepts ──
+          emitStatus("Generating video concepts\u2026")
+          const conceptsRaw = await callClaude(`Return JSON only. You are a social media content strategist. Today is ${today}. Given these trends from ${config.label} in ${regionLabel}${audienceLabel ? `, targeting ${audienceLabel}` : ""}:\n\nTRENDING HASHTAGS: ${hashtagsList}\nTRENDING AUDIO: ${songsList}\nTREND CONTEXT: ${platformContext}\nNEWS CONTEXT: ${supplementaryContext.slice(0, 400) || "none"}\n${hasNiche ? `NICHE: ${niche}` : ""}\n\nGenerate exactly 4 ready-to-execute video concepts. For each concept return:\n- trend: specific trend title from the data\n- type: seasonal | humorous | educational | viral_format | cultural | news_reactive\n- whyNow: 1-2 sentences why this is trending, grounded in the scraped data\n- hook: the exact opening line or text overlay\n- videoIdea: 2-3 sentence description specific enough to shoot\n- audio: specific track from trending audio, or "original audio"\n- hashtags: array of 5-8 hashtags from the data\n- audience: who this targets\n- shelfLife: "24-72h" | "1 week" | "2 weeks" | "evergreen"\n- confidence: "high" | "medium" | "low"\n- executionNotes: duration, aspect ratio, pacing, text overlay timing, edit style\n\nCRITICAL: Use REAL trends from the data. Do not invent trends. Do not recommend content for events that have already passed (today is ${today}). Each concept must be self-contained.\nReturn: { "concepts": [{ "trend": "string", "type": "string", "whyNow": "string", "hook": "string", "videoIdea": "string", "audio": "string", "hashtags": ["string"], "audience": "string", "shelfLife": "string", "confidence": "string", "executionNotes": "string" }] }`, 2000)
+
+          const concepts = (conceptsRaw.concepts as Record<string, unknown>[]) ?? []
+          if (concepts.length < 2) {
+            // Retry with simplified prompt
+            emitStatus("Retrying concept generation\u2026")
+            const retry = await callClaude(`Return JSON only. Generate 4 video concepts for ${config.label} in ${regionLabel}. Today is ${today}. Trending hashtags: ${hashtagsList}. Trending audio: ${songsList}.\nFor each: { "trend": "string", "hook": "string", "videoIdea": "string", "audio": "string", "hashtags": ["string"], "shelfLife": "string", "confidence": "string" }\nReturn: { "concepts": [...] }`, 1200)
+            const retryConcepts = (retry.concepts as Record<string, unknown>[]) ?? []
+            if (retryConcepts.length > 0) concepts.push(...retryConcepts)
           }
 
-          emitSSE("card", { platform, cardType: "videoIdeas", data: {
-            ideas: videoIdeas,
-            source: "claude", mode: "inferred_fallback", provenance: "inferred", confidence: "low" as const,
-            label: "Video Ideas",
-          }})
+          if (concepts.length === 0) {
+            emitSSE("card", { platform, cardType: "conceptError", data: { error: "Could not generate concepts from available data. Try a different region or platform.", label: "Video Concepts", confidence: "low" } })
+          } else {
+            for (const [idx, c] of concepts.slice(0, 4).entries()) {
+              emitSSE("card", { platform, cardType: `concept${idx + 1}`, data: {
+                conceptData: c,
+                type: "concept",
+                source: "claude",
+                confidence: (c.confidence as string) || "medium",
+                label: `Video Concept ${idx + 1}: ${(c.trend as string) || "Trending"}`,
+              }})
+            }
+          }
 
-          const hooksData = (ideaData.hookConcepts as unknown[]) ?? []
-          emitSSE("card", { platform, cardType: "hooks", data: { hooks: hooksData, confidence: "low" as const, label: "Hook Ideas" } })
-
-          emitStatus("Generating hashtag strategy\u2026")
-          const hashtagData = await callClaude(`Return JSON only. Based on the trend data, recommend a hashtag strategy for ${config.label} in ${regionLabel}${industryCtx}. Include: (1) 3-5 high-volume hashtags to ride, (2) 3-5 mid-tier hashtags with less competition, (3) 2-3 niche hashtags for discoverability. Explain why each group matters.\nTREND CONTEXT: ${platformTrends.hashtags.join(", ") || "none"}\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "highVolume": [{ "tag": "string", "why": "string" }], "midTier": [{ "tag": "string", "why": "string" }], "niche": [{ "tag": "string", "why": "string" }], "source": "claude", "provenance": "inferred" }`, 600)
-          emitSSE("card", { platform, cardType: "hashtagStrategy", data: { ...hashtagData, confidence: "low" as const, label: "Hashtag Strategy" } })
-
-          emitStatus("Analysing best post formats\u2026")
-          const formatData = await callClaude(`Return JSON only. Based on current trends on ${config.label} in ${regionLabel}${industryCtx}, recommend the best post formats right now. Consider: talking head, B-roll montage, carousel, duet/stitch, photo dump, behind-the-scenes, tutorial, reaction. Rank the top 3 formats and explain why they\u2019re working.\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "formats": [{ "name": "string", "rank": 1, "why": "string" }], "source": "claude", "provenance": "inferred" }`, 500)
-          emitSSE("card", { platform, cardType: "postFormat", data: { ...formatData, confidence: "low" as const, label: "Post Format Recommendation" } })
+          // ── CARD 6: Execution Guidance ──
+          emitStatus("Compiling execution guidance\u2026")
+          const execData = await callClaude(`Return JSON only. Given these trends and platform data for ${config.label} in ${regionLabel}${audienceLabel ? `, targeting ${audienceLabel}` : ""}. Today is ${today}.\n\nTRENDING AUDIO: ${songsList}\n\n1. TOP 5 AUDIO PICKS \u2014 for each track, mark licensing: COMMERCIAL (TikTok Commercial Music Library, Epidemic Sound, Artlist, Shutterstock Music, royalty-free), PERSONAL_USE_ONLY (copyrighted), or CHECK_LICENSE (uncertain). Include why each audio works.\n2. BEST POSTING TIMES \u2014 specific to ${config.label} in ${regionLabel} (e.g. "7-9pm GST for Gen Z TikTok")\n3. FORMAT TIPS \u2014 ideal duration, aspect ratio, text overlay rules, algorithm tips, trending edit styles for ${config.label}\n\nReturn: { "audioPicks": [{ "track": "string", "license": "COMMERCIAL" | "PERSONAL_USE_ONLY" | "CHECK_LICENSE", "why": "string" }], "postingTimes": [{ "time": "string", "why": "string" }], "formatTips": [{ "tip": "string", "detail": "string" }] }`, 700)
+          emitSSE("card", { platform, cardType: "executionGuide", data: { ...execData, source: "claude", confidence: "medium" as const, label: "Execution Guidance" } })
 
         } else if (timeHorizon === "plan_ahead") {
           // ── PLAN AHEAD: videoIdeas, hooks, cadencePlan, contentPillars, competitivePosition ──

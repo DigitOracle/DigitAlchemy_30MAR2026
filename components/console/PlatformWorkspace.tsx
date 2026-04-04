@@ -11,8 +11,88 @@ import { CaptionsCopyCard } from "@/components/sections/CaptionsCopyCard"
 import { PostingScheduleCard } from "@/components/sections/PostingScheduleCard"
 import { VideoIdeasCard } from "@/components/sections/VideoIdeasCard"
 import { TrendAnalysisPanel } from "@/components/sections/TrendAnalysisPanel"
+import { HashtagChip } from "@/components/console/HashtagChip"
 
 type CardData = Record<string, unknown> | null
+
+// ── Concept card renderer for React Now bundled concepts ──
+type ConceptData = { trend?: string; type?: string; whyNow?: string; hook?: string; videoIdea?: string; audio?: string; hashtags?: string[]; audience?: string; shelfLife?: string; confidence?: string; executionNotes?: string }
+
+const SHELF_STYLES: Record<string, string> = { "24-72h": "bg-red-50 text-red-700", "1 week": "bg-amber-50 text-amber-700", "2 weeks": "bg-blue-50 text-blue-700", evergreen: "bg-green-50 text-green-700" }
+const CONF_STYLES: Record<string, string> = { high: "bg-green-50 text-green-700", medium: "bg-amber-50 text-amber-700", low: "bg-gray-100 text-gray-500" }
+
+function ConceptCardContent({ data }: { data: CardData }) {
+  const c = (data as Record<string, unknown>)?.conceptData as ConceptData | undefined
+  if (!c) return null
+  const shelfCls = SHELF_STYLES[c.shelfLife ?? ""] ?? "bg-gray-100 text-gray-500"
+  const confCls = CONF_STYLES[c.confidence ?? ""] ?? CONF_STYLES.medium
+  const tags = c.hashtags ?? []
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        {c.type && <span className="px-2 py-0.5 text-[10px] rounded-full bg-purple-50 text-purple-700">{c.type.replace(/_/g, " ")}</span>}
+        {c.shelfLife && <span className={`px-2 py-0.5 text-[10px] rounded-full ${shelfCls}`}>{c.shelfLife}</span>}
+        {c.confidence && <span className={`px-2 py-0.5 text-[10px] rounded-full ${confCls}`}>{c.confidence}</span>}
+      </div>
+
+      {c.whyNow && (
+        <div>
+          <p className="text-[10px] font-semibold text-purple-600 uppercase mb-0.5">Why now</p>
+          <p className="text-xs text-gray-700">{c.whyNow}</p>
+        </div>
+      )}
+
+      {c.videoIdea && (
+        <div>
+          <p className="text-[10px] font-semibold text-blue-600 uppercase mb-0.5">Video idea</p>
+          <p className="text-xs text-gray-700">{c.videoIdea}</p>
+        </div>
+      )}
+
+      {c.hook && (
+        <div className="bg-gray-50 rounded-lg p-3 flex items-start justify-between gap-2">
+          <div>
+            <p className="text-[10px] font-semibold text-amber-600 uppercase mb-0.5">Hook</p>
+            <p className="text-sm text-gray-900 font-medium">&ldquo;{c.hook}&rdquo;</p>
+          </div>
+          <button onClick={() => navigator.clipboard.writeText(c.hook ?? "")} className="text-[10px] text-gray-400 hover:text-amber-600 shrink-0">Copy</button>
+        </div>
+      )}
+
+      {c.audio && (
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold text-red-600 uppercase">Audio:</span>
+          <span className="text-xs text-gray-700">{c.audio}</span>
+        </div>
+      )}
+
+      {tags.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold text-green-600 uppercase mb-1.5">Hashtags</p>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5">
+            {tags.map((t) => <HashtagChip key={t} tag={t} />)}
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-gray-100 pt-2 space-y-1.5">
+        {c.audience && (
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold text-gray-500 uppercase">Audience:</span>
+            <span className="text-xs text-gray-700">{c.audience}</span>
+          </div>
+        )}
+        {c.executionNotes && (
+          <div>
+            <p className="text-[10px] font-semibold text-gray-500 uppercase mb-0.5">Execution notes</p>
+            <p className="text-xs text-gray-600">{c.executionNotes}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 type AppMode = "optimize" | "reverse_engineer"
 
 type Props = {
@@ -179,10 +259,12 @@ function ReverseEngineerDashboard({ platform, cards }: { platform: string; cards
           const badge = resolveBadge(data)
           const confidence = (data && typeof data === "object" && "confidence" in data) ? (data as Record<string, unknown>).confidence as string : null
           const renderer = CARD_RENDERERS[cardType]
+          const isConceptCard = (data as Record<string, unknown>)?.type === "concept"
+          const isWide = cardType === "videoIdeas" || cardType === "trendSummary" || cardType === "executionGuide"
           return (
             <div key={cardType} className="animate-fade-in">
-              <GridCard title={label} badge={badge} confidence={confidence} wide={cardType === "videoIdeas"}>
-                {renderer ? renderer(data, platform) : <GenericCardContent data={data} />}
+              <GridCard title={label} badge={badge} confidence={confidence} wide={isWide}>
+                {isConceptCard ? <ConceptCardContent data={data} /> : renderer ? renderer(data, platform) : <GenericCardContent data={data} />}
               </GridCard>
             </div>
           )
