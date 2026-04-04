@@ -67,16 +67,30 @@ function resolveCardLabel(key: string, defaultLabel: string, data: CardData): st
 }
 
 // ── Card wrapper for grid cells ──
-function GridCard({ title, badge, children, wide }: { title: string; badge?: string | null; children: React.ReactNode; wide?: boolean }) {
+const CONFIDENCE_STYLES: Record<string, { className: string; label: string }> = {
+  high: { className: "bg-green-50 text-green-700 border-green-200", label: "HIGH CONFIDENCE" },
+  medium: { className: "bg-amber-50 text-amber-700 border-amber-200", label: "MEDIUM CONFIDENCE" },
+  low: { className: "bg-gray-50 text-gray-500 border-gray-200", label: "DIRECTIONAL ONLY" },
+}
+
+function GridCard({ title, badge, confidence, children, wide }: { title: string; badge?: string | null; confidence?: string | null; children: React.ReactNode; wide?: boolean }) {
+  const confStyle = confidence ? CONFIDENCE_STYLES[confidence] : null
   return (
     <div className={`border border-gray-100 rounded-xl bg-white shadow-sm overflow-hidden ${wide ? "col-span-2" : ""}`}>
       <div className="px-4 py-2.5 border-b border-gray-50 flex items-center justify-between">
         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{title}</h4>
-        {badge && (
-          <span className="text-[10px] bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded">
-            {badge}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {badge && (
+            <span className="text-[10px] bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded">
+              {badge}
+            </span>
+          )}
+          {confStyle && (
+            <span className={`text-[9px] border px-1.5 py-0.5 rounded ${confStyle.className}`}>
+              {confStyle.label}
+            </span>
+          )}
+        </div>
       </div>
       <div className="px-4 py-3">{children}</div>
     </div>
@@ -163,10 +177,11 @@ function ReverseEngineerDashboard({ platform, cards }: { platform: string; cards
         {activeCards.map(([cardType, data]) => {
           const label = resolveCardLabel(cardType, cardType.replace(/([A-Z])/g, " $1").trim(), data)
           const badge = resolveBadge(data)
+          const confidence = (data && typeof data === "object" && "confidence" in data) ? (data as Record<string, unknown>).confidence as string : null
           const renderer = CARD_RENDERERS[cardType]
           return (
             <div key={cardType} className="animate-fade-in">
-              <GridCard title={label} badge={badge} wide={cardType === "videoIdeas"}>
+              <GridCard title={label} badge={badge} confidence={confidence} wide={cardType === "videoIdeas"}>
                 {renderer ? renderer(data, platform) : <GenericCardContent data={data} />}
               </GridCard>
             </div>

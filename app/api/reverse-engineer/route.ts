@@ -365,7 +365,7 @@ async function fetchGoogleTrends(industry: string, region: string, regionLabel: 
     const relatedQueries = items.filter((i) => i.type === "relatedQuery")
     const regional = items.filter((i) => i.type === "regionalInterest")
 
-    let summary = `GOOGLE TRENDS DATA (12 months, ${regionLabel}):\n`
+    let summary = `GOOGLE TRENDS DATA (12 months, ${regionLabel}):\nNote: All values are relative interest (0-100 normalized per query/time/location), not absolute search volume.\n`
 
     if (interestOverTime.length > 0) {
       summary += "\nMonthly search interest (0-100 scale):\n"
@@ -564,6 +564,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
           const haSourceLabel = ha.sources.includes("perplexity_deep") ? "perplexity" : ha.sources.includes("cache") ? "cached" : "claude"
           const haProvenance = ha.sources.includes("perplexity_deep") || ha.sources.includes("cache") ? "observed_live" : "inferred"
+          const haConfidence = (ha.sources.includes("google_trends") && ha.sources.includes("perplexity_deep")) ? "medium" : ha.sources.includes("perplexity_deep") ? "low" : "low"
           const truncatedTrends = ha.trends.slice(0, 3000)
 
           const fallbackRule = "\nIMPORTANT: If specific verified data points are not available from the research, provide industry-standard estimates and general best practices for this vertical. Frame estimates clearly as 'Industry benchmarks suggest...' or 'Based on general social media research...'. NEVER output 'DATA_UNAVAILABLE' \u2014 always provide actionable guidance even when exact data is limited." + audiencePromptBlock
@@ -576,6 +577,7 @@ export async function POST(req: NextRequest): Promise<Response> {
             hashtags: ha.liveHashtags,
             source: haSourceLabel,
             provenance: haProvenance,
+            confidence: haConfidence,
             fetchedAt,
             label: `Top Performing Content in ${industryLabel}`,
           }})
@@ -588,33 +590,34 @@ export async function POST(req: NextRequest): Promise<Response> {
             ideas: (themesData.themes as unknown[]) ?? [],
             source: haSourceLabel,
             provenance: haProvenance,
+            confidence: haConfidence,
             label: "Content Themes That Have Worked",
           }})
 
           // CARD 3: Posting Pattern Analysis
           emitStatus("Analysing posting patterns\u2026")
           const patternsData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nAnalyse posting patterns for top ${industryLabel} accounts on ${config.label} in ${regionLabel}. Cover: optimal posts per week, best days of week, best times of day, content mix ratio (educational vs entertaining vs promotional), and whether consistency or burst posting works better.${fallbackRule}\nReturn: { "optimalFrequency": "string", "bestDays": ["string"], "bestTimes": ["string"], "contentMix": [{ "type": "string", "percentage": "string" }], "consistencyVsBurst": "string", "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 600)
-          emitSSE("card", { platform, cardType: "postingPatterns", data: { ...patternsData, label: "Posting Pattern Analysis" } })
+          emitSSE("card", { platform, cardType: "postingPatterns", data: { ...patternsData, confidence: haConfidence, label: "Posting Pattern Analysis" } })
 
           // CARD 4: Seasonal Patterns
           emitStatus("Mapping seasonal calendar\u2026")
-          const seasonalData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nMap out a 12-month seasonal calendar for ${industryLabel} on ${config.label} in ${regionLabel}. For each month: note the key events (Ramadan, Eid Al Fitr, Eid Al Adha, UAE National Day, DSF, summer, back-to-school), expected engagement level (high/medium/low), and recommended content themes for that period. Format as a month-by-month guide. Use the Google Trends search interest data provided to identify real seasonal peaks and valleys. Map the search interest numbers to specific months and correlate with local events.${fallbackRule}\nReturn: { "calendar": [{ "month": "string", "events": ["string"], "engagementLevel": "string", "recommendedThemes": ["string"] }], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 900)
-          emitSSE("card", { platform, cardType: "seasonalPatterns", data: { ...seasonalData, label: "Seasonal Patterns" } })
+          const seasonalData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nMap out a 12-month seasonal calendar for ${industryLabel} on ${config.label} in ${regionLabel}. For each month: note the key events (Ramadan, Eid Al Fitr, Eid Al Adha, UAE National Day, DSF, summer, back-to-school), expected engagement level (high/medium/low), and recommended content themes for that period. Format as a month-by-month guide. Use the Google Trends search interest data provided to identify real seasonal peaks and valleys. Map the search interest numbers to specific months and correlate with local events. IMPORTANT: Google Trends data shows relative search interest (0-100 scale normalized per query), NOT absolute search volume. Use this data for directional patterns, seasonal shape, and relative comparisons only. Do not present these numbers as absolute search volumes. Frame as 'Search interest peaks in January at 3x the July baseline' rather than 'There were 100 searches in January.'${fallbackRule}\nReturn: { "calendar": [{ "month": "string", "events": ["string"], "engagementLevel": "string", "recommendedThemes": ["string"] }], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 900)
+          emitSSE("card", { platform, cardType: "seasonalPatterns", data: { ...seasonalData, confidence: haConfidence, label: "Seasonal Patterns" } })
 
           // CARD 5: Vertical Leaders
           emitStatus("Profiling vertical leaders\u2026")
           const leadersData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nProfile the top 5 ${industryLabel} accounts on ${config.label} in ${regionLabel}. For each: account name, estimated followers, content style (professional/casual/educational/entertaining), posting frequency, signature content format, engagement rate, and one key lesson a new entrant can learn from them.${fallbackRule}\nReturn: { "leaders": [{ "account": "string", "followers": "string", "style": "string", "frequency": "string", "signatureFormat": "string", "engagementRate": "string", "keyLesson": "string" }], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 800)
-          emitSSE("card", { platform, cardType: "verticalLeaders", data: { ...leadersData, label: "Vertical Leaders" } })
+          emitSSE("card", { platform, cardType: "verticalLeaders", data: { ...leadersData, confidence: haConfidence, label: "Vertical Leaders" } })
 
           // CARD 6: Engagement Benchmarks
           emitStatus("Calculating engagement benchmarks\u2026")
           const benchData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nProvide engagement benchmarks for ${industryLabel} on ${config.label} in ${regionLabel}. Include: average engagement rate (top 25%, median, bottom 25%), average views per post, average comments per post, average shares per post, follower growth rate benchmarks, and what a new entrant should target in months 1-3, 3-6, and 6-12.${fallbackRule}\nReturn: { "engagementRate": { "top25": "string", "median": "string", "bottom25": "string" }, "avgViews": "string", "avgComments": "string", "avgShares": "string", "growthRate": "string", "targets": { "months1to3": "string", "months3to6": "string", "months6to12": "string" }, "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 600)
-          emitSSE("card", { platform, cardType: "engagementBenchmarks", data: { ...benchData, label: "Engagement Benchmarks" } })
+          emitSSE("card", { platform, cardType: "engagementBenchmarks", data: { ...benchData, confidence: haConfidence, label: "Engagement Benchmarks" } })
 
           // CARD 7: Content Gaps
           emitStatus("Identifying content gaps\u2026")
           const gapsData = await callClaude(`Return JSON only. Based on this data:\n${truncatedTrends}\n\nIdentify content gaps for ${industryLabel} on ${config.label} in ${regionLabel}. Compare what top performers do in other markets (Saudi Arabia, USA, UK) that nobody in ${regionLabel} is doing yet. Identify underserved audience needs, missing content formats, and untapped topics. Be specific about the opportunity size.${fallbackRule}\nReturn: { "gaps": [{ "opportunity": "string", "workingIn": "string", "why": "string", "opportunitySize": "string" }], "underservedNeeds": ["string"], "source": "${haSourceLabel}", "provenance": "${haProvenance}" }`, 700)
-          emitSSE("card", { platform, cardType: "contentGaps", data: { ...gapsData, label: "Content Gaps" } })
+          emitSSE("card", { platform, cardType: "contentGaps", data: { ...gapsData, confidence: haConfidence, label: "Content Gaps" } })
 
           emitSSE("complete", { platform })
 
@@ -637,6 +640,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         const ptSongs = platformTrends.trendingSongs ?? []
         const ptIsLive = LIVE_SOURCES.has(platformTrends.source)
         const ptSource = platformTrends.source === "context_guided" ? "perplexity" : platformTrends.source === "inferred_fallback" ? "claude" : platformTrends.source
+        const ptConfidence: "high" | "medium" | "low" = ptIsLive ? "medium" : "low"
 
         // Claude adds themes + video ideas (synthesis on top of trend data)
         let themes: unknown[] = []
@@ -710,6 +714,7 @@ Rules:
           sourceElapsedMs: platformTrends.sourceElapsedMs ?? null,
           mode: ptIsLive ? "live_trend" : "context_guided",
           provenance: ptIsLive ? "observed_live" : "inferred",
+          confidence: ptConfidence,
           fetchedAt,
           opportunities: [],
           label: timeHorizon === "plan_ahead"
@@ -765,49 +770,50 @@ Rules:
             mode: "live_trend",
             provenance: trendingSounds.length > 0 && ptIsLive ? "observed_live" : "inferred",
             fetchedAt,
+            confidence: ptConfidence,
             label: "Trending Audio",
           }})
 
           emitSSE("card", { platform, cardType: "videoIdeas", data: {
             ideas: videoIdeas,
-            source: "claude", mode: "inferred_fallback", provenance: "inferred",
+            source: "claude", mode: "inferred_fallback", provenance: "inferred", confidence: "low" as const,
             label: "Video Ideas",
           }})
 
           const hooksData = (ideaData.hookConcepts as unknown[]) ?? []
-          emitSSE("card", { platform, cardType: "hooks", data: { hooks: hooksData, label: "Hook Ideas" } })
+          emitSSE("card", { platform, cardType: "hooks", data: { hooks: hooksData, confidence: "low" as const, label: "Hook Ideas" } })
 
           emitStatus("Generating hashtag strategy\u2026")
           const hashtagData = await callClaude(`Return JSON only. Based on the trend data, recommend a hashtag strategy for ${config.label} in ${regionLabel}${industryCtx}. Include: (1) 3-5 high-volume hashtags to ride, (2) 3-5 mid-tier hashtags with less competition, (3) 2-3 niche hashtags for discoverability. Explain why each group matters.\nTREND CONTEXT: ${platformTrends.hashtags.join(", ") || "none"}\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "highVolume": [{ "tag": "string", "why": "string" }], "midTier": [{ "tag": "string", "why": "string" }], "niche": [{ "tag": "string", "why": "string" }], "source": "claude", "provenance": "inferred" }`, 600)
-          emitSSE("card", { platform, cardType: "hashtagStrategy", data: { ...hashtagData, label: "Hashtag Strategy" } })
+          emitSSE("card", { platform, cardType: "hashtagStrategy", data: { ...hashtagData, confidence: "low" as const, label: "Hashtag Strategy" } })
 
           emitStatus("Analysing best post formats\u2026")
           const formatData = await callClaude(`Return JSON only. Based on current trends on ${config.label} in ${regionLabel}${industryCtx}, recommend the best post formats right now. Consider: talking head, B-roll montage, carousel, duet/stitch, photo dump, behind-the-scenes, tutorial, reaction. Rank the top 3 formats and explain why they\u2019re working.\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "formats": [{ "name": "string", "rank": 1, "why": "string" }], "source": "claude", "provenance": "inferred" }`, 500)
-          emitSSE("card", { platform, cardType: "postFormat", data: { ...formatData, label: "Post Format Recommendation" } })
+          emitSSE("card", { platform, cardType: "postFormat", data: { ...formatData, confidence: "low" as const, label: "Post Format Recommendation" } })
 
         } else if (timeHorizon === "plan_ahead") {
           // ── PLAN AHEAD: videoIdeas, hooks, cadencePlan, contentPillars, competitivePosition ──
 
           emitSSE("card", { platform, cardType: "videoIdeas", data: {
             ideas: videoIdeas,
-            source: "claude", mode: "inferred_fallback", provenance: "inferred",
+            source: "claude", mode: "inferred_fallback", provenance: "inferred", confidence: "low" as const,
             label: "Content Themes Worth Investing In",
           }})
 
           const hooksData = (ideaData.hookConcepts as unknown[]) ?? []
-          emitSSE("card", { platform, cardType: "hooks", data: { hooks: hooksData, label: "Proven Hook Patterns" } })
+          emitSSE("card", { platform, cardType: "hooks", data: { hooks: hooksData, confidence: "low" as const, label: "Proven Hook Patterns" } })
 
           emitStatus("Building content cadence plan\u2026")
           const cadenceData = await callClaude(`Return JSON only. For a ${industryOrVertical} on ${config.label} in ${regionLabel}, recommend an optimal posting cadence for the next ${lagLabel}. Include: recommended posts per week, best days to post, content mix ratio (e.g. 40% educational, 30% entertaining, 30% promotional). Base this on what consistently performs in this market.\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "postsPerWeek": number, "bestDays": ["string"], "contentMix": [{ "type": "string", "percentage": number }], "notes": "string", "source": "claude", "provenance": "inferred" }`, 500)
-          emitSSE("card", { platform, cardType: "cadencePlan", data: { ...cadenceData, label: "Content Cadence Plan" } })
+          emitSSE("card", { platform, cardType: "cadencePlan", data: { ...cadenceData, confidence: "low" as const, label: "Content Cadence Plan" } })
 
           emitStatus("Generating content pillar recommendations\u2026")
           const pillarsData = await callClaude(`Return JSON only. Recommend 3-4 recurring content pillars (show formats) for a ${industryOrVertical} on ${config.label} in ${regionLabel}. Each pillar should be a repeatable series concept with a name, format, frequency, and example topic. These should work consistently over ${lagLabel}.\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "pillars": [{ "name": "string", "format": "string", "frequency": "string", "exampleTopic": "string", "why": "string" }], "source": "claude", "provenance": "inferred" }`, 600)
-          emitSSE("card", { platform, cardType: "contentPillars", data: { ...pillarsData, label: "Content Pillar Recommendations" } })
+          emitSSE("card", { platform, cardType: "contentPillars", data: { ...pillarsData, confidence: "low" as const, label: "Content Pillar Recommendations" } })
 
           emitStatus("Analysing competitive positioning\u2026")
           const compData = await callClaude(`Return JSON only. Analyse the content landscape for ${industryOrVertical} on ${config.label} in ${regionLabel}. Identify: what content is oversaturated, where the whitespace opportunities are, and what would make a brand stand out. Be specific about content gaps.\n${hasNiche ? `NICHE: ${niche}` : ""}${audiencePromptBlock}\nReturn: { "oversaturated": ["string"], "whitespace": ["string"], "standoutStrategy": "string", "source": "claude", "provenance": "inferred" }`, 600)
-          emitSSE("card", { platform, cardType: "competitivePosition", data: { ...compData, label: "Competitive Positioning" } })
+          emitSSE("card", { platform, cardType: "competitivePosition", data: { ...compData, confidence: "low" as const, label: "Competitive Positioning" } })
 
         }
 
