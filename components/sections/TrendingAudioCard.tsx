@@ -14,8 +14,17 @@ const SOURCE_LABELS: Record<string, { text: string; companion: string; live: boo
   inferred_fallback: { text: "DigitAlchemy", companion: "Generated recommendation", live: false },
 }
 
+type LicenseEntry = { track: string; license: string; note?: string }
+
+const LICENSE_BADGES: Record<string, { className: string; label: string }> = {
+  COMMERCIAL: { className: "bg-green-50 text-green-700 border-green-200", label: "COMMERCIAL \u2713" },
+  PERSONAL_USE_ONLY: { className: "bg-red-50 text-red-700 border-red-200", label: "PERSONAL USE ONLY" },
+  CHECK_LICENSE: { className: "bg-amber-50 text-amber-700 border-amber-200", label: "CHECK LICENSE" },
+}
+
 export function TrendingAudioCard({ data, platform }: Props) {
   const trendingSounds = (data.trendingSounds as string[]) ?? []
+  const licensing = (data.licensing as LicenseEntry[] | undefined) ?? []
   const source = (data.source as string) ?? "inferred_fallback"
   const mode = (data.mode as string) ?? "live_trend"
   const provenance = (data.provenance as string) ?? "inferred"
@@ -50,12 +59,21 @@ export function TrendingAudioCard({ data, platform }: Props) {
         </div>
         <CopyButton text={copyText} label="Copy all" />
       </div>
-      {trendingSounds.map((s, i) => (
-        <div key={i} className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-1.5 mb-1">
-          <span className="text-sm text-gray-700">{s}</span>
-          <CopyButton text={s} />
-        </div>
-      ))}
+      {trendingSounds.map((s, i) => {
+        const licenseEntry = licensing.find((l) => l.track === s)
+        const badge = licenseEntry ? LICENSE_BADGES[licenseEntry.license] ?? LICENSE_BADGES.CHECK_LICENSE : null
+        return (
+          <div key={i} className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-1.5 mb-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm text-gray-700 truncate">{s}</span>
+              {badge && (
+                <span className={`text-[9px] border px-1.5 py-0.5 rounded whitespace-nowrap ${badge.className}`}>{badge.label}</span>
+              )}
+            </div>
+            <CopyButton text={s} />
+          </div>
+        )
+      })}
       <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-300">
           <span>Live platform audio</span>
           <span>{label.companion}</span>

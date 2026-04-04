@@ -909,7 +909,7 @@ Rules:
           let audioLicensing: Record<string, unknown> = {}
           if (trendingSounds.length > 0) {
             emitStatus("Checking audio licensing\u2026")
-            audioLicensing = await callClaude(`Return JSON only. For each of these trending tracks on ${config.label}, indicate whether it is commercially licensed and safe for business/brand use. Mark tracks as [COMMERCIAL \u2713] if they are from known commercial music libraries (TikTok Commercial Music Library, Epidemic Sound, Artlist, Shutterstock Music) or are royalty-free. Mark tracks as [PERSONAL USE ONLY] if they are copyrighted artist tracks not cleared for commercial use. If licensing status is unknown, mark as [CHECK LICENSE]. This is critical for creators who monetize content or represent brands.\n\nTRACKS:\n${trendingSounds.join("\n")}\n\nReturn: { "tracks": [{ "track": "string", "license": "COMMERCIAL" | "PERSONAL_USE_ONLY" | "CHECK_LICENSE", "note": "string" }] }`, 500)
+            audioLicensing = await callClaude(`Return JSON only. For each of these trending tracks on ${config.label}:\n1. Indicate licensing: COMMERCIAL (from TikTok Commercial Music Library, Epidemic Sound, Artlist, Shutterstock Music, or royalty-free), PERSONAL_USE_ONLY (copyrighted major-label track not cleared for business use), or CHECK_LICENSE (uncertain).\n2. Briefly explain why this sound is trending and how to use it.\n\nTRACKS:\n${trendingSounds.join("\n")}\n\nReturn: { "tracks": [{ "track": "string", "license": "COMMERCIAL" | "PERSONAL_USE_ONLY" | "CHECK_LICENSE", "note": "string", "whyTrending": "string" }] }`, 600)
           }
           emitSSE("card", { platform, cardType: "trendingAudio", data: {
             trendingSounds,

@@ -1,5 +1,6 @@
 "use client"
 import { CopyButton } from "@/components/console/CopyButton"
+import { HashtagChip } from "@/components/console/HashtagChip"
 
 type Props = { data: Record<string, unknown>; platform: string }
 
@@ -80,11 +81,7 @@ export function TopicTrendsCard({ data, platform }: Props) {
       {overlapping.length === 0 && topicSpecific.length === 0 && hashtags.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {hashtags.map((tag, i) => (
-            <span key={i} className="text-xs bg-gray-900 text-white px-2 py-1 rounded cursor-pointer hover:bg-[#190A46] transition-colors"
-              onClick={() => navigator.clipboard.writeText(`#${tag.replace(/^#/, "")}`)}
-            >
-              #{tag.replace(/^#/, "")}
-            </span>
+            <HashtagChip key={i} tag={tag} />
           ))}
         </div>
       )}
