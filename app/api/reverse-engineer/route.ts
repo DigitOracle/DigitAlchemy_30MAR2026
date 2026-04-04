@@ -320,6 +320,70 @@ async function fetchNicheTrends(topic: string, platform: string, region: string,
 
 const LIVE_SOURCES = new Set(["scrape_creators_tiktok", "scrape_creators_instagram_support", "apify_live_scrape", "xpoz_social_signal", "official_platform"])
 
+// ── GDELT news context (explains WHY trends are happening) ──
+
+async function fetchGDELTContext(industry: string, region: string, regionLabel: string): Promise<string | null> {
+  try {
+    const query = encodeURIComponent(`${industry} ${regionLabel}`)
+    const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=ArtList&maxrecords=10&format=json&sort=DateDesc`
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+    if (!res.ok) return null
+    const data = await res.json()
+    const articles = (data?.articles ?? []) as Record<string, unknown>[]
+    if (articles.length === 0) return null
+
+    let summary = "RECENT NEWS CONTEXT (GDELT):\n"
+    for (const [i, a] of articles.slice(0, 8).entries()) {
+      summary += `${i + 1}. "${a.title}" \u2014 ${a.domain} (${((a.seendate as string) ?? "").slice(0, 8) || "recent"})\n`
+    }
+    return summary
+  } catch { return null }
+}
+
+// ── YouTube Data API trending + industry search ──
+
+async function fetchYouTubeTrending(region: string, industry: string | null): Promise<string | null> {
+  const apiKey = process.env.YOUTUBE_API_KEY
+  if (!apiKey) return null
+  try {
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=${region}&maxResults=10&key=${apiKey}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+    if (!res.ok) return null
+    const data = await res.json()
+    const items = (data?.items ?? []) as Record<string, unknown>[]
+    if (items.length === 0) return null
+
+    let summary = `YOUTUBE TRENDING (${region}):\n`
+    for (const [i, v] of items.entries()) {
+      const s = v.snippet as Record<string, unknown>
+      const stats = (v.statistics ?? {}) as Record<string, unknown>
+      summary += `${i + 1}. "${s.title}" by ${s.channelTitle}`
+      if (stats.viewCount) summary += ` \u2014 ${Number(stats.viewCount).toLocaleString()} views`
+      const tags = s.tags as string[] | undefined
+      if (tags?.length) summary += ` \u2014 tags: ${tags.slice(0, 5).join(", ")}`
+      summary += "\n"
+    }
+
+    if (industry) {
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(industry + " " + region)}&type=video&order=viewCount&maxResults=5&publishedAfter=${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()}&key=${apiKey}`
+      const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(10000) })
+      if (searchRes.ok) {
+        const searchData = await searchRes.json()
+        const searchItems = (searchData?.items ?? []) as Record<string, unknown>[]
+        if (searchItems.length > 0) {
+          summary += `\nYOUTUBE INDUSTRY SEARCH (${industry}, last 30 days):\n`
+          for (const [i, v] of searchItems.entries()) {
+            const s = v.snippet as Record<string, unknown>
+            summary += `${i + 1}. "${s.title}" by ${s.channelTitle} (${((s.publishedAt as string) ?? "").slice(0, 10)})\n`
+          }
+        }
+      }
+    }
+
+    return summary
+  } catch { return null }
+}
+
 // ── Google Trends data via Apify (12-month keyword analysis) ──
 
 async function fetchGoogleTrends(industry: string, region: string, regionLabel: string, emitStatus: (msg: string) => void): Promise<string | null> {
@@ -522,6 +586,14 @@ export async function POST(req: NextRequest): Promise<Response> {
       const emitStatus = (label: string) => emitSSE("processor.started", { label })
 
       try {
+        // ── Supplementary context (fast, called for all branches) ──
+        const gdeltContext = await fetchGDELTContext(industryLabel || "social media", region, regionLabel)
+        const youtubeContext = platform === "youtube" ? await fetchYouTubeTrending(region, industryLabel) : null
+        const supplementaryContext = [gdeltContext, youtubeContext].filter(Boolean).join("\n\n")
+        const supplementaryPromptBlock = supplementaryContext
+          ? `\n\nSUPPLEMENTARY CONTEXT:\n${supplementaryContext}\nUse the above recent news headlines and YouTube trending data to understand the current context and explain WHY certain trends are happening.`
+          : ""
+
         // ══════════════════════════════════════════════════════
         // ANALYSE HISTORY — dedicated pipeline with deep research
         // ══════════════════════════════════════════════════════
@@ -565,7 +637,8 @@ export async function POST(req: NextRequest): Promise<Response> {
           const haSourceLabel = ha.sources.includes("perplexity_deep") ? "perplexity" : ha.sources.includes("cache") ? "cached" : "claude"
           const haProvenance = ha.sources.includes("perplexity_deep") || ha.sources.includes("cache") ? "observed_live" : "inferred"
           const haConfidence = (ha.sources.includes("google_trends") && ha.sources.includes("perplexity_deep")) ? "medium" : ha.sources.includes("perplexity_deep") ? "low" : "low"
-          const truncatedTrends = ha.trends.slice(0, 3000)
+          const trendsWithContext = supplementaryContext ? ha.trends + "\n\n" + supplementaryContext : ha.trends
+          const truncatedTrends = trendsWithContext.slice(0, 3500)
 
           const fallbackRule = "\nIMPORTANT: If specific verified data points are not available from the research, provide industry-standard estimates and general best practices for this vertical. Frame estimates clearly as 'Industry benchmarks suggest...' or 'Based on general social media research...'. NEVER output 'DATA_UNAVAILABLE' \u2014 always provide actionable guidance even when exact data is limited." + audiencePromptBlock
 
@@ -673,7 +746,7 @@ Rules:
 - ${hasNiche ? `Focus all ideas on the "${niche}" niche` : "Cover diverse evergreen themes"}
 - Focus on durability, not virality. These must work over ${lagLabel}, not just today.
 - All recommendations must be culturally relevant and specific to ${regionLabel}. Reference local events, cultural moments, and regional audience behaviour.${industryLabel ? `\n- All recommendations must be specifically relevant to the ${industryLabel} industry. Reference industry-specific content formats, audience expectations, and competitive landscape.` : ""}
-- Do NOT present Claude suggestions as live data${audiencePromptBlock}`
+- Do NOT present Claude suggestions as live data${audiencePromptBlock}${supplementaryPromptBlock}`
           : `You are DigitAlchemy\u00ae trend analyst for ${config.label}. Given platform trend data, generate actionable content ideas. Return JSON only.
 
 PLATFORM: ${config.label}
@@ -698,7 +771,7 @@ Rules:
 - captionStarters: exactly 3 (short, long, story)
 - ${hasNiche ? `Focus all ideas on the "${niche}" niche` : "Cover diverse trending themes"}
 - All recommendations must be culturally relevant and specific to ${regionLabel}. Reference local events, cultural moments, and regional audience behaviour.${industryLabel ? `\n- All recommendations must be specifically relevant to the ${industryLabel} industry. Reference industry-specific content formats, audience expectations, and competitive landscape.` : ""}
-- Do NOT present Claude suggestions as live data${audiencePromptBlock}`
+- Do NOT present Claude suggestions as live data${audiencePromptBlock}${supplementaryPromptBlock}`
 
         emitStatus(`Generating ${config.label} content ideas\u2026`)
         const ideaData = await callClaude(ideaPrompt, 1500)
