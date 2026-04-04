@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import "./globals.css"
+import { Providers } from "./providers"
 
 export const metadata: Metadata = {
   title: "DigitAlchemy\u00AE Console",
@@ -12,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${GeistSans.variable} ${GeistMono.variable} bg-gray-50 min-h-screen`}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   )
