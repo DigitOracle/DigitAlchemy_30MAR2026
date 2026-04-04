@@ -1,6 +1,5 @@
 "use client"
 import { useState, useEffect } from "react"
-import Head from "next/head"
 
 type WikiItem = { name: string; views: number }
 type GdeltItem = { title: string; domain: string; url?: string }
@@ -43,7 +42,7 @@ function buildRegionalNarrative(articles: GdeltItem[], regionLabel: string): str
   if (articles.length === 0) return ""
   const top = articles.slice(0, 4)
   const lead = top[0]
-  let n = `cross ${regionLabel}, the day\u2019s dominant story centres on developments reported by ${lead.domain}: ${lead.title}.`
+  let n = `Across ${regionLabel}, the day\u2019s dominant story centres on developments reported by ${lead.domain}: ${lead.title}.`
   if (top.length > 1) n += ` Meanwhile, ${top[1].title.toLowerCase().startsWith("the") ? "" : "reports indicate "}${top[1].title} (${top[1].domain}).`
   if (top.length > 2) { n += ` Also drawing attention: ${top[2].title}`; if (top.length > 3) n += `, alongside coverage of ${top[3].title}`; n += "." }
   return n
@@ -94,9 +93,19 @@ export function MorningBriefing() {
   const [audioData, setAudioData] = useState<AudioData | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
-  useEffect(() => { setLoading(true); fetch(`/api/morning-briefing?region=${region}`).then(r => r.json()).then(d => { setData(d); setLoading(false) }).catch(() => setLoading(false)) }, [region])
-  useEffect(() => { fetch(`/api/trend-ticker?region=${region}`).then(r => r.json()).then(d => setTickerData(d)).catch(() => {}) }, [region])
-  useEffect(() => { fetch(`/api/trending-audio?region=${region}`).then(r => r.json()).then(d => setAudioData(d)).catch(() => {}) }, [region])
+  useEffect(() => {
+    setLoading(true)
+    Promise.allSettled([
+      fetch(`/api/morning-briefing?region=${region}`).then(r => r.json()),
+      fetch(`/api/trend-ticker?region=${region}`).then(r => r.json()),
+      fetch(`/api/trending-audio?region=${region}`).then(r => r.json()),
+    ]).then(([briefing, ticker, audio]) => {
+      if (briefing.status === "fulfilled") setData(briefing.value)
+      if (ticker.status === "fulfilled") setTickerData(ticker.value)
+      if (audio.status === "fulfilled") setAudioData(audio.value)
+      setLoading(false)
+    })
+  }, [region])
 
   const wiki = data ? cleanWikipedia(data.wikipedia) : []
   const gdelt = data ? deduplicateArticles(data.gdelt) : []
@@ -126,11 +135,7 @@ export function MorningBriefing() {
 
   return (
     <>
-      {/* Google Fonts for Gazette only */}
-      <Head>
-        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Special+Elite&display=swap" rel="stylesheet" />
-      </Head>
-      {/* Fallback: also inject via style tag in case next/head doesn't work in client component */}
+      {/* Google Fonts for Gazette */}
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Special+Elite&display=swap');`}</style>
 
       <div

@@ -13,7 +13,6 @@ type TrendItem = {
   decay_risk: number
   production_lag_fit: Record<string, number>
   estimated_half_life_hours: number | null
-  niche_fit: number
 }
 
 type Props = { data: Record<string, unknown>; platform: string }
@@ -34,7 +33,7 @@ function VelocityArrow({ v }: { v: number }) {
   return <span className="text-gray-400 text-[10px]">&minus;</span>
 }
 
-export function TrendRadarCard({ data, platform }: Props) {
+export function TrendRadarCard({ data }: Props) {
   const trends = (data.trends as TrendItem[]) ?? []
   const insufficientHistory = (data.insufficientHistory as boolean) ?? true
   const snapshotCount = (data.snapshotCount as number) ?? 0

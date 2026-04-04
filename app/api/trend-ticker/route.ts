@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+const isDev = process.env.NODE_ENV !== "production"
+
 const REGION_LABELS: Record<string, string> = {
   AE: "UAE", SA: "Saudi Arabia", KW: "Kuwait", QA: "Qatar", US: "United States", SG: "Singapore",
 }
@@ -21,7 +23,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const ig = instagram.status === "fulfilled" ? instagram.value : []
   const yt = youtube.status === "fulfilled" ? youtube.value : []
 
-  console.log(`[TICKER] Results — TikTok: ${tt.length}, Instagram: ${ig.length}, YouTube: ${yt.length}`)
+  isDev && console.log(`[TICKER] Results — TikTok: ${tt.length}, Instagram: ${ig.length}, YouTube: ${yt.length}`)
 
   return NextResponse.json({ tiktok: tt, instagram: ig, youtube: yt, region })
 }
@@ -36,12 +38,12 @@ async function fetchTikTokHashtags(region: string): Promise<string[]> {
       `https://api.scrapecreators.com/v1/tiktok/hashtags/popular?region=${region}`,
       { headers: { "x-api-key": apiKey }, signal: AbortSignal.timeout(10000) },
     )
-    console.log("[TICKER] TikTok response status:", res.status)
+    isDev && console.log("[TICKER] TikTok response status:", res.status)
     if (!res.ok) return []
     const data = await res.json()
     // Match the exact parsing from the scan route
     const items = Array.isArray(data) ? data : (data?.list ?? data?.data ?? data?.hashtags ?? data?.hashtag_list ?? data?.items ?? [])
-    console.log("[TICKER] TikTok items count:", (items as unknown[]).length, "sample:", JSON.stringify(items[0])?.slice(0, 150))
+    isDev && console.log("[TICKER] TikTok items count:", (items as unknown[]).length, "sample:", JSON.stringify(items[0])?.slice(0, 150))
     const hashtags: string[] = []
     for (const h of (items as Record<string, unknown>[]).slice(0, 10)) {
       const tag = (h.hashtag_name ?? h.name ?? h.hashtag ?? h.title ?? "") as string
@@ -62,11 +64,11 @@ async function fetchInstagramHashtags(region: string, regionLabel: string): Prom
       `https://api.scrapecreators.com/v2/instagram/reels/search?query=${encodeURIComponent(query)}&region=${region}`,
       { headers: { "x-api-key": apiKey }, signal: AbortSignal.timeout(10000) },
     )
-    console.log("[TICKER] Instagram response status:", res.status)
+    isDev && console.log("[TICKER] Instagram response status:", res.status)
     if (!res.ok) return []
     const data = await res.json()
     const items = Array.isArray(data) ? data : (data?.data ?? data?.reels ?? data?.items ?? [])
-    console.log("[TICKER] Instagram items count:", (items as unknown[]).length)
+    isDev && console.log("[TICKER] Instagram items count:", (items as unknown[]).length)
     const hashtags: string[] = []
     for (const r of (items as Record<string, unknown>[]).slice(0, 15)) {
       const caption = (r.caption ?? r.text ?? "") as string

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { searchSpotifyTrack } from "@/lib/spotify"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -57,53 +58,16 @@ async function fetchTrendingSounds(region: string): Promise<TrendingSound[]> {
 
 async function enrichWithSpotify(sounds: TrendingSound[]): Promise<TrendingSound[]> {
   if (sounds.length === 0) return sounds
-  const clientId = process.env.SPOTIFY_CLIENT_ID
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
-  if (!clientId || !clientSecret) return sounds
-
-  let token: string | null = null
-  try {
-    const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: "Basic " + Buffer.from(clientId + ":" + clientSecret).toString("base64"),
-      },
-      body: "grant_type=client_credentials",
-      cache: "no-store",
-    })
-    if (!tokenRes.ok) return sounds
-    const tokenData = await tokenRes.json()
-    token = tokenData.access_token
-    console.log("[TRENDING-AUDIO] Spotify token obtained:", token ? token.slice(0, 10) + "..." : "null")
-  } catch (e) { console.log("[TRENDING-AUDIO] Spotify token error:", e); return sounds }
-
-  if (!token) return sounds
 
   const results = await Promise.allSettled(
     sounds.map(async (sound) => {
-      // Clean query: strip parenthetical noise like "(1034554)", extra whitespace
       const cleanTitle = sound.title.replace(/\([^)]*\)/g, "").trim()
       const cleanAuthor = sound.author.replace(/\([^)]*\)/g, "").trim()
       const query = `${cleanTitle} ${cleanAuthor}`.trim()
       if (query.length < 3) return sound
-      try {
-        const res = await fetch(
-          `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=1`,
-          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(3000) },
-        )
-        if (!res.ok) { console.log("[TRENDING-AUDIO] Spotify search failed:", res.status, "for:", query.slice(0, 40)); return sound }
-        const data = await res.json()
-        const track = data?.tracks?.items?.[0]
-        if (track) {
-          return {
-            ...sound,
-            albumArt: track.album?.images?.[1]?.url || track.album?.images?.[0]?.url || null,
-            spotifyUrl: track.external_urls?.spotify || null,
-          }
-        }
-        return sound
-      } catch { return sound }
+      const meta = await searchSpotifyTrack(query)
+      if (meta) return { ...sound, albumArt: meta.albumArt, spotifyUrl: meta.spotifyUrl }
+      return sound
     }),
   )
 

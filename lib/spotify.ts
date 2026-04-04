@@ -21,6 +21,8 @@
  */
 "use server"
 
+// NOTE: tokenCache is per-cold-start in serverless — acceptable for now since tokens
+// last ~1h and cold starts are infrequent. Move to KV/Redis if token fetches become costly.
 let tokenCache: { token: string; expires: number } | null = null
 
 async function getSpotifyToken(): Promise<string | null> {
