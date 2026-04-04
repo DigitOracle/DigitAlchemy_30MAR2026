@@ -49,13 +49,9 @@ export function TopicTrendsCard({ data, platform }: Props) {
       {overlapping.length > 0 && (
         <div className="mb-3">
           <p className="text-[10px] font-semibold text-green-600 uppercase mb-1.5">Overlaps with Platform Trends</p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
             {overlapping.map((tag, i) => (
-              <span key={i} className="text-xs bg-green-900 text-white px-2 py-1 rounded cursor-pointer hover:bg-green-800 transition-colors"
-                onClick={() => navigator.clipboard.writeText(`#${tag.replace(/^#/, "")}`)}
-              >
-                #{tag.replace(/^#/, "")}
-              </span>
+              <HashtagChip key={i} tag={tag} />
             ))}
           </div>
         </div>
@@ -65,13 +61,9 @@ export function TopicTrendsCard({ data, platform }: Props) {
       {topicSpecific.length > 0 && (
         <div className="mb-3">
           <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">Topic-Specific</p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
             {topicSpecific.map((tag, i) => (
-              <span key={i} className="text-xs bg-gray-900 text-white px-2 py-1 rounded cursor-pointer hover:bg-[#190A46] transition-colors"
-                onClick={() => navigator.clipboard.writeText(`#${tag.replace(/^#/, "")}`)}
-              >
-                #{tag.replace(/^#/, "")}
-              </span>
+              <HashtagChip key={i} tag={tag} />
             ))}
           </div>
         </div>
@@ -79,7 +71,7 @@ export function TopicTrendsCard({ data, platform }: Props) {
 
       {/* Fallback: flat hashtags if no split */}
       {overlapping.length === 0 && topicSpecific.length === 0 && hashtags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 mb-3">
           {hashtags.map((tag, i) => (
             <HashtagChip key={i} tag={tag} />
           ))}

@@ -67,11 +67,16 @@ export function PlatformTrendsCard({ data, platform }: Props) {
       {hashtags.length > 0 && (
         <div className="mb-3">
           <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">{isLive ? "Trending Hashtags" : "Suggested Hashtags"}</p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
             {hashtags.map((tag, i) => (
               <HashtagChip key={i} tag={tag} />
             ))}
           </div>
+          {hashtags.length > 0 && (
+            <div className="mt-2">
+              <button onClick={() => navigator.clipboard.writeText(copyText)} className="w-full text-center text-[10px] text-gray-400 hover:text-[#b87333] py-1 transition-colors">Copy all hashtags</button>
+            </div>
+          )}
         </div>
       )}
 
