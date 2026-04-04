@@ -10,6 +10,7 @@ import { PlatformSelectionStage } from "@/components/stages/PlatformSelectionSta
 import { ReverseEngineerSetupStage } from "@/components/stages/ReverseEngineerSetupStage"
 import { ContentFocusConfirmStage } from "@/components/stages/ContentFocusConfirmStage"
 import { PlatformWorkspace } from "@/components/console/PlatformWorkspace"
+import { MorningBriefing } from "@/components/console/MorningBriefing"
 import { BlockedCard } from "@/components/sections/BlockedCard"
 import type { JobV2 } from "@/types/jobs"
 
@@ -536,17 +537,8 @@ export default function ConsolePage() {
         <ProgressStrip chips={chips} />
 
         <div className="space-y-5">
-          {/* MORNING GREETING */}
-          {stage === "mode_select" && (
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 mb-2 animate-fade-in">
-              <h2 className="text-xl font-semibold text-gray-900 mb-1">
-                {new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 17 ? "Good afternoon" : "Good evening"}
-              </h2>
-              <p className="text-sm text-gray-500">
-                Your DigitAlchemy&reg; Console &mdash; {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-              </p>
-            </div>
-          )}
+          {/* THE DIGITALCHEMY GAZETTE */}
+          {stage === "mode_select" && <MorningBriefing />}
 
           {/* MODE SELECT */}
           {stage === "mode_select" && <ModeSelectStage onSelect={handleModeSelect} />}
