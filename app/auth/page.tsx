@@ -30,9 +30,10 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
+      if (!auth || !db) { setError("Authentication not configured"); setLoading(false); return }
       if (mode === "signup") {
-        const cred = await createUserWithEmailAndPassword(auth, email, password)
-        await setDoc(doc(db, "users", cred.user.uid), {
+        const cred = await createUserWithEmailAndPassword(auth!, email, password)
+        await setDoc(doc(db!, "users", cred.user.uid), {
           uid: cred.user.uid,
           name,
           email,
@@ -41,8 +42,8 @@ export default function AuthPage() {
           lastLogin: new Date().toISOString(),
         })
       } else {
-        const cred = await signInWithEmailAndPassword(auth, email, password)
-        await updateDoc(doc(db, "users", cred.user.uid), {
+        const cred = await signInWithEmailAndPassword(auth!, email, password)
+        await updateDoc(doc(db!, "users", cred.user.uid), {
           lastLogin: new Date().toISOString(),
         }).catch(() => { /* profile may not exist yet */ })
       }
