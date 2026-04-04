@@ -88,7 +88,7 @@ export function MorningBriefing() {
         {!loading && data && (
           <>
             {/* Lead Story + Right Rail */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 20, marginBottom: 20 }} className="gazette-grid">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-5 mb-5">
               {/* LEAD STORY */}
               <div>
                 {data.wikipedia.length > 0 && (
@@ -113,7 +113,7 @@ export function MorningBriefing() {
               </div>
 
               {/* RIGHT RAIL — Platform Watch */}
-              <div style={{ borderLeft: `1px solid ${rule}`, paddingLeft: 16 }}>
+              <div className="md:border-l md:pl-4 border-t md:border-t-0 pt-3 md:pt-0 mt-2 md:mt-0" style={{ borderColor: rule }}>
                 <div style={{ fontFamily: sans, fontSize: 10, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: secondary, marginBottom: 4 }}>
                   Platform Watch
                 </div>
@@ -138,9 +138,9 @@ export function MorningBriefing() {
                 <div style={{ fontFamily: sans, fontSize: 10, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: secondary, marginBottom: 10 }}>
                   Regional News Wire
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }} className="gazette-news-grid">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
                   {data.gdelt.slice(0, 6).map((a, i) => (
-                    <div key={i} style={{ padding: "0 12px", borderRight: i % 3 !== 2 ? `1px solid ${rule}` : "none", marginBottom: 12 }}>
+                    <div key={i} className="px-3 mb-3 md:border-r last:border-r-0" style={{ borderColor: i % 3 === 2 ? "transparent" : rule }}>
                       <div style={{ fontFamily: serif, fontSize: 13, fontWeight: "bold", lineHeight: 1.3, marginBottom: 3 }}>{a.title}</div>
                       <div style={{ fontSize: 10, color: secondary }}>&mdash; {a.domain}</div>
                     </div>
@@ -172,18 +172,6 @@ export function MorningBriefing() {
         )}
       </div>
 
-      {/* Responsive override */}
-      <style>{`
-        @media (max-width: 768px) {
-          .gazette-grid { grid-template-columns: 1fr !important; }
-          .gazette-grid > div:last-child { border-left: none !important; padding-left: 0 !important; border-top: 1px solid ${rule}; padding-top: 14px; margin-top: 8px; }
-          .gazette-news-grid { grid-template-columns: 1fr !important; }
-          .gazette-news-grid > div { border-right: none !important; }
-        }
-        @media (max-width: 480px) {
-          .gazette-news-grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
     </div>
   )
 }
