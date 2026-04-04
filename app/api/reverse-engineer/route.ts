@@ -574,7 +574,7 @@ const REGION_LABELS: Record<string, string> = {
 
 export async function POST(req: NextRequest): Promise<Response> {
   const body = await req.json()
-  const { platform, niche, region = "AE", lag = "same_day", industry = null, audience = null } = body as { platform: string; niche: string; region: string; lag: string; industry: string | null; audience: string | null }
+  const { platform, niche, region = "AE", lag = "same_day", industry = null, audience = null, quickPulse = null } = body as { platform: string; niche: string; region: string; lag: string; industry: string | null; audience: string | null; quickPulse: string | null }
   const regionLabel = REGION_LABELS[region] || region
   const INDUSTRY_LABELS: Record<string, string> = {
     real_estate: "real estate and property development",
@@ -620,6 +620,46 @@ export async function POST(req: NextRequest): Promise<Response> {
       const emitStatus = (label: string) => emitSSE("processor.started", { label })
 
       try {
+        // ══════════════════════════════════════════════════════
+        // QUICK PULSE — simplified 1-click pipeline
+        // ══════════════════════════════════════════════════════
+        if (quickPulse) {
+          if (quickPulse === "news") {
+            emitStatus(`Fetching news headlines for ${regionLabel}\u2026`)
+            const news = await fetchGDELTContext("trending", region, regionLabel)
+            emitSSE("card", { platform, cardType: "newsHeadlines", data: {
+              headlines: news || "No headlines available right now.",
+              source: "gdelt", provenance: "observed_live", confidence: "medium",
+              label: `Top Headlines \u2014 ${regionLabel}`,
+            }})
+          } else if (quickPulse === "wikipedia") {
+            emitStatus("Fetching cultural pulse\u2026")
+            const wiki = await fetchWikipediaTrending()
+            emitSSE("card", { platform, cardType: "culturalPulse", data: {
+              trending: wiki || "No cultural pulse data available right now.",
+              source: "wikipedia", provenance: "observed_live", confidence: "medium",
+              label: "Cultural Pulse \u2014 What the Internet Is Talking About",
+            }})
+          } else if (quickPulse === "youtube") {
+            emitStatus(`Fetching YouTube trending for ${regionLabel}\u2026`)
+            const yt = await fetchYouTubeTrending(region, null)
+            emitSSE("card", { platform, cardType: "youtubeTrending", data: {
+              trending: yt || "No YouTube trending data available.",
+              source: "youtube_api", provenance: "observed_live", confidence: "high",
+              label: `YouTube Trending \u2014 ${regionLabel}`,
+            }})
+          } else {
+            // tiktok or instagram — run the normal React Now pipeline with defaults
+            // Fall through to the main pipeline below
+          }
+          if (quickPulse === "news" || quickPulse === "wikipedia" || quickPulse === "youtube") {
+            emitSSE("complete", { platform })
+            clearInterval(keepAlive)
+            controller.close()
+            return
+          }
+        }
+
         // ── Supplementary context (fast, called for all branches) ──
         const gdeltContext = await fetchGDELTContext(industryLabel || "social media", region, regionLabel)
         const youtubeContext = platform === "youtube" ? await fetchYouTubeTrending(region, industryLabel) : null

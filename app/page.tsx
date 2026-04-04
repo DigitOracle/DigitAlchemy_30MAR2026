@@ -224,7 +224,7 @@ export default function ConsolePage() {
   }, [])
 
   // ── Reverse-engineer: SSE stream + Trend Radar ──
-  const startReverseEngineerStream = useCallback(async (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null) => {
+  const startReverseEngineerStream = useCallback(async (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null, quickPulse?: string) => {
     setStage("generating")
     setSelectedPlatforms([platform])
     setReNiche(niche)
@@ -237,7 +237,7 @@ export default function ConsolePage() {
       const response = await fetch("/api/reverse-engineer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform, niche, region, lag, industry, audience }),
+        body: JSON.stringify({ platform, niche, region, lag, industry, audience, quickPulse }),
       })
       if (!response.ok || !response.body) { setStage("error"); return }
       const reader = response.body.getReader()
@@ -396,11 +396,11 @@ export default function ConsolePage() {
   }
 
   // ── Reverse-engineer: confirm ──
-  const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null) => {
+  const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null, quickPulse?: string) => {
     setReRegion(region)
     setReIndustry(industry)
     setReAudience(audience)
-    startReverseEngineerStream(platform, niche, lag, region, industry, audience)
+    startReverseEngineerStream(platform, niche, lag, region, industry, audience, quickPulse)
   }
 
   // ── Full reset ──

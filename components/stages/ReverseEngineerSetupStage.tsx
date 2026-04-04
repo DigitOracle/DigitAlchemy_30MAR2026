@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { PLATFORMS } from "@/config/platforms"
 
 type ProductionLag = "same_day" | "24h" | "48h" | "72h" | "1w" | "2w" | "4w" | "6m" | "12m"
@@ -34,8 +34,16 @@ const AUDIENCES = [
   { id: "all_ages", label: "All Ages", subtitle: "Broad" },
 ]
 
+const QUICK_PULSE_OPTIONS = [
+  { id: "tiktok", label: "TikTok Trending", icon: "\ud83d\udcf1", platform: "tiktok" },
+  { id: "instagram", label: "Instagram Trending", icon: "\ud83d\udcf8", platform: "instagram" },
+  { id: "youtube", label: "YouTube Trending", icon: "\u25b6\ufe0f", platform: "youtube" },
+  { id: "news", label: "News Headlines", icon: "\ud83d\udcf0", platform: "tiktok" },
+  { id: "wikipedia", label: "Cultural Pulse", icon: "\ud83c\udf10", platform: "tiktok" },
+]
+
 type Props = {
-  onConfirm: (platform: string, niche: string, lag: ProductionLag, region: string, industry: string | null, audience: string | null) => void
+  onConfirm: (platform: string, niche: string, lag: ProductionLag, region: string, industry: string | null, audience: string | null, quickPulse?: string) => void
 }
 
 const scanPlatforms = Object.values(PLATFORMS).filter((p) => p.id !== "heygen")
@@ -96,6 +104,24 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
   const [region, setRegion] = useState("AE")
   const [industry, setIndustry] = useState<string | null>(null)
   const [audience, setAudience] = useState<string | null>(null)
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    if (!openDropdown) return
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpenDropdown(null)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [openDropdown])
+
+  function handleQuickPulse(regionCode: string, quickType: string) {
+    setOpenDropdown(null)
+    const opt = QUICK_PULSE_OPTIONS.find((o) => o.id === quickType)
+    onConfirm(opt?.platform || "tiktok", "", "same_day", regionCode, null, null, quickType)
+  }
 
   const activeBranch = ["same_day", "24h", "48h", "72h"].includes(lag) ? "react_now"
     : ["1w", "2w", "4w"].includes(lag) ? "plan_ahead"
@@ -119,20 +145,48 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
         <label className="block text-xs font-medium text-gray-500 mb-1.5">
           Target region
         </label>
-        <div className="flex flex-row gap-3">
+        <div className="flex flex-row gap-3" ref={dropdownRef}>
           {REGIONS.map((r) => (
-            <button
-              key={r.code}
-              onClick={() => setRegion(r.code)}
-              className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-lg border-2 text-xs font-medium transition-colors ${
-                region === r.code
-                  ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"
-                  : "border-gray-200 text-gray-500 hover:border-gray-300"
-              }`}
-            >
-              <img src={r.flag} alt={r.label} width={36} height={24} className="object-contain rounded-sm" style={{ width: 36, height: 24 }} />
-              <span className="text-[10px]">{r.label}</span>
-            </button>
+            <div key={r.code} className="relative flex-1">
+              <button
+                onClick={() => setOpenDropdown(openDropdown === r.code ? null : r.code)}
+                className={`w-full flex flex-col items-center gap-1 py-2.5 rounded-lg border-2 text-xs font-medium transition-colors ${
+                  region === r.code && !openDropdown
+                    ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"
+                    : openDropdown === r.code
+                    ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"
+                    : "border-gray-200 text-gray-500 hover:border-gray-300"
+                }`}
+              >
+                <img src={r.flag} alt={r.label} width={36} height={24} className="object-contain rounded-sm" style={{ width: 36, height: 24 }} />
+                <span className="text-[10px]">{r.label}</span>
+              </button>
+
+              {openDropdown === r.code && (
+                <div className="absolute z-10 mt-2 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-xl border border-gray-200 p-3 w-56 animate-fade-in">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Quick Pulse</p>
+                  {QUICK_PULSE_OPTIONS.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleQuickPulse(r.code, item.id)}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-gray-50 text-xs flex items-center gap-2 transition-colors"
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                  <div className="border-t border-gray-200 mt-2 pt-2">
+                    <button
+                      onClick={() => { setRegion(r.code); setOpenDropdown(null) }}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-amber-50 text-xs font-medium flex items-center gap-2 text-amber-700"
+                    >
+                      <span>&#x1f50d;</span>
+                      <span>Deep Dive &rarr;</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </div>
