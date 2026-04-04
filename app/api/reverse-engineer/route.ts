@@ -626,7 +626,8 @@ export async function POST(req: NextRequest): Promise<Response> {
         if (quickPulse) {
           if (quickPulse === "news") {
             emitStatus(`Fetching news headlines for ${regionLabel}\u2026`)
-            const news = await fetchGDELTContext("trending", region, regionLabel)
+            let news: string | null = null
+            try { news = await fetchGDELTContext("trending", region, regionLabel) } catch (e) { console.error("[QUICK PULSE] GDELT failed:", e) }
             emitSSE("card", { platform, cardType: "newsHeadlines", data: {
               headlines: news || "No headlines available right now.",
               source: "gdelt", provenance: "observed_live", confidence: "medium",
@@ -634,7 +635,8 @@ export async function POST(req: NextRequest): Promise<Response> {
             }})
           } else if (quickPulse === "wikipedia") {
             emitStatus("Fetching cultural pulse\u2026")
-            const wiki = await fetchWikipediaTrending()
+            let wiki: string | null = null
+            try { wiki = await fetchWikipediaTrending() } catch (e) { console.error("[QUICK PULSE] Wikipedia failed:", e) }
             emitSSE("card", { platform, cardType: "culturalPulse", data: {
               trending: wiki || "No cultural pulse data available right now.",
               source: "wikipedia", provenance: "observed_live", confidence: "medium",
@@ -642,7 +644,8 @@ export async function POST(req: NextRequest): Promise<Response> {
             }})
           } else if (quickPulse === "youtube") {
             emitStatus(`Fetching YouTube trending for ${regionLabel}\u2026`)
-            const yt = await fetchYouTubeTrending(region, null)
+            let yt: string | null = null
+            try { yt = await fetchYouTubeTrending(region, null) } catch (e) { console.error("[QUICK PULSE] YouTube failed:", e) }
             emitSSE("card", { platform, cardType: "youtubeTrending", data: {
               trending: yt || "No YouTube trending data available.",
               source: "youtube_api", provenance: "observed_live", confidence: "high",
@@ -660,10 +663,13 @@ export async function POST(req: NextRequest): Promise<Response> {
           }
         }
 
-        // ── Supplementary context (fast, called for all branches) ──
-        const gdeltContext = await fetchGDELTContext(industryLabel || "social media", region, regionLabel)
-        const youtubeContext = platform === "youtube" ? await fetchYouTubeTrending(region, industryLabel) : null
-        const wikiContext = await fetchWikipediaTrending()
+        // ── Supplementary context (fast, each individually wrapped) ──
+        let gdeltContext: string | null = null
+        try { gdeltContext = await fetchGDELTContext(industryLabel || "social media", region, regionLabel) } catch (e) { console.error("[PROVIDER] GDELT failed:", e) }
+        let youtubeContext: string | null = null
+        if (platform === "youtube") { try { youtubeContext = await fetchYouTubeTrending(region, industryLabel) } catch (e) { console.error("[PROVIDER] YouTube failed:", e) } }
+        let wikiContext: string | null = null
+        try { wikiContext = await fetchWikipediaTrending() } catch (e) { console.error("[PROVIDER] Wikipedia failed:", e) }
         const supplementaryContext = [gdeltContext, youtubeContext, wikiContext].filter(Boolean).join("\n\n")
         const supplementaryPromptBlock = supplementaryContext
           ? `\n\nSUPPLEMENTARY CONTEXT:\n${supplementaryContext}\nUse the above recent news headlines, YouTube trending data, and Wikipedia cultural pulse to understand the current context and explain WHY certain trends are happening.`
@@ -970,8 +976,8 @@ Rules:
         } // end of } else { (react_now / plan_ahead branch)
 
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Trend scan failed"
-        console.error("[reverse-engineer]", err)
+        const message = err instanceof Error ? `${err.message} (${err.stack?.split("\n")[1]?.trim() ?? ""})` : "Trend scan failed"
+        console.error("[reverse-engineer] STREAM ERROR:", err)
         emitSSE("error", { error: message })
       } finally {
         clearInterval(keepAlive)
