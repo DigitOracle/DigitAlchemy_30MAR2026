@@ -1,10 +1,14 @@
 "use client"
 import { useState, useEffect } from "react"
+import Head from "next/head"
 
 type WikiItem = { name: string; views: number }
 type GdeltItem = { title: string; domain: string; url?: string }
 type YoutubeItem = { title: string; channel: string; views: number; thumbnail: string }
 type BriefingData = { wikipedia: WikiItem[]; gdelt: GdeltItem[]; youtube: YoutubeItem[]; regionLabel: string }
+type TickerData = { tiktok: string[]; instagram: string[]; youtube: string[] }
+type TrendingSound = { title: string; author: string; rank: number; rankDiff: number; rankDiffType: number; cover: string | null; albumArt: string | null; spotifyUrl: string | null }
+type AudioData = { sounds: TrendingSound[] }
 
 const QUOTES = [
   { text: "Attention is no longer just local \u2014 but local context still decides what spreads.", by: "The Editorial Desk" },
@@ -17,7 +21,6 @@ const REGIONS = [
   { id: "QA", label: "Qatar" }, { id: "US", label: "the United States" }, { id: "SG", label: "Singapore" },
 ]
 
-// Deduplicate articles: if two titles share >80% words, keep only the first
 function deduplicateArticles(articles: GdeltItem[]): GdeltItem[] {
   const result: GdeltItem[] = []
   for (const a of articles) {
@@ -32,168 +35,442 @@ function deduplicateArticles(articles: GdeltItem[]): GdeltItem[] {
   return result
 }
 
-// Filter out Wikipedia entries that look like artifacts
 function cleanWikipedia(items: WikiItem[]): WikiItem[] {
   return items.filter((w) => !w.name.includes(".") && !w.name.startsWith("XXX") && w.name.length > 2 && !w.name.startsWith("List of"))
 }
 
+function buildRegionalNarrative(articles: GdeltItem[], regionLabel: string): string {
+  if (articles.length === 0) return ""
+  const top = articles.slice(0, 4)
+  const lead = top[0]
+  let n = `cross ${regionLabel}, the day\u2019s dominant story centres on developments reported by ${lead.domain}: ${lead.title}.`
+  if (top.length > 1) n += ` Meanwhile, ${top[1].title.toLowerCase().startsWith("the") ? "" : "reports indicate "}${top[1].title} (${top[1].domain}).`
+  if (top.length > 2) { n += ` Also drawing attention: ${top[2].title}`; if (top.length > 3) n += `, alongside coverage of ${top[3].title}`; n += "." }
+  return n
+}
+
+// ── Platform SVG icons ──
+function PlatformIcon({ platform, size = 12, style }: { platform: string; size?: number; style?: React.CSSProperties }) {
+  const s = { display: "inline-block", verticalAlign: "middle", marginRight: 3, opacity: 0.7, ...style }
+  if (platform === "tiktok") return <svg width={size} height={size} viewBox="0 0 24 24" fill="#1C1A17" style={s}><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1 0-5.78c.27 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15.3a6.34 6.34 0 0 0 6.34 5.13 6.34 6.34 0 0 0 6.34-6.34V8.73a8.19 8.19 0 0 0 4.76 1.52v-3.4a4.85 4.85 0 0 1-1-.16z" /></svg>
+  if (platform === "instagram") return <svg width={size} height={size} viewBox="0 0 24 24" fill="#7A5230" style={s}><path d="M12 2.16c2.67 0 2.99.01 4.04.06 2.43.11 3.54 1.24 3.65 3.65.05 1.05.06 1.37.06 4.04s-.01 2.99-.06 4.04c-.11 2.41-1.22 3.54-3.65 3.65-1.05.05-1.37.06-4.04.06s-2.99-.01-4.04-.06c-2.43-.11-3.54-1.24-3.65-3.65C4.26 14.9 4.25 14.58 4.25 11.91s.01-2.99.06-4.04c.11-2.41 1.22-3.54 3.65-3.65C9.01 4.17 9.33 4.16 12 4.16zM12 2c-2.72 0-3.06.01-4.12.06C4.7 2.2 3.2 3.7 3.06 6.88 3.01 7.94 3 8.28 3 11s.01 3.06.06 4.12c.14 3.18 1.64 4.68 4.82 4.82C8.94 19.99 9.28 20 12 20s3.06-.01 4.12-.06c3.18-.14 4.68-1.64 4.82-4.82.05-1.06.06-1.4.06-4.12s-.01-3.06-.06-4.12C20.8 3.7 19.3 2.2 16.12 2.06 15.06 2.01 14.72 2 12 2zm0 4.86a5.14 5.14 0 1 0 0 10.28 5.14 5.14 0 0 0 0-10.28zM12 15a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm5.84-9.16a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z" /></svg>
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="#8B0000" style={s}><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.54 3.5 12 3.5 12 3.5s-7.54 0-9.38.55A3.02 3.02 0 0 0 .5 6.19C0 8.04 0 12 0 12s0 3.96.5 5.81a3.02 3.02 0 0 0 2.12 2.14c1.84.55 9.38.55 9.38.55s7.54 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14C24 15.96 24 12 24 12s0-3.96-.5-5.81zM9.55 15.57V8.43L15.82 12l-6.27 3.57z" /></svg>
+}
+
+// ── Font stacks ──
+const DISPLAY = "'Playfair Display', Georgia, 'Times New Roman', serif"
+const BODY = "'Libre Baskerville', Georgia, 'Times New Roman', serif"
+const TYPEWRITER = "'Special Elite', 'Courier New', monospace"
+const LABEL = "'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif"
+
+// ── Colour palette ──
+const INK = "#1A1A1A"
+const RULE = "#C4B9A0"
+const SEC = "#5D4E37"
+const BROWN = "#3E2723"
+const ACCENT = "#8B7355"
+const PAPER_LIGHT = "#F4F1E4"
+const PAPER_DARK = "#EBE5D4"
+
+// ── Ornamental dividers ──
+function ThickThinRule() { return <><div style={{ borderTop: `2.5px solid ${BROWN}` }} /><div style={{ borderTop: `0.5px solid ${BROWN}`, marginTop: 2 }} /></> }
+function StarDivider() { return <div style={{ textAlign: "center", padding: "8px 0", color: RULE, fontSize: 11, letterSpacing: "0.5em" }}>{"\u2605 \u2605 \u2605"}</div> }
+function DiamondDivider() { return <div style={{ textAlign: "center", padding: "6px 0" }}><span style={{ fontSize: 9, color: ACCENT, letterSpacing: "0.8em" }}>{"\u25C6 \u25C6 \u25C6"}</span></div> }
+function WingRule() {
+  return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "4px 0" }}>
+    <div style={{ flex: 1, maxWidth: 180, borderTop: `0.5px solid ${RULE}` }} />
+    <span style={{ fontSize: 9, color: ACCENT }}>{"\u2726"}</span>
+    <div style={{ flex: 1, maxWidth: 180, borderTop: `0.5px solid ${RULE}` }} />
+  </div>
+}
+
 export function MorningBriefing() {
+  const [mounted, setMounted] = useState(false)
   const [region, setRegion] = useState("AE")
   const [data, setData] = useState<BriefingData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectorOpen, setSelectorOpen] = useState(false)
+  const [tickerData, setTickerData] = useState<TickerData | null>(null)
+  const [audioData, setAudioData] = useState<AudioData | null>(null)
 
-  useEffect(() => {
-    setLoading(true)
-    fetch(`/api/morning-briefing?region=${region}`)
-      .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [region])
-
-  const now = new Date()
-  const dayName = now.toLocaleDateString("en-US", { weekday: "long" })
-  const dateFormatted = now.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })
-  const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)
-  const hour = now.getHours()
-  const edition = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening"
-  const quote = QUOTES[dayOfYear % QUOTES.length]
-  const regionObj = REGIONS.find((r) => r.id === region)
-  const regionLabel = data?.regionLabel || regionObj?.label || region
+  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => { setLoading(true); fetch(`/api/morning-briefing?region=${region}`).then(r => r.json()).then(d => { setData(d); setLoading(false) }).catch(() => setLoading(false)) }, [region])
+  useEffect(() => { fetch(`/api/trend-ticker?region=${region}`).then(r => r.json()).then(d => setTickerData(d)).catch(() => {}) }, [region])
+  useEffect(() => { fetch(`/api/trending-audio?region=${region}`).then(r => r.json()).then(d => setAudioData(d)).catch(() => {}) }, [region])
 
   const wiki = data ? cleanWikipedia(data.wikipedia) : []
   const gdelt = data ? deduplicateArticles(data.gdelt) : []
 
-  const ink = "#1A1A1A"
-  const rule = "#C4B9A0"
-  const secondary = "#4A4A3A"
-  const paper = "#F5F0E8"
-  const serif = "Georgia, 'Times New Roman', serif"
-  const sans = "system-ui, -apple-system, sans-serif"
+  if (!mounted) return null
+
+  const now = new Date()
+  const dayName = now.toLocaleDateString("en-US", { weekday: "long" })
+  const dateFmt = now.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })
+  const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)
+  const hour = now.getHours()
+  const edition = hour < 12 ? "Morning" : hour < 17 ? "Afternoon" : "Evening"
+  const quote = QUOTES[dayOfYear % QUOTES.length]
+  const regionObj = REGIONS.find(r => r.id === region)
+  const regionLabel = data?.regionLabel || regionObj?.label || region
+  const editionTag = (regionObj?.label || region).toUpperCase().replace("THE ", "")
+  const sounds = audioData?.sounds ?? []
+  const ttTags = tickerData?.tiktok ?? []
+  const igTags = tickerData?.instagram ?? []
+  const hasTickerData = ttTags.length > 0 || igTags.length > 0
+  const tickerLoaded = tickerData !== null
+
+  // Drop cap: split first letter from narrative
+  const narrative = gdelt.length > 0 ? buildRegionalNarrative(gdelt, regionLabel) : ""
+  const dropLetter = narrative.charAt(0)
+  const narrativeRest = narrative.slice(1)
 
   return (
-    <div style={{ background: paper, color: ink, fontFamily: serif, borderRadius: 12, overflow: "hidden" }} className="mb-6 animate-fade-in">
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "20px 28px 16px" }}>
+    <>
+      {/* Google Fonts for Gazette only */}
+      <Head>
+        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Special+Elite&display=swap" rel="stylesheet" />
+      </Head>
+      {/* Fallback: also inject via style tag in case next/head doesn't work in client component */}
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Special+Elite&display=swap');`}</style>
 
-        {/* \u2500\u2500 MASTHEAD \u2500\u2500 */}
-        <div style={{ textAlign: "center", borderBottom: `3px double ${ink}`, paddingBottom: 8, marginBottom: 4 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <select value={region} onChange={(e) => setRegion(e.target.value)}
-              style={{ background: "transparent", border: `1px solid ${rule}`, borderRadius: 3, fontFamily: serif, fontSize: 11, color: secondary, cursor: "pointer", padding: "1px 4px" }}>
-              {REGIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-            </select>
-            <span style={{ fontSize: 10, fontFamily: sans, color: secondary, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              {edition} Edition
-            </span>
-          </div>
-          <div style={{ fontSize: 9, letterSpacing: "0.3em", textTransform: "uppercase", color: secondary, fontFamily: sans }}>
-            Est. 2026 &middot; DigitAlchemy&reg; Tech Limited
-          </div>
-          <div style={{ margin: "4px 0 2px" }}>
-            <span style={{ fontFamily: serif, fontSize: 14, color: secondary, fontWeight: "normal" }}>The</span>{" "}
-            <span style={{ fontFamily: sans, fontSize: 32, fontWeight: 800, color: ink, letterSpacing: "0.08em", textTransform: "uppercase" }}>DigitAlchemy</span>{" "}
-            <span style={{ fontFamily: serif, fontSize: 28, fontStyle: "italic", color: ink }}>Gazette</span>
-          </div>
-          <div style={{ borderTop: `1px solid ${rule}`, borderBottom: `1px solid ${rule}`, padding: "2px 0", margin: "2px 0" }}>
-            <span style={{ fontSize: 10, color: secondary, fontFamily: serif }}>
-              {dayName}, {dateFormatted} &middot; {regionLabel} Edition &middot; Vol. 01 &middot; No. {dayOfYear}
-            </span>
-          </div>
+      <div
+        className="animate-fade-in"
+        style={{
+          backgroundColor: PAPER_LIGHT,
+          backgroundImage: `repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(62,39,35,0.012) 2px,rgba(62,39,35,0.012) 4px),repeating-linear-gradient(90deg,transparent,transparent 2px,rgba(62,39,35,0.012) 2px,rgba(62,39,35,0.012) 4px)`,
+          color: INK, fontFamily: BODY, borderRadius: 0, overflow: "hidden", position: "relative",
+          borderTop: `3px solid ${INK}`, borderBottom: `3px solid ${INK}`,
+        }}
+      >
+        {/* Paper grain */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1, mixBlendMode: "multiply" }}>
+          <svg width="100%" height="100%" style={{ opacity: 0.055 }}>
+            <filter id="gazetteGrain"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves={3} stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
+            <rect width="100%" height="100%" filter="url(#gazetteGrain)" />
+          </svg>
         </div>
+        {/* Ink unevenness */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1, mixBlendMode: "multiply" }}>
+          <svg width="100%" height="100%" style={{ opacity: 0.02 }}>
+            <filter id="gazetteInk"><feTurbulence type="turbulence" baseFrequency="0.015" numOctaves={2} seed={42} /><feColorMatrix type="saturate" values="0" /></filter>
+            <rect width="100%" height="100%" filter="url(#gazetteInk)" />
+          </svg>
+        </div>
+        {/* Vignette */}
+        <div style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 2, background: `radial-gradient(ellipse at center, transparent 60%, rgba(62,39,35,0.07) 100%)` }} />
 
-        {/* \u2500\u2500 LOADING \u2500\u2500 */}
-        {loading && (
-          <div style={{ textAlign: "center", padding: "40px 0" }}>
-            <p style={{ fontStyle: "italic", color: secondary, fontSize: 15 }}>Composing today&rsquo;s edition&hellip;</p>
+        <div style={{ maxWidth: 920, margin: "0 auto", padding: "10px 20px 8px", position: "relative", zIndex: 3 }}>
+
+          {/* ── SKYLINE ── */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 9, fontFamily: LABEL, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.12em", padding: "2px 0 4px", borderBottom: `0.5px solid ${RULE}` }}>
+            <span>Inside: Platform Watch &middot; Global Curiosity Index &middot; Regional Wire</span>
+            <span>{edition} Edition &middot; {editionTag}</span>
           </div>
-        )}
 
-        {/* \u2500\u2500 CONTENT \u2500\u2500 */}
-        {!loading && data && (
-          <>
-            {/* Lead Story + Right Rail */}
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_260px] gap-4 mb-3" style={{ marginTop: 8 }}>
-              {/* LEAD STORY */}
-              <div>
-                {wiki.length > 0 && (
-                  <>
-                    <h2 style={{ fontFamily: serif, fontSize: 22, fontWeight: "bold", lineHeight: 1.2, marginBottom: 4 }}>
-                      Global Attention Turns to {wiki[0].name}{wiki[1] ? ` as ${wiki[1].name} Captures ${Number(wiki[1].views).toLocaleString()} Views` : ""}
-                    </h2>
-                    {wiki[2] && (
-                      <p style={{ fontFamily: serif, fontSize: 13, fontStyle: "italic", color: secondary, marginBottom: 8, lineHeight: 1.4 }}>
-                        Cultural momentum builds around {wiki[2].name}{wiki[3] ? ` and ${wiki[3].name}` : ""} as digital audiences shift focus
-                      </p>
-                    )}
-                    <p style={{ fontSize: 13, lineHeight: 1.6, color: ink }}>
-                      <strong style={{ fontFamily: sans, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase" }}>{regionLabel.toUpperCase().replace("THE ", "")} &mdash; </strong>
-                      The world&rsquo;s digital attention is currently centred on <strong>{wiki[0].name}</strong>, which drew {Number(wiki[0].views).toLocaleString()} Wikipedia views in the past 24 hours.
-                      {wiki[1] && <> Also commanding significant attention: <strong>{wiki[1].name}</strong> ({Number(wiki[1].views).toLocaleString()} views)</>}
-                      {wiki[2] && <> and <strong>{wiki[2].name}</strong> ({Number(wiki[2].views).toLocaleString()} views)</>}.
-                      {wiki.slice(3, 7).length > 0 && <> Further down the cultural ledger: {wiki.slice(3, 7).map((w) => w.name).join(", ")}.</>}
-                    </p>
-                  </>
+          {/* ── MASTHEAD ── */}
+          <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {/* Left ear */}
+              <div style={{ position: "relative", textAlign: "left", minWidth: 120 }}>
+                <div style={{ fontFamily: LABEL, fontSize: 8, letterSpacing: "0.2em", textTransform: "uppercase", color: ACCENT }}>{editionTag} Edition</div>
+                <button onClick={() => setSelectorOpen(!selectorOpen)}
+                  style={{ fontFamily: BODY, fontSize: 9, color: ACCENT, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", textDecorationColor: RULE, textUnderlineOffset: 2 }}>
+                  Change &#9662;
+                </button>
+                {selectorOpen && (
+                  <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 2, background: PAPER_LIGHT, border: `1px solid ${RULE}`, zIndex: 20, minWidth: 140, textAlign: "left" }}>
+                    {REGIONS.map(r => (
+                      <div key={r.id} onClick={() => { setRegion(r.id); setSelectorOpen(false) }}
+                        style={{ fontFamily: BODY, fontSize: 10, padding: "3px 8px", cursor: "pointer", color: r.id === region ? INK : SEC, fontWeight: r.id === region ? "bold" : "normal", borderBottom: `0.5px solid ${RULE}` }}
+                        onMouseEnter={e => { (e.target as HTMLElement).style.background = "#DDD7C8" }}
+                        onMouseLeave={e => { (e.target as HTMLElement).style.background = "transparent" }}
+                      >{r.label}</div>
+                    ))}
+                  </div>
                 )}
               </div>
 
-              {/* RIGHT RAIL \u2014 Platform Watch */}
-              <div className="md:border-l md:pl-3 border-t md:border-t-0 pt-2 md:pt-0 mt-1 md:mt-0" style={{ borderColor: rule }}>
-                <div style={{ fontFamily: sans, fontSize: 9, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: secondary, marginBottom: 3 }}>
-                  Platform Watch
+              {/* Nameplate */}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: ACCENT, letterSpacing: "0.3em", margin: "0 0 2px" }}>{"\u2726 \u2726 \u2726"}</div>
+                <div style={{ fontFamily: LABEL, fontSize: 8, letterSpacing: "0.35em", textTransform: "uppercase", color: ACCENT }}>Est. 2026 &middot; DigitAlchemy&reg; Tech Limited &middot; Abu Dhabi</div>
+                <WingRule />
+                <div style={{ margin: "2px 0" }}>
+                  <span style={{ fontFamily: BODY, fontSize: 16, fontStyle: "italic", color: SEC, fontWeight: 400 }}>The</span>{" "}
+                  <span style={{ fontFamily: DISPLAY, fontWeight: 900, fontSize: 46, color: INK, letterSpacing: "0.04em", textShadow: "0.3px 0.3px 0px rgba(62,39,35,0.15)" }}>DIGITALCHEMY</span>
                 </div>
-                <div style={{ fontSize: 10, color: secondary, marginBottom: 6, fontFamily: serif, fontStyle: "italic" }}>
-                  Trending on YouTube &middot; {regionLabel}
-                </div>
-                {data.youtube.slice(0, 4).map((v, i) => (
-                  <div key={i} style={{ borderBottom: `1px solid ${rule}`, paddingBottom: 6, marginBottom: 6 }}>
-                    {v.thumbnail && (
-                      <img src={v.thumbnail} alt="" style={{ width: "100%", height: 64, objectFit: "cover", filter: "grayscale(60%) contrast(1.1)", marginBottom: 3, borderRadius: 1 }} />
-                    )}
-                    <div style={{ fontFamily: serif, fontSize: 11, fontWeight: "bold", lineHeight: 1.25 }}>{v.title}</div>
-                    <div style={{ fontSize: 9, color: secondary, marginTop: 1 }}>{v.channel} &middot; {Number(v.views).toLocaleString()} views</div>
-                  </div>
-                ))}
+                <div style={{ fontFamily: DISPLAY, fontSize: 28, fontStyle: "italic", fontWeight: 400, color: BROWN, marginTop: -6, letterSpacing: "0.06em" }}>Gazette</div>
+              </div>
+
+              {/* Right ear */}
+              <div style={{ textAlign: "right", minWidth: 120 }}>
+                <div style={{ fontFamily: LABEL, fontSize: 8, letterSpacing: "0.15em", textTransform: "uppercase", color: ACCENT }}>Vol. I &middot; No. {dayOfYear}</div>
+                <div style={{ fontFamily: BODY, fontSize: 9, color: SEC }}>{dayName}</div>
               </div>
             </div>
+          </div>
 
-            {/* REGIONAL NEWS WIRE */}
-            {gdelt.length > 0 && (
-              <div style={{ borderTop: `1px solid ${rule}`, paddingTop: 10, marginBottom: 10 }}>
-                <div style={{ fontFamily: sans, fontSize: 9, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: secondary, marginBottom: 8 }}>
-                  Regional News Wire
+          {/* ── FOLIO ── */}
+          <div style={{ fontFamily: TYPEWRITER, fontSize: 11, color: SEC, letterSpacing: "0.05em", display: "flex", justifyContent: "space-between", padding: "3px 0", margin: "2px 0 0" }}>
+            <span>{dateFmt}</span>
+            <span>{regionLabel} Edition</span>
+            <span>Digital Intelligence for the Built World</span>
+          </div>
+          {/* Thick-thin rule below folio */}
+          <div style={{ marginBottom: 10 }}><ThickThinRule /></div>
+
+          {loading && (
+            <div style={{ textAlign: "center", padding: "28px 0" }}>
+              <p style={{ fontStyle: "italic", color: SEC, fontSize: 13 }}>Composing today&rsquo;s edition&hellip;</p>
+            </div>
+          )}
+
+          {/* ════ ABOVE THE FOLD ════ */}
+          {!loading && data && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 210px", gap: 0 }} className="gazette-grid">
+                {/* ── LEAD STORY ── */}
+                <div style={{ paddingRight: 16, borderRight: `1px solid ${RULE}` }}>
+                  {gdelt.length > 0 ? (
+                    <>
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.15em", textTransform: "uppercase", color: BROWN, marginBottom: 3 }}>
+                        Top Story &middot; {regionLabel}
+                      </div>
+
+                      {/* Headline with ink bleed */}
+                      <h2 style={{ fontFamily: DISPLAY, fontSize: 28, fontWeight: 900, lineHeight: 1.12, margin: "0 0 4px", letterSpacing: "-0.01em", color: INK, textShadow: "0.3px 0.3px 0px rgba(62,39,35,0.15)" }}>
+                        {gdelt[0].title}
+                      </h2>
+
+                      {/* Deck */}
+                      {gdelt.length > 1 && (
+                        <p style={{ fontFamily: BODY, fontSize: 14, fontStyle: "italic", color: SEC, margin: "0 0 6px", lineHeight: 1.4 }}>
+                          {gdelt.slice(1, 3).map(a => a.title).join("; ")}
+                        </p>
+                      )}
+
+                      {/* Byline */}
+                      <div style={{ fontFamily: TYPEWRITER, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: ACCENT, marginBottom: 5, borderBottom: `0.5px solid ${RULE}`, paddingBottom: 3 }}>
+                        By The DigitAlchemy Editorial Desk &middot; {editionTag}, {dateFmt}
+                      </div>
+
+                      {/* Body with drop cap */}
+                      <p style={{ fontFamily: BODY, fontSize: 13, lineHeight: 1.55, color: INK, margin: "0 0 6px", textAlign: "justify", hyphens: "auto" } as React.CSSProperties}>
+                        <span style={{ float: "left", fontFamily: DISPLAY, fontSize: 56, fontWeight: 900, lineHeight: 0.78, paddingRight: 5, paddingTop: 3, color: BROWN }}>
+                          {dropLetter.toUpperCase()}
+                        </span>
+                        {narrativeRest}
+                      </p>
+
+                      {/* Secondary lead */}
+                      {gdelt.length > 3 && (
+                        <div style={{ borderTop: `0.5px solid ${RULE}`, paddingTop: 5, marginTop: 2 }}>
+                          <h3 style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 700, lineHeight: 1.15, margin: "0 0 2px" }}>{gdelt[3].title}</h3>
+                          <p style={{ fontFamily: BODY, fontSize: 11.5, lineHeight: 1.4, color: SEC, margin: 0 }}>
+                            <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" }}>{gdelt[3].domain} &mdash; </span>
+                            {gdelt[4] ? `Related developments include ${gdelt[4].title.toLowerCase()}.` : "Full coverage continues inside."}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* ── TREND TICKER ── */}
+                      {(hasTickerData || tickerLoaded) && (
+                        <div style={{ borderTop: `0.5px solid ${RULE}`, borderBottom: `0.5px solid ${RULE}`, padding: "5px 0", margin: "8px 0 0" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "#8B0000" }}>
+                              {"\u2726"} Trend Ticker {"\u2726"}
+                            </span>
+                            <span style={{ fontFamily: LABEL, fontSize: 7, color: ACCENT, display: "inline-flex", alignItems: "center", gap: 2 }}>
+                              <PlatformIcon platform="tiktok" size={10} style={{ marginRight: 0, opacity: 0.5 }} /><span>TikTok</span>
+                              <span style={{ marginLeft: 5 }} /><PlatformIcon platform="instagram" size={10} style={{ marginRight: 0, opacity: 0.5 }} /><span>Instagram</span>
+                            </span>
+                          </div>
+                          {hasTickerData ? (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", fontFamily: BODY, fontSize: 10.5, lineHeight: 1.8 }}>
+                              {ttTags.map((tag, i) => <span key={`tt-${i}`}><PlatformIcon platform="tiktok" />{tag}</span>)}
+                              {igTags.map((tag, i) => <span key={`ig-${i}`}><PlatformIcon platform="instagram" />{tag}</span>)}
+                            </div>
+                          ) : (
+                            <div style={{ fontFamily: BODY, fontSize: 10, fontStyle: "italic", color: ACCENT }}>Trend data loading&hellip;</div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ── GLOBAL CURIOSITY INDEX ── */}
+                      {wiki.length > 0 && (
+                        <div style={{ border: `3px double ${BROWN}`, padding: "10px 14px 8px", marginTop: 10, position: "relative" }}>
+                          <div style={{ textAlign: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 6 }}>
+                            {"\u2726"} Global Curiosity Index {"\u2726"}
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px 14px" }}>
+                            {wiki.slice(0, 8).map((w, i) => (
+                              <div key={i} style={{ fontFamily: BODY, fontSize: 11, lineHeight: 1.35, borderBottom: `1px dotted ${RULE}`, paddingBottom: 2, marginBottom: 2 }}>
+                                <strong>{w.name}</strong>
+                                <span style={{ color: ACCENT, fontSize: 10 }}> &mdash; {Number(w.views).toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, textAlign: "right", marginTop: 4 }}>
+                            Wikipedia &middot; Most-viewed worldwide &middot; Past 24 h
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── SOUNDS OF THE MOMENT ── */}
+                      {sounds.length > 0 && (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+                            <PlatformIcon platform="tiktok" size={14} style={{ opacity: 0.8, marginRight: 0 }} />
+                            <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: BROWN }}>Sounds of the Moment</span>
+                          </div>
+                          <div style={{ display: "flex", gap: 12, overflowX: "auto" }}>
+                            {sounds.slice(0, 5).map((s, i) => (
+                              <div key={i} style={{ flexShrink: 0, width: 76, textAlign: "center" }}>
+                                {(s.albumArt || s.cover) && (
+                                  <img src={s.albumArt || s.cover || ""} alt=""
+                                    style={{ width: 68, height: 68, objectFit: "cover", filter: "grayscale(40%) contrast(1.1) sepia(25%)", border: `1px solid ${RULE}`, display: "block", margin: "0 auto" }} />
+                                )}
+                                {s.rank > 0 && (
+                                  <div style={{ fontFamily: LABEL, fontSize: 8, fontWeight: 700, color: "#8B0000", marginTop: 2 }}>
+                                    #{s.rank}{s.rankDiffType === 1 ? " \u25B2" : s.rankDiffType === 2 ? " \u25BC" : ""}
+                                  </div>
+                                )}
+                                <div style={{ fontFamily: BODY, fontSize: 9, fontWeight: 700, lineHeight: 1.2, marginTop: s.rank > 0 ? 1 : 3, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                                <div style={{ fontFamily: BODY, fontSize: 8, color: ACCENT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.author}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, marginTop: 4 }}>
+                            Trending sounds &middot; ScrapeCreators live &middot; Album art via Spotify
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : wiki.length > 0 ? (
+                    <>
+                      <h2 style={{ fontFamily: DISPLAY, fontSize: 28, fontWeight: 900, lineHeight: 1.12, margin: "0 0 4px", textShadow: "0.3px 0.3px 0px rgba(62,39,35,0.15)" }}>Global Attention Turns to {wiki[0].name}</h2>
+                      <p style={{ fontFamily: BODY, fontSize: 13, lineHeight: 1.55, color: INK, margin: 0, textAlign: "justify" }}>
+                        <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" }}>{regionLabel.toUpperCase().replace("THE ", "")} &mdash; </span>
+                        The world&rsquo;s digital attention is centred on <strong>{wiki[0].name}</strong> ({Number(wiki[0].views).toLocaleString()} views).
+                        {wiki.slice(1, 4).map(w => ` ${w.name} (${Number(w.views).toLocaleString()})`).join(",")}.
+                      </p>
+                    </>
+                  ) : null}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
-                  {gdelt.slice(0, 6).map((a, i) => (
-                    <div key={i} className="px-3 mb-2 md:border-r last:border-r-0" style={{ borderColor: i % 3 === 2 ? "transparent" : rule }}>
-                      <div style={{ fontFamily: serif, fontSize: 12, fontWeight: "bold", lineHeight: 1.25, marginBottom: 2 }}>{a.title}</div>
-                      <div style={{ fontSize: 9, color: secondary }}>&mdash; {a.domain}</div>
+
+                {/* ── RIGHT RAIL ── */}
+                <div style={{ paddingLeft: 16, fontSize: 10 }}>
+                  <div style={{ marginBottom: 4 }}>
+                    <svg style={{ width: 80, filter: "grayscale(60%) sepia(30%)", opacity: 0.8, display: "block" }} viewBox="0 0 90 20" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M27.97 3.12c-.31-1.16-1.22-2.07-2.38-2.38C23.44 0 14.43 0 14.43 0S5.42 0 3.27.74C2.11 1.05 1.2 1.96.89 3.12 0 5.27 0 9.68 0 9.68s0 4.41.89 6.56c.31 1.16 1.22 2.07 2.38 2.38 2.15.74 11.16.74 11.16.74s9.01 0 11.16-.74c1.16-.31 2.07-1.22 2.38-2.38.89-2.15.89-6.56.89-6.56s0-4.41-.89-6.56z" fill="#FF0000"/>
+                      <path d="M11.5 13.77l7.44-4.09-7.44-4.09v8.18z" fill="#FFF"/>
+                      <text x="32" y="14" fontFamily="system-ui" fontSize="11" fontWeight="bold" fill="#1A1A1A">YouTube</text>
+                    </svg>
+                    <div style={{ fontFamily: BODY, fontSize: 9, color: SEC, fontStyle: "italic", marginTop: 2 }}>
+                      Trending &middot; {regionLabel}
+                    </div>
+                  </div>
+                  {data.youtube.slice(0, 3).map((v, i) => (
+                    <div key={i} style={{ borderBottom: `0.5px solid ${RULE}`, paddingBottom: 4, marginBottom: 4 }}>
+                      {v.thumbnail && (
+                        <div style={{ position: "relative", marginBottom: 2 }}>
+                          <img src={v.thumbnail} alt=""
+                            style={{ width: "100%", height: 52, objectFit: "cover", filter: "grayscale(60%) contrast(1.15) sepia(15%)", display: "block", border: `1px solid ${RULE}`, transition: "filter 0.3s ease" }}
+                            onMouseEnter={e => { (e.target as HTMLImageElement).style.filter = "grayscale(0%) contrast(1.0) sepia(0%)" }}
+                            onMouseLeave={e => { (e.target as HTMLImageElement).style.filter = "grayscale(60%) contrast(1.15) sepia(15%)" }}
+                          />
+                        </div>
+                      )}
+                      <div style={{ fontFamily: BODY, fontSize: 10.5, fontWeight: 700, lineHeight: 1.2 }}>{v.title}</div>
+                      <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, marginTop: 1 }}>{v.channel} &middot; {Number(v.views).toLocaleString()} views</div>
                     </div>
                   ))}
+                  {data.youtube.length > 3 && (
+                    <div style={{ borderTop: `0.5px solid ${RULE}`, paddingTop: 3, marginTop: 2 }}>
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 8, letterSpacing: "0.15em", textTransform: "uppercase", color: BROWN, marginBottom: 2 }}>Also Trending</div>
+                      {data.youtube.slice(3, 5).map((v, i) => (
+                        <div key={i} style={{ marginBottom: 2 }}>
+                          <div style={{ fontFamily: BODY, fontSize: 9.5, fontWeight: 700, lineHeight: 1.2 }}>{v.title}</div>
+                          <div style={{ fontFamily: TYPEWRITER, fontSize: 7.5, color: ACCENT }}>{v.channel}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
 
-            {/* PULL QUOTE */}
-            <div style={{ borderTop: `1px solid ${rule}`, borderBottom: `1px solid ${rule}`, padding: "12px 24px", textAlign: "center", margin: "4px 0 10px" }}>
-              <p style={{ fontFamily: serif, fontSize: 15, fontStyle: "italic", lineHeight: 1.5, color: ink }}>
-                &ldquo;{quote.text}&rdquo;
-              </p>
-              <p style={{ fontFamily: sans, fontSize: 9, color: secondary, marginTop: 4, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                &mdash; {quote.by}
-              </p>
-            </div>
+              {/* ════ BELOW THE FOLD ════ */}
 
-            {/* EDITOR\u2019S NOTE */}
-            <div style={{ textAlign: "center", paddingTop: 2 }}>
-              <div style={{ fontFamily: sans, fontSize: 9, fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", color: secondary, marginBottom: 4 }}>
-                Editor&rsquo;s Note
+              {/* Regional News Wire */}
+              {gdelt.length > 4 && (
+                <>
+                  <div style={{ marginTop: 8 }}><ThickThinRule /></div>
+                  <div style={{ paddingTop: 6 }}>
+                    <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: BROWN, marginBottom: 5 }}>
+                      Regional News Wire &middot; {regionLabel}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 0 }}>
+                      {gdelt.slice(5, 11).map((a, i) => (
+                        <div key={i} style={{
+                          padding: "0 12px 5px", marginBottom: 5,
+                          borderRight: (i % 3 !== 2) ? `0.5px solid ${RULE}` : "none",
+                          borderBottom: `0.5px solid ${RULE}`,
+                        }}>
+                          <div style={{ fontFamily: BODY, fontSize: 11, fontWeight: 700, lineHeight: 1.2, marginBottom: 1 }}>{a.title}</div>
+                          <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT }}>{a.domain}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Pull quote */}
+              <DiamondDivider />
+              <div style={{ position: "relative", maxWidth: "65%", margin: "0 auto", padding: "4px 0", textAlign: "center" }}>
+                <span style={{ position: "absolute", top: -12, left: -24, fontFamily: DISPLAY, fontSize: 60, color: RULE, lineHeight: 1, userSelect: "none" }}>&ldquo;</span>
+                <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 15, lineHeight: 1.5, color: BROWN, margin: 0 }}>
+                  {quote.text}
+                </p>
+                <span style={{ fontFamily: TYPEWRITER, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: ACCENT }}>
+                  &mdash; {quote.by}
+                </span>
               </div>
-              <p style={{ fontFamily: serif, fontSize: 13, color: secondary, fontStyle: "italic" }}>
-                Ready to create? Select a platform below to begin your trend scan.
-              </p>
-            </div>
-          </>
-        )}
+
+              {/* Editor's Note */}
+              <StarDivider />
+              <div style={{ textAlign: "center", padding: "0 0 2px" }}>
+                <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: BROWN, marginBottom: 2 }}>From the Desk</div>
+                <p style={{ fontFamily: BODY, fontSize: 11, color: SEC, fontStyle: "italic", margin: 0 }}>
+                  Ready to create? Select a platform below to begin your trend scan.
+                </p>
+              </div>
+
+              {/* End of edition */}
+              <div style={{ textAlign: "center", padding: "12px 0 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14 }}>
+                  <div style={{ flex: 1, maxWidth: 120, borderTop: `0.5px solid ${RULE}` }} />
+                  <span style={{ fontFamily: TYPEWRITER, fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: ACCENT }}>
+                    End of {edition} Edition
+                  </span>
+                  <div style={{ flex: 1, maxWidth: 120, borderTop: `0.5px solid ${RULE}` }} />
+                </div>
+                <div style={{ fontSize: 10, color: RULE, marginTop: 4 }}>{"\u2726"}</div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{ height: 48 }} />
+
+        <style>{`
+          @media (max-width: 700px) {
+            .gazette-grid { grid-template-columns: 1fr !important; }
+            .gazette-grid > div:first-child { border-right: none !important; padding-right: 0 !important; }
+            .gazette-grid > div:last-child { padding-left: 0 !important; border-top: 0.5px solid ${RULE}; padding-top: 8px; margin-top: 6px; }
+          }
+        `}</style>
       </div>
-    </div>
+    </>
   )
 }

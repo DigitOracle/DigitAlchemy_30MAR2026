@@ -4,7 +4,7 @@ import { CopyButton } from "@/components/console/CopyButton"
 type Props = { data: Record<string, unknown>; platform: string }
 
 type LicenseEntry = { track: string; license: string; note?: string; whyTrending?: string }
-type SongObject = { title: string; author: string; relatedCount?: number; cover?: string; link?: string; rank?: number; rankDiff?: number }
+type SongObject = { title: string; author: string; relatedCount?: number; cover?: string; link?: string; rank?: number; rankDiff?: number; albumArt?: string; spotifyUrl?: string; energy?: number; tempo?: number; danceability?: number }
 type SongScore = { track: string; persistence?: number; decay_risk?: number; classification?: string; velocity_24h?: number }
 
 const SOURCE_LABELS: Record<string, { text: string; companion: string; live: boolean }> = {
@@ -78,6 +78,9 @@ export function TrendingAudioCard({ data, platform }: Props) {
             <div key={i} className="bg-green-50 rounded-lg px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  {song?.albumArt && (
+                    <img src={song.albumArt} alt="" className="shrink-0 rounded" style={{ width: 36, height: 36, objectFit: "cover" }} />
+                  )}
                   {classBadge && (
                     <span className={`text-[9px] px-1.5 py-0.5 rounded shrink-0 ${classBadge.className}`}>{classBadge.label}</span>
                   )}

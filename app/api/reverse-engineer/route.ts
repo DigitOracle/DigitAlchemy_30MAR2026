@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { PLATFORMS } from "@/config/platforms"
 import Anthropic from "@anthropic-ai/sdk"
+import { enrichSongsWithSpotify } from "@/lib/spotify"
 
 export const runtime = "nodejs"
 export const maxDuration = 120
@@ -860,6 +861,26 @@ export async function POST(req: NextRequest): Promise<Response> {
         }
         console.log("[SSE] Platform trends done:", { source: platformTrends.source, hashtags: platformTrends.hashtags.length, hasSongs: (platformTrends.trendingSongs?.length ?? 0) > 0 })
         const ptSongs = platformTrends.trendingSongs ?? []
+
+        // Spotify enrichment — attach album art + audio features to songs
+        let spotifyMeta = new Map<string, Record<string, unknown>>()
+        if (ptSongs.length > 0) {
+          try {
+            const raw = await enrichSongsWithSpotify(
+              ptSongs.slice(0, 5).map((s) => ({ title: s.title || "", author: s.author || "" }))
+            )
+            // Convert SpotifyTrackMeta to plain records for serialisation
+            for (const [key, val] of raw) spotifyMeta.set(key, val as unknown as Record<string, unknown>)
+          } catch { /* Spotify enrichment is optional */ }
+        }
+        // Attach Spotify metadata to each song object
+        const enrichedSongs = ptSongs.map((s) => {
+          const key = `${s.title} ${s.author}`.toLowerCase().trim()
+          const meta = spotifyMeta.get(key)
+          if (!meta) return s
+          return { ...s, albumArt: meta.albumArt, spotifyUrl: meta.spotifyUrl, energy: meta.energy, tempo: meta.tempo, danceability: meta.danceability }
+        })
+
         const ptIsLive = LIVE_SOURCES.has(platformTrends.source)
         const ptSource = platformTrends.source === "context_guided" ? "perplexity" : platformTrends.source === "inferred_fallback" ? "claude" : platformTrends.source
         const ptConfidence: "high" | "medium" | "low" = ptIsLive ? "medium" : "low"
@@ -937,7 +958,7 @@ Rules:
           const ytVideos = (platformTrends as TrendResult & { youtubeVideos?: YouTubeVideo[] }).youtubeVideos ?? []
           const platformTrendsCard: Record<string, unknown> = {
             hashtags: platformTrends.hashtags,
-            trendingSongs: ptSongs,
+            trendingSongs: enrichedSongs,
             youtubeVideos: ytVideos,
             themes,
             notes: "",

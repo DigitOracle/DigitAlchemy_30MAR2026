@@ -191,6 +191,78 @@ const CARD_RENDERERS: Record<string, (data: CardData, platform: string) => React
   captions: (d, p) => <CaptionsCopyCard data={d!} platform={p} />,
   commercialAudio: (d, p) => <CommercialAudioCard data={d!} platform={p} />,
   vibeSuggestions: (d, p) => <VibeSuggestionsCard data={d!} platform={p} />,
+  trendSummary: (d) => <TrendSummaryContent data={d} />,
+}
+
+// ── Trend Scan Summary — executive overview card ──
+function TrendSummaryContent({ data }: { data: CardData }) {
+  if (!data) return null
+  const rec = data as Record<string, unknown>
+  const total = rec.totalDetected as number | undefined
+  const usable = rec.usable as number | undefined
+  const topTrends = (rec.topTrends as { title: string; category: string; why: string }[] | undefined) ?? []
+  const stale = (rec.stale as string[] | undefined) ?? []
+  const recommended = (rec.recommended as string[] | undefined) ?? []
+
+  return (
+    <div className="space-y-3 text-xs text-gray-700">
+      {/* Stats bar */}
+      {(total != null || usable != null) && (
+        <div className="flex gap-4 text-sm">
+          {total != null && (
+            <div><span className="text-2xl font-bold text-gray-900">{total}</span> <span className="text-gray-500">detected</span></div>
+          )}
+          {usable != null && (
+            <div><span className="text-2xl font-bold text-green-700">{usable}</span> <span className="text-gray-500">usable</span></div>
+          )}
+        </div>
+      )}
+
+      {/* Top trends */}
+      {topTrends.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Top Usable Trends</p>
+          <div className="space-y-1.5">
+            {topTrends.map((t, i) => (
+              <div key={i} className="flex gap-2 items-start">
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 shrink-0 mt-0.5">{t.category}</span>
+                <div>
+                  <span className="font-semibold text-gray-800">{t.title}</span>
+                  <span className="text-gray-500"> — {t.why}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recommended */}
+      {recommended.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold text-green-600 uppercase mb-1">Recommended for Immediate Posting</p>
+          <ul className="space-y-0.5">
+            {recommended.map((r, i) => (
+              <li key={i} className="text-xs text-gray-700 flex items-center gap-1.5">
+                <span className="text-green-500">&#10003;</span> {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Stale */}
+      {stale.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold text-red-500 uppercase mb-1">Stale / Expired</p>
+          <ul className="space-y-0.5">
+            {stale.map((s, i) => (
+              <li key={i} className="text-xs text-gray-400 line-through">{s}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // Generic renderer for unknown card types — renders JSON-like content
