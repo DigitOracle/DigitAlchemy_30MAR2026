@@ -77,7 +77,7 @@ async function fetchScrapeCreatorsTikTokByTopic(topic: string, region: string, i
   const searchTerm = industryLabel ? `${topic} ${industryLabel}` : topic
   try {
     const [keywordRes, hashtagRes] = await Promise.all([
-      fetch(`${BASE}/v1/tiktok/search/keyword?keyword=${encodeURIComponent(searchTerm)}&count=10&region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
+      fetch(`${BASE}/v1/tiktok/search/keyword?query=${encodeURIComponent(searchTerm)}&count=10&region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
       fetch(`${BASE}/v1/tiktok/search/hashtag?keyword=${encodeURIComponent(searchTerm.replace(/\s+/g, ""))}&count=10&region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
     ])
     const hashtags: string[] = []
