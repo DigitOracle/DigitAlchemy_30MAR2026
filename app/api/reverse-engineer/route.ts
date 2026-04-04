@@ -31,9 +31,10 @@ async function callClaude(prompt: string, maxTokens = 1200): Promise<Record<stri
 
 // ── Provider functions (same logic as stream route — inference-last chains) ──
 
-type TrendResult = { hashtags: string[]; context: string; source: string; sourceElapsedMs?: number; trendingSongs?: { title: string; author: string; usageCount?: number }[] }
+type SongData = { title: string; author: string; usageCount?: number; relatedCount?: number; cover?: string; link?: string; rank?: number; rankDiff?: number }
+type TrendResult = { hashtags: string[]; context: string; source: string; sourceElapsedMs?: number; trendingSongs?: SongData[] }
 
-async function fetchScrapeCreatorsTikTokPlatform(region: string): Promise<{ songs: { title: string; author: string; usageCount?: number }[]; hashtags: string[] } | null> {
+async function fetchScrapeCreatorsTikTokPlatform(region: string): Promise<{ songs: SongData[]; hashtags: string[] } | null> {
   const apiKey = process.env.SCRAPECREATORS_API_KEY
   if (!apiKey) return null
   const BASE = "https://api.scrapecreators.com"
@@ -43,15 +44,21 @@ async function fetchScrapeCreatorsTikTokPlatform(region: string): Promise<{ song
       fetch(`${BASE}/v1/tiktok/songs/popular?region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
       fetch(`${BASE}/v1/tiktok/hashtags/popular?region=${region}`, { headers, signal: AbortSignal.timeout(12000) }),
     ])
-    const songs: { title: string; author: string; usageCount?: number }[] = []
+    const songs: SongData[] = []
     if (songsRes.ok) {
       const data = await songsRes.json()
       const items = Array.isArray(data) ? data : (data?.sound_list ?? data?.data ?? data?.songs ?? data?.items ?? [])
       for (const s of (items as Record<string, unknown>[]).slice(0, 10)) {
+        const relatedItems = (s.related_items ?? []) as unknown[]
         songs.push({
           title: (s.title ?? s.songName ?? s.name ?? "") as string,
           author: (s.author ?? s.authorName ?? s.artist ?? "") as string,
           usageCount: (s.usageCount ?? s.videoCount ?? (s.stats as Record<string, unknown>)?.videoCount) as number | undefined,
+          relatedCount: relatedItems.length || undefined,
+          cover: (s.cover ?? "") as string || undefined,
+          link: (s.link ?? "") as string || undefined,
+          rank: (s.rank ?? undefined) as number | undefined,
+          rankDiff: (s.rank_diff ?? undefined) as number | undefined,
         })
       }
     }
@@ -926,6 +933,7 @@ Rules:
           // ── REACT NOW: trendingAudio, videoIdeas, hooks, hashtagStrategy, postFormat ──
 
           const trendingSounds = ptSongs.map((s) => `${s.title} \u2014 ${s.author}`)
+          const songObjects = ptSongs.map((s) => ({ title: s.title || "Unknown", author: s.author || "Unknown", relatedCount: s.relatedCount ?? 0, cover: s.cover ?? null, link: s.link ?? null, rank: s.rank, rankDiff: s.rankDiff }))
           let audioLicensing: Record<string, unknown> = {}
           if (trendingSounds.length > 0) {
             emitStatus("Checking audio licensing\u2026")
@@ -933,6 +941,7 @@ Rules:
           }
           emitSSE("card", { platform, cardType: "trendingAudio", data: {
             trendingSounds,
+            songs: songObjects,
             licensing: (audioLicensing.tracks as unknown[]) ?? [],
             source: trendingSounds.length > 0 ? ptSource : "inferred_fallback",
             mode: "live_trend",

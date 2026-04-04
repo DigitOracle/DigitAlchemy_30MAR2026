@@ -296,19 +296,21 @@ export default function ConsolePage() {
           const scoresData = await scoresRes.json()
           if (scoresData.ok && scoresData.trends) {
             const allTrends = scoresData.trends as Record<string, unknown>[]
+            // Separate songs from non-songs for Trend Radar (songs go to Trending Audio card instead)
+            const nonSongTrends = allTrends.filter((t) => (t.entityType as string) !== "song")
 
-            // Full radar
+            // Full radar (non-songs only — songs shown in Trending Audio card)
             setPlatformCards((prev) => ({
               ...prev,
               [platform]: {
                 ...(prev[platform] ?? {}),
-                trendRadar: { trends: allTrends, insufficientHistory: scoresData.insufficientHistory, snapshotCount: scoresData.snapshotCount, productionLag: lag },
-                trendOutlook: { trends: allTrends, insufficientHistory: scoresData.insufficientHistory, snapshotCount: scoresData.snapshotCount, productionLag: lag },
+                trendRadar: { trends: nonSongTrends, insufficientHistory: scoresData.insufficientHistory, snapshotCount: scoresData.snapshotCount, productionLag: lag },
+                trendOutlook: { trends: nonSongTrends, insufficientHistory: scoresData.insufficientHistory, snapshotCount: scoresData.snapshotCount, productionLag: lag },
               },
             }))
 
             // Safe to produce: classification !== fading_fast AND lag fitness >= 50
-            const safe = allTrends.filter((t) => {
+            const safe = nonSongTrends.filter((t) => {
               const cls = t.classification as string
               const fit = (t.production_lag_fit as Record<string, number>)?.[lag] ?? 0
               return cls !== "fading_fast" && fit >= 50
@@ -326,12 +328,12 @@ export default function ConsolePage() {
               ...prev,
               [platform]: {
                 ...(prev[platform] ?? {}),
-                whyStillMatters: { trends: allTrends, insufficientHistory: scoresData.insufficientHistory, snapshotCount: scoresData.snapshotCount, productionLag: lag },
+                whyStillMatters: { trends: nonSongTrends, insufficientHistory: scoresData.insufficientHistory, snapshotCount: scoresData.snapshotCount, productionLag: lag },
               },
             }))
 
             // Too late / fading
-            const tooLate = allTrends.filter((t) => {
+            const tooLate = nonSongTrends.filter((t) => {
               const cls = t.classification as string
               const fit = (t.production_lag_fit as Record<string, number>)?.[lag] ?? 0
               return cls === "fading_fast" || fit <= 30
@@ -343,6 +345,22 @@ export default function ConsolePage() {
                 tooLate: { trends: tooLate, insufficientHistory: scoresData.insufficientHistory, snapshotCount: scoresData.snapshotCount, productionLag: lag },
               },
             }))
+
+            // Enrich trendingAudio card with Trend Radar song scores
+            const songTrends = allTrends.filter((t) => (t.entityType as string) === "song")
+            if (songTrends.length > 0) {
+              setPlatformCards((prev) => {
+                const audioCard = prev[platform]?.trendingAudio as Record<string, unknown> | null
+                if (!audioCard) return prev
+                const trendingSounds = (audioCard.trendingSounds as string[]) ?? []
+                const songScores = trendingSounds.map((name) => {
+                  const match = songTrends.find((t) => (t.entity as string).toLowerCase() === name.toLowerCase())
+                  if (!match) return null
+                  return { track: name, persistence: match.persistence, decay_risk: match.decay_risk, classification: match.classification, velocity_24h: match.velocity_24h }
+                })
+                return { ...prev, [platform]: { ...(prev[platform] ?? {}), trendingAudio: { ...audioCard, songScores } } }
+              })
+            }
           }
         }
       } catch { /* non-critical — Trend Radar is additive */ }
