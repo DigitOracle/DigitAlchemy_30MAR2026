@@ -1,5 +1,4 @@
 "use client"
-import { useAuth } from "@/lib/AuthContext"
 
 type WikiItem = { name: string; views: number }
 type GdeltItem = { title: string; domain: string }
@@ -13,15 +12,13 @@ type Props = {
 }
 
 export function MorningBriefing({ regionLabel, wikipedia, gdelt, youtube }: Props) {
-  const { profile } = useAuth()
-  const firstName = profile?.name?.split(" ")[0] || ""
   const hour = new Date().getHours()
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
   const dateStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
 
   return (
     <div className="bg-white rounded-2xl p-6 border border-gray-100 mb-6 animate-fade-in">
-      <h2 className="text-xl font-semibold text-gray-900 mb-1">{greeting}{firstName ? `, ${firstName}` : ""}</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mb-1">{greeting}</h2>
       <p className="text-sm text-gray-500 mb-5">Your {regionLabel} briefing for {dateStr}</p>
 
       {wikipedia.length > 0 && (

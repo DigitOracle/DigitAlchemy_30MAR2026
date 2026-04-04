@@ -1,9 +1,5 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
-import { useAuth } from "@/lib/AuthContext"
-import { useRouter } from "next/navigation"
-import { signOut } from "firebase/auth"
-import { auth as firebaseAuth } from "@/lib/firebase"
 import { useStream } from "@/lib/useStream"
 import { ProgressStrip } from "@/components/ProgressStrip"
 import type { ProgressChip } from "@/components/ProgressStrip"
@@ -67,13 +63,6 @@ function DevDebugPanel({ mode, stage, platform, niche, lag, trendRadarData }: {
 }
 
 export default function ConsolePage() {
-  const { user, profile, loading: authLoading } = useAuth()
-  const router = useRouter()
-
-  useEffect(() => {
-    if (!authLoading && !user) router.push("/auth")
-  }, [user, authLoading, router])
-
   const { state, startStream, reset } = useStream()
 
   const [appMode, setAppMode] = useState<AppMode>(null)
@@ -500,9 +489,6 @@ export default function ConsolePage() {
 
   const isLoading = stage === "ingesting" || stage === "generating"
 
-  if (authLoading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-400">Loading...</p></div>
-  if (!user) return null
-
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
@@ -523,11 +509,6 @@ export default function ConsolePage() {
             {state.currentProcessor && <span className="text-xs text-gray-400">{state.currentProcessor}</span>}
             {(stage === "complete" || stage === "error" || (appMode && stage !== "mode_select")) && (
               <button onClick={handleFullReset} className="text-xs text-gray-400 hover:text-[#190A46] border border-gray-200 px-3 py-1 rounded-lg">New task</button>
-            )}
-            {profile && (
-              <button onClick={() => signOut(firebaseAuth)} className="text-xs text-gray-400 hover:text-gray-700 ml-2" title="Sign out">
-                {profile.name?.split(" ")[0] || "Account"} &middot; Sign out
-              </button>
             )}
           </div>
         </div>
