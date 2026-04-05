@@ -12,42 +12,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!config) return NextResponse.json({ platforms: [] })
 
   try {
-    let platforms: string[] = []
+    const headers: Record<string, string> = { Authorization: `Bearer ${config.apiKey}` }
+    if (config.profileKey) headers["Profile-Key"] = config.profileKey
 
-    if (config.profileKey) {
-      // Member: query GET /api/profiles and find their profile by refId/title
-      // (GET /api/user with Profile-Key doesn't return activeSocialAccounts for child profiles)
-      const res = await fetch("https://app.ayrshare.com/api/profiles", {
-        headers: { Authorization: `Bearer ${config.apiKey}` },
-        signal: AbortSignal.timeout(8000),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const profiles = (data.profiles || data) as { activeSocialAccounts?: string[]; profileKey?: string; refId?: string }[]
-        if (Array.isArray(profiles)) {
-          // Match by checking Firestore for refId
-          const db = getDb()
-          const integSnap = await db.doc(`users/${uid}/integrations/ayrshare`).get()
-          const refId = integSnap.exists ? (integSnap.data()?.refId as string) : null
-          const match = profiles.find(p => p.refId === refId)
-          if (match?.activeSocialAccounts) {
-            platforms = match.activeSocialAccounts
-          }
-        }
-      }
-    } else {
-      // Admin: query primary profile directly
-      const res = await fetch("https://app.ayrshare.com/api/user", {
-        headers: { Authorization: `Bearer ${config.apiKey}` },
-        signal: AbortSignal.timeout(8000),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        platforms = (data.activeSocialAccounts as string[]) || []
-      }
-    }
+    const res = await fetch("https://app.ayrshare.com/api/user", {
+      headers,
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return NextResponse.json({ platforms: [] })
+    const data = await res.json()
+    const platforms = (data.activeSocialAccounts as string[]) || []
 
-    // Sync connected platforms back to Firestore
     if (platforms.length > 0) {
       const db = getDb()
       await db.doc(`users/${uid}`).update({ hasConnectedAccounts: true }).catch(() => {})
