@@ -515,78 +515,6 @@ export function MorningBriefing() {
                         </div>
                       )}
 
-                      {/* ── TREND TICKER ── */}
-                      {(hasTickerData || tickerLoaded) && (
-                        <div style={{ borderTop: `0.5px solid ${RULE}`, borderBottom: `0.5px solid ${RULE}`, padding: "5px 0", margin: "8px 0 0" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                            <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "#8B0000" }}>
-                              {"\u2726"} Trend Ticker {"\u2726"}
-                            </span>
-                            <span style={{ fontFamily: LABEL, fontSize: 7, color: ACCENT, display: "inline-flex", alignItems: "center", gap: 2 }}>
-                              <PlatformIcon platform="tiktok" size={10} style={{ marginRight: 0, opacity: 0.5 }} /><span>TikTok</span>
-                              <span style={{ marginLeft: 5 }} /><PlatformIcon platform="instagram" size={10} style={{ marginRight: 0, opacity: 0.5 }} /><span>Instagram</span>
-                            </span>
-                          </div>
-                          {hasTickerData ? (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", fontFamily: BODY, fontSize: 10.5, lineHeight: 1.8 }}>
-                              {ttTags.map((tag, i) => <span key={`tt-${i}`}><PlatformIcon platform="tiktok" />{tag}</span>)}
-                              {igTags.map((tag, i) => <span key={`ig-${i}`}><PlatformIcon platform="instagram" />{tag}</span>)}
-                            </div>
-                          ) : (
-                            <div style={{ fontFamily: BODY, fontSize: 10, fontStyle: "italic", color: ACCENT }}>Trend data loading&hellip;</div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* ── GLOBAL CURIOSITY INDEX ── */}
-                      {wiki.length > 0 && (
-                        <div style={{ border: `3px double ${BROWN}`, padding: "10px 14px 8px", marginTop: 10, position: "relative" }}>
-                          <div style={{ textAlign: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 6 }}>
-                            {"\u2726"} Global Curiosity Index {"\u2726"}
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px 14px" }}>
-                            {wiki.slice(0, 8).map((w, i) => (
-                              <div key={i} style={{ fontFamily: BODY, fontSize: 11, lineHeight: 1.35, borderBottom: `1px dotted ${RULE}`, paddingBottom: 2, marginBottom: 2 }}>
-                                <strong>{w.name}</strong>
-                                <span style={{ color: ACCENT, fontSize: 10 }}> &mdash; {Number(w.views).toLocaleString()}</span>
-                              </div>
-                            ))}
-                          </div>
-                          <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, textAlign: "right", marginTop: 4 }}>
-                            Wikipedia &middot; Most-viewed worldwide &middot; Past 24 h
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── SOUNDS OF THE MOMENT ── */}
-                      {sounds.length > 0 && (
-                        <div style={{ marginTop: 10 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
-                            <PlatformIcon platform="tiktok" size={14} style={{ opacity: 0.8, marginRight: 0 }} />
-                            <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: BROWN }}>Sounds of the Moment</span>
-                          </div>
-                          <div style={{ display: "flex", gap: 12, overflowX: "auto" }}>
-                            {sounds.slice(0, 5).map((s, i) => (
-                              <div key={i} style={{ flexShrink: 0, width: 76, textAlign: "center" }}>
-                                {(s.albumArt || s.cover) && (
-                                  <img src={s.albumArt || s.cover || ""} alt=""
-                                    style={{ width: 68, height: 68, objectFit: "cover", filter: "grayscale(40%) contrast(1.1) sepia(25%)", border: `1px solid ${RULE}`, display: "block", margin: "0 auto" }} />
-                                )}
-                                {s.rank > 0 && (
-                                  <div style={{ fontFamily: LABEL, fontSize: 8, fontWeight: 700, color: "#8B0000", marginTop: 2 }}>
-                                    #{s.rank}{s.rankDiffType === 1 ? " \u25B2" : s.rankDiffType === 2 ? " \u25BC" : ""}
-                                  </div>
-                                )}
-                                <div style={{ fontFamily: BODY, fontSize: 9, fontWeight: 700, lineHeight: 1.2, marginTop: s.rank > 0 ? 1 : 3, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-                                <div style={{ fontFamily: BODY, fontSize: 8, color: ACCENT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.author}</div>
-                              </div>
-                            ))}
-                          </div>
-                          <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, marginTop: 4 }}>
-                            Trending sounds &middot; ScrapeCreators live &middot; Album art via Spotify
-                          </div>
-                        </div>
-                      )}
                     </>
                   ) : wiki.length > 0 ? (
                     <>
@@ -598,6 +526,79 @@ export function MorningBriefing() {
                       </p>
                     </>
                   ) : null}
+
+                  {/* ── TREND TICKER (always, not gated by GDELT) ── */}
+                  {(hasTickerData || tickerLoaded) && (
+                    <div style={{ borderTop: `0.5px solid ${RULE}`, borderBottom: `0.5px solid ${RULE}`, padding: "5px 0", margin: "8px 0 0" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "#8B0000" }}>
+                          {"\u2726"} Trend Ticker {"\u2726"}
+                        </span>
+                        <span style={{ fontFamily: LABEL, fontSize: 7, color: ACCENT, display: "inline-flex", alignItems: "center", gap: 2 }}>
+                          <PlatformIcon platform="tiktok" size={10} style={{ marginRight: 0, opacity: 0.5 }} /><span>TikTok</span>
+                          <span style={{ marginLeft: 5 }} /><PlatformIcon platform="instagram" size={10} style={{ marginRight: 0, opacity: 0.5 }} /><span>Instagram</span>
+                        </span>
+                      </div>
+                      {hasTickerData ? (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", fontFamily: BODY, fontSize: 10.5, lineHeight: 1.8 }}>
+                          {ttTags.map((tag, i) => <span key={`tt-${i}`}><PlatformIcon platform="tiktok" />{tag}</span>)}
+                          {igTags.map((tag, i) => <span key={`ig-${i}`}><PlatformIcon platform="instagram" />{tag}</span>)}
+                        </div>
+                      ) : (
+                        <div style={{ fontFamily: BODY, fontSize: 10, fontStyle: "italic", color: ACCENT }}>Trend data loading&hellip;</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── GLOBAL CURIOSITY INDEX (always, not gated by GDELT) ── */}
+                  {wiki.length > 0 && (
+                    <div style={{ border: `3px double ${BROWN}`, padding: "10px 14px 8px", marginTop: 10, position: "relative" }}>
+                      <div style={{ textAlign: "center", fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 6 }}>
+                        {"\u2726"} Global Curiosity Index {"\u2726"}
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px 14px" }}>
+                        {wiki.slice(0, 8).map((w, i) => (
+                          <div key={i} style={{ fontFamily: BODY, fontSize: 11, lineHeight: 1.35, borderBottom: `1px dotted ${RULE}`, paddingBottom: 2, marginBottom: 2 }}>
+                            <strong>{w.name}</strong>
+                            <span style={{ color: ACCENT, fontSize: 10 }}> &mdash; {Number(w.views).toLocaleString()}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, textAlign: "right", marginTop: 4 }}>
+                        Wikipedia &middot; Most-viewed worldwide &middot; Past 24 h
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── SOUNDS OF THE MOMENT (always, not gated by GDELT) ── */}
+                  {sounds.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+                        <PlatformIcon platform="tiktok" size={14} style={{ opacity: 0.8, marginRight: 0 }} />
+                        <span style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 10, letterSpacing: "0.15em", textTransform: "uppercase", color: BROWN }}>Sounds of the Moment</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 12, overflowX: "auto" }}>
+                        {sounds.slice(0, 5).map((s, i) => (
+                          <div key={i} style={{ flexShrink: 0, width: 76, textAlign: "center" }}>
+                            {(s.albumArt || s.cover) && (
+                              <img src={s.albumArt || s.cover || ""} alt=""
+                                style={{ width: 68, height: 68, objectFit: "cover", filter: "grayscale(40%) contrast(1.1) sepia(25%)", border: `1px solid ${RULE}`, display: "block", margin: "0 auto" }} />
+                            )}
+                            {s.rank > 0 && (
+                              <div style={{ fontFamily: LABEL, fontSize: 8, fontWeight: 700, color: "#8B0000", marginTop: 2 }}>
+                                #{s.rank}{s.rankDiffType === 1 ? " \u25B2" : s.rankDiffType === 2 ? " \u25BC" : ""}
+                              </div>
+                            )}
+                            <div style={{ fontFamily: BODY, fontSize: 9, fontWeight: 700, lineHeight: 1.2, marginTop: s.rank > 0 ? 1 : 3, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                            <div style={{ fontFamily: BODY, fontSize: 8, color: ACCENT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.author}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, marginTop: 4 }}>
+                        Trending sounds &middot; ScrapeCreators live &middot; Album art via Spotify
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* ── RIGHT RAIL ── */}
