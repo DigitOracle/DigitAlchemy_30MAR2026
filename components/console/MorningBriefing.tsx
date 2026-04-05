@@ -85,22 +85,13 @@ function WingRule() {
 }
 
 // ── Post recommendation cards ──
-function RecommendsSection({ posts, loading: isLoading, platform }: {
+function RecommendsSection({ posts, loading: isLoading }: {
   posts: { topic: string; caption: string; hashtags: string; audio: string; best_time: string; format: string }[]
   loading: boolean
   platform: string
 }) {
   return (
-    <div style={{ marginTop: 20, borderTop: `2px solid ${BROWN}`, paddingTop: 14 }}>
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#8B0000", marginBottom: 2 }}>
-          DigitAlchemy&reg; Recommends
-        </div>
-        <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT }}>
-          If you&rsquo;re posting on {platform} today, here are three ideas ready to go.
-        </div>
-      </div>
-
+    <div>
       {isLoading ? (
         <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: ACCENT, padding: "16px 0" }}>
           Preparing your recommendations&hellip;
@@ -172,7 +163,10 @@ export function MorningBriefing() {
   const [tickerData, setTickerData] = useState<TickerData | null>(null)
   const [audioData, setAudioData] = useState<AudioData | null>(null)
   const [activeSection, setActiveSection] = useState<string>("briefing")
-  const [recs, setRecs] = useState<{ posts: { topic: string; caption: string; hashtags: string; audio: string; best_time: string; format: string }[] } | null>(null)
+  const [hasContentDNA, setHasContentDNA] = useState(false)
+  type RecPost = { topic: string; caption: string; hashtags: string; audio: string; best_time: string; format: string }
+  const [genericRecs, setGenericRecs] = useState<RecPost[]>([])
+  const [personalRecs, setPersonalRecs] = useState<RecPost[]>([])
   const [recsLoading, setRecsLoading] = useState(false)
 
   const firstName = profile?.name?.split(" ")[0] || ""
@@ -184,16 +178,33 @@ export function MorningBriefing() {
     }
   }, [profile]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch recommendations when platform section is active
+  // Check if user has Content DNA
+  useEffect(() => {
+    if (!user?.uid) return
+    fetch(`/api/content-dna/profile?uid=${user.uid}`)
+      .then(r => r.json())
+      .then(d => setHasContentDNA(!!d.profile && d.profile.sampleCount > 0))
+      .catch(() => {})
+  }, [user])
+
+  // Fetch recommendations when platform section is active (generic + personalised)
   useEffect(() => {
     const platformSections = ["tiktok", "instagram", "youtube"]
-    if (!platformSections.includes(activeSection)) { setRecs(null); return }
+    if (!platformSections.includes(activeSection)) { setGenericRecs([]); setPersonalRecs([]); return }
     setRecsLoading(true)
-    fetch(`/api/post-recommendations?region=${region}&platform=${activeSection}&uid=${user?.uid || ""}`)
-      .then(r => r.json())
-      .then(d => { setRecs(d); setRecsLoading(false) })
-      .catch(() => setRecsLoading(false))
-  }, [activeSection, region])
+
+    const genericUrl = `/api/post-recommendations?region=${region}&platform=${activeSection}`
+    const personalUrl = user?.uid ? `${genericUrl}&uid=${user.uid}` : null
+
+    const fetches = [fetch(genericUrl).then(r => r.json())]
+    if (personalUrl && hasContentDNA) fetches.push(fetch(personalUrl).then(r => r.json()))
+
+    Promise.allSettled(fetches).then(([genRes, perRes]) => {
+      setGenericRecs(genRes.status === "fulfilled" ? genRes.value.posts ?? [] : [])
+      setPersonalRecs(perRes?.status === "fulfilled" ? perRes.value.posts ?? [] : [])
+      setRecsLoading(false)
+    })
+  }, [activeSection, region, user?.uid, hasContentDNA])
 
   useEffect(() => {
     setLoading(true)
@@ -234,6 +245,58 @@ export function MorningBriefing() {
   const narrative = gdelt.length > 0 ? buildRegionalNarrative(gdelt, regionLabel) : ""
   const dropLetter = narrative.charAt(0)
   const narrativeRest = narrative.slice(1)
+
+  // Two-row recommendations: generic + personalised
+  function TwoRowRecommends({ platform }: { platform: string }) {
+    return (
+      <>
+        {/* Row 1: Follow the Trend (generic) */}
+        <div style={{ marginTop: 20, borderTop: `2px solid ${BROWN}`, paddingTop: 14 }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#8B0000", marginBottom: 2 }}>
+              Follow the Trend
+            </div>
+            <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT }}>
+              What&rsquo;s working on {platform} right now &mdash; for any creator.
+            </div>
+          </div>
+          <RecommendsSection posts={genericRecs} loading={recsLoading} platform={platform} />
+        </div>
+
+        {/* Row 2: Stay in Your Lane (personalised) or DNA prompt */}
+        {hasContentDNA ? (
+          <div style={{ marginTop: 16 }}>
+            <DiamondDivider />
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 2 }}>
+                Stay in Your Lane
+              </div>
+              <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT }}>
+                Personalised to your content style.
+              </div>
+            </div>
+            <RecommendsSection posts={personalRecs} loading={recsLoading} platform={platform} />
+          </div>
+        ) : (
+          <div style={{ marginTop: 16 }}>
+            <DiamondDivider />
+            <div style={{ textAlign: "center", padding: "12px 0" }}>
+              <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 4 }}>
+                Stay in Your Lane
+              </div>
+              <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT, margin: "0 0 10px" }}>
+                Upload 2&ndash;3 of your videos to unlock personalised recommendations.
+              </p>
+              <button onClick={() => { window.location.href = "/upload" }}
+                style={{ padding: "7px 18px", backgroundColor: BROWN, color: "#F4F1E4", border: "none", cursor: "pointer", fontFamily: DISPLAY, fontWeight: 700, fontSize: 11 }}>
+                Build my Content DNA
+              </button>
+            </div>
+          </div>
+        )}
+      </>
+    )
+  }
 
   return (
     <>
@@ -607,7 +670,7 @@ export function MorningBriefing() {
                       </div>
                     </>
                   )}
-                  <RecommendsSection posts={recs?.posts ?? []} loading={recsLoading} platform="TikTok" />
+                  <TwoRowRecommends platform="TikTok" />
                 </div>
               )}
 
@@ -631,7 +694,7 @@ export function MorningBriefing() {
                   ) : (
                     <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: ACCENT }}>No Instagram hashtag data available for this region.</p>
                   )}
-                  <RecommendsSection posts={recs?.posts ?? []} loading={recsLoading} platform="Instagram" />
+                  <TwoRowRecommends platform="Instagram" />
                 </div>
               )}
 
@@ -653,7 +716,7 @@ export function MorningBriefing() {
                       </div>
                     ))}
                   </div>
-                  <RecommendsSection posts={recs?.posts ?? []} loading={recsLoading} platform="YouTube" />
+                  <TwoRowRecommends platform="YouTube" />
                 </div>
               )}
 
@@ -715,10 +778,22 @@ export function MorningBriefing() {
               {/* Editor's Note */}
               <StarDivider />
               <div style={{ textAlign: "center", padding: "0 0 2px" }}>
-                <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: BROWN, marginBottom: 2 }}>From the Desk</div>
-                <p style={{ fontFamily: BODY, fontSize: 11, color: SEC, fontStyle: "italic", margin: 0 }}>
-                  Ready to create? Select a platform below to begin your trend scan.
-                </p>
+                <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: BROWN, marginBottom: 4 }}>From the Desk</div>
+                {!hasContentDNA ? (
+                  <>
+                    <p style={{ fontFamily: BODY, fontSize: 12, color: SEC, fontStyle: "italic", margin: "0 0 10px" }}>
+                      Want personalised recommendations? Upload 2&ndash;3 of your best videos and we&rsquo;ll learn your content style.
+                    </p>
+                    <button onClick={() => { window.location.href = "/upload" }}
+                      style={{ padding: "7px 18px", backgroundColor: BROWN, color: "#F4F1E4", border: "none", cursor: "pointer", fontFamily: DISPLAY, fontWeight: 700, fontSize: 11 }}>
+                      Build my Content DNA
+                    </button>
+                  </>
+                ) : (
+                  <p style={{ fontFamily: BODY, fontSize: 11, color: SEC, fontStyle: "italic", margin: 0 }}>
+                    Ready to create? Select a platform above or click Deep Dive to run a full trend scan.
+                  </p>
+                )}
               </div>
 
               {/* End of edition */}

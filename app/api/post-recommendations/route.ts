@@ -29,7 +29,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (uid) {
     try {
       const profile = await loadContentProfile(uid)
-      if (profile && profile.confidence !== "low") {
+      console.log("[RECOMMENDS] uid:", uid, "profile loaded:", !!profile, "confidence:", profile?.confidence, "samples:", profile?.sampleCount, "topics:", profile?.topics)
+      if (profile && profile.sampleCount > 0) {
+        const lowNote = profile.confidence === "low"
+          ? `\nNote: This profile is based on only ${profile.sampleCount} video(s) — recommendations may improve with more uploads.`
+          : ""
         profileContext = `\nCREATOR CONTENT PROFILE (personalise recommendations to match this style):
 - Topics they usually cover: ${profile.topics.join(", ")}
 - Their tone: ${profile.tone}
@@ -37,7 +41,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 - Their audio preference: ${profile.audioPreference}
 - Their caption style: ${profile.captionStyle}
 - Their usual hashtags: ${profile.hashtagPatterns.join(", ")}
-- Profile confidence: ${profile.confidence} (based on ${profile.sampleCount} videos analyzed)
+- Profile confidence: ${profile.confidence} (based on ${profile.sampleCount} videos analyzed)${lowNote}
 
 IMPORTANT: Recommendations should feel like natural extensions of this creator's existing content, not generic advice.\n`
       }

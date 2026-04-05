@@ -86,11 +86,22 @@ export default function ConsolePage() {
   const [reIndustry, setReIndustry] = useState<string | null>(null)
   const [reAudience, setReAudience] = useState<string | null>(null)
   const [confirmedFocus, setConfirmedFocus] = useState<{ topic: string; summary: string; keywords: string[]; editedByUser: boolean } | null>(null)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const initials = profile?.name?.split(" ").map((n: string) => n[0]).join("").toUpperCase() || "?"
+  console.log("[AUTH] user:", user?.uid, "profile:", profile?.name, "loading:", authLoading)
 
   // Auth guard
   useEffect(() => {
     if (!authLoading && !user) router.push("/auth")
   }, [user, authLoading, router])
+
+  // Close user menu on outside click
+  useEffect(() => {
+    if (!showUserMenu) return
+    const handler = () => setShowUserMenu(false)
+    document.addEventListener("click", handler)
+    return () => document.removeEventListener("click", handler)
+  }, [showUserMenu])
 
   const ingestion = state.ingestion
 
@@ -550,11 +561,38 @@ export default function ConsolePage() {
             {(stage === "complete" || stage === "error" || (appMode && stage !== "mode_select")) && (
               <button onClick={handleFullReset} className="text-xs text-gray-400 hover:text-[#190A46] border border-gray-200 px-3 py-1 rounded-lg">New task</button>
             )}
-            {auth && (
-              <button onClick={() => signOut(auth!)}
-                style={{ fontFamily: "'Special Elite', cursive", fontSize: 11, color: "#8B7355", background: "none", border: "none", cursor: "pointer" }}>
-                Sign out
-              </button>
+            {auth && user && (
+              <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+                <button onClick={() => setShowUserMenu(!showUserMenu)}
+                  style={{ width: 34, height: 34, borderRadius: "50%", backgroundColor: "#3E2723", color: "#F4F1E4", fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 12, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {initials}
+                </button>
+                {showUserMenu && (
+                  <div style={{ position: "absolute", top: 42, right: 0, width: 210, backgroundColor: "#FDFCF8", border: "1px solid #C4B9A0", boxShadow: "2px 4px 12px rgba(62,39,35,0.1)", zIndex: 100 }}>
+                    <div style={{ padding: "10px 14px", borderBottom: "1px solid #E8E0D0", fontFamily: "'Libre Baskerville', serif", fontSize: 13, fontWeight: 700, color: "#1A1A1A" }}>
+                      {profile?.name || "User"}
+                      <div style={{ fontFamily: "'Special Elite', cursive", fontSize: 9, color: "#8B7355", marginTop: 2 }}>{profile?.email}</div>
+                    </div>
+                    {[
+                      { label: "My Content DNA", href: "/profile" },
+                      { label: "Upload Video", href: "/upload" },
+                    ].map(item => (
+                      <button key={item.href} onClick={() => { setShowUserMenu(false); router.push(item.href) }}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", border: "none", backgroundColor: "transparent", fontFamily: "'Libre Baskerville', serif", fontSize: 12, color: "#3E2723", cursor: "pointer", borderBottom: "1px dotted #E8E0D0" }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#F4F1E4")}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
+                        {item.label}
+                      </button>
+                    ))}
+                    <button onClick={() => { setShowUserMenu(false); signOut(auth!) }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", border: "none", backgroundColor: "transparent", fontFamily: "'Special Elite', cursive", fontSize: 11, color: "#8B7355", cursor: "pointer" }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#F4F1E4")}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

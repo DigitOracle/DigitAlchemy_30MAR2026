@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { auth, db } from "@/lib/firebase"
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth"
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth"
 import { doc, setDoc, updateDoc } from "firebase/firestore"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/AuthContext"
@@ -42,6 +42,7 @@ export default function AuthPage() {
       if (mode === "signup") {
         if (!name.trim()) { setError("Name is required"); setSubmitting(false); return }
         const cred = await createUserWithEmailAndPassword(auth, email, password)
+        await updateProfile(cred.user, { displayName: name.trim() })
         await setDoc(doc(db, "users", cred.user.uid), {
           uid: cred.user.uid,
           name: name.trim(),

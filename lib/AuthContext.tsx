@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react"
 import { auth, db } from "./firebase"
 import { onAuthStateChanged, User } from "firebase/auth"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, setDoc } from "firebase/firestore"
 
 interface UserProfile {
   uid: string
@@ -33,8 +33,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser)
       if (firebaseUser && db) {
-        const snap = await getDoc(doc(db, "users", firebaseUser.uid))
-        if (snap.exists()) setProfile(snap.data() as UserProfile)
+        try {
+          console.log("[AUTH CTX] Fetching profile for", firebaseUser.uid)
+          let snap = await getDoc(doc(db, "users", firebaseUser.uid))
+
+          // If doc not found, wait briefly for signup write to land, then retry
+          if (!snap.exists()) {
+            console.log("[AUTH CTX] Doc not found — waiting 2s for signup write...")
+            await new Promise(r => setTimeout(r, 2000))
+            snap = await getDoc(doc(db, "users", firebaseUser.uid))
+          }
+
+          if (snap.exists()) {
+            const data = snap.data() as UserProfile
+            // Fix name if it looks like an email prefix and displayName is available
+            if (data.name && data.name.includes("@") || (!data.name || data.name === "User" || data.name === data.email?.split("@")[0])) {
+              const betterName = firebaseUser.displayName || data.name
+              if (betterName && betterName !== data.name) {
+                console.log("[AUTH CTX] Fixing name from", data.name, "to", betterName)
+                await setDoc(doc(db, "users", firebaseUser.uid), { ...data, name: betterName }, { merge: true })
+                data.name = betterName
+              }
+            }
+            console.log("[AUTH CTX] Profile found:", data.name)
+            setProfile(data)
+          } else {
+            // Truly missing — create fallback
+            console.log("[AUTH CTX] No profile doc after retry — creating for", firebaseUser.uid)
+            const fallbackProfile: UserProfile = {
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+              email: firebaseUser.email || "",
+              defaultRegion: "AE",
+              createdAt: new Date().toISOString(),
+              lastLogin: new Date().toISOString(),
+            }
+            try {
+              await setDoc(doc(db, "users", firebaseUser.uid), fallbackProfile)
+              console.log("[AUTH CTX] Profile created:", fallbackProfile.name)
+              setProfile(fallbackProfile)
+            } catch (writeErr) {
+              console.error("[AUTH CTX] Failed to create profile:", writeErr)
+              setProfile(null)
+            }
+          }
+        } catch (err) {
+          console.error("[AUTH CTX] Profile fetch error:", err)
+          setProfile(null)
+        }
       } else {
         setProfile(null)
       }
