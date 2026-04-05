@@ -51,12 +51,36 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       const createBody = await createRes.text()
       console.log("[ACCOUNTS] Profile creation response:", createRes.status, createBody.slice(0, 300))
-      if (!createRes.ok) {
-        return NextResponse.json({ error: "Failed to create social profile", details: createBody.slice(0, 200) }, { status: 500 })
-      }
 
       const createData = JSON.parse(createBody)
-      profileKey = createData.profileKey as string
+
+      if (!createRes.ok) {
+        // Handle duplicate profile (code 146) — retrieve existing profile key
+        if (createData.code === 146) {
+          console.log("[ACCOUNTS] Duplicate profile — fetching existing profiles to find key")
+          const listRes = await fetch(`${AYRSHARE_API}/profiles`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(10000),
+          })
+          if (listRes.ok) {
+            const profiles = await listRes.json()
+            const match = (Array.isArray(profiles) ? profiles : profiles.profiles || [])
+              .find((p: Record<string, unknown>) => p.title === title)
+            if (match?.profileKey) {
+              profileKey = match.profileKey as string
+              console.log("[ACCOUNTS] Found existing profile key:", profileKey.slice(0, 8) + "...")
+            }
+          }
+          if (!profileKey) {
+            return NextResponse.json({ error: "Duplicate profile exists but could not retrieve key" }, { status: 500 })
+          }
+        } else {
+          return NextResponse.json({ error: "Failed to create social profile", details: createBody.slice(0, 200) }, { status: 500 })
+        }
+      } else {
+        profileKey = createData.profileKey as string
+      }
+
       const refId = (createData.refId as string) || ""
 
       if (!profileKey) {
@@ -71,7 +95,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         platforms: [],
       })
 
-      console.log("[ACCOUNTS] Profile created, key:", profileKey.slice(0, 8) + "...")
+      console.log("[ACCOUNTS] Profile stored, key:", profileKey.slice(0, 8) + "...")
     }
 
     // Generate JWT link URL for social account linking
