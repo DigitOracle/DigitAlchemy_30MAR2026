@@ -120,6 +120,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       domain: process.env.AYRSHARE_DOMAIN || "digitalchemy-console.vercel.app",
       privateKey,
       profileKey,
+      hideHeader: "true",
+      headerText: "DigitAlchemy\u00AE \u2014 Connect Your Social Accounts",
+      subHeaderText: "Securely link your social media account",
     }
     if (platform) jwtPayload.allowedSocial = [platform]
 
