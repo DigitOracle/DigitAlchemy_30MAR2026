@@ -15,22 +15,22 @@ export interface AyrshareConfig {
 export async function getAyrshareConfig(uid: string | null): Promise<AyrshareConfig | null> {
   if (!uid) return null
   const defaultKey = process.env.AYRSHARE_API_KEY
-  if (!defaultKey) return null
+  if (!defaultKey) { console.log("[AYRSHARE-CONFIG] No AYRSHARE_API_KEY env var"); return null }
 
   const db = getDb()
 
-  // Load user profile to check role
   const userSnap = await db.doc(`users/${uid}`).get()
-  if (!userSnap.exists) return null
+  if (!userSnap.exists) { console.log("[AYRSHARE-CONFIG] No user doc for", uid); return null }
   const userData = userSnap.data() as { role?: string; hasConnectedAccounts?: boolean }
+  console.log("[AYRSHARE-CONFIG] User", uid, "role:", userData.role, "hasConnected:", userData.hasConnectedAccounts)
 
-  // Admin always gets access via the default key
   if (userData.role === "admin") {
     return { apiKey: defaultKey }
   }
 
-  // Member: check for their own Ayrshare profile key
   const integSnap = await db.doc(`users/${uid}/integrations/ayrshare`).get()
+  console.log("[AYRSHARE-CONFIG] Integration exists:", integSnap.exists, "data:", integSnap.exists ? JSON.stringify(integSnap.data()).slice(0, 100) : "n/a")
+
   if (integSnap.exists) {
     const data = integSnap.data() as { profileKey?: string }
     if (data.profileKey) {
@@ -38,7 +38,6 @@ export async function getAyrshareConfig(uid: string | null): Promise<AyrshareCon
     }
   }
 
-  // Member with no connection
   return null
 }
 

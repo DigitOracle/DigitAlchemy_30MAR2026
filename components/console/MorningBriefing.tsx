@@ -298,7 +298,7 @@ export function MorningBriefing() {
               <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT, margin: "0 0 10px" }}>
                 Upload 2&ndash;3 of your videos to unlock personalised recommendations.
               </p>
-              <button onClick={() => { window.location.href = "/upload" }}
+              <button onClick={() => { window.location.href = "/accounts" }}
                 style={{ padding: "7px 18px", backgroundColor: BROWN, color: "#F4F1E4", border: "none", cursor: "pointer", fontFamily: DISPLAY, fontWeight: 700, fontSize: 11 }}>
                 Build my Content DNA
               </button>
