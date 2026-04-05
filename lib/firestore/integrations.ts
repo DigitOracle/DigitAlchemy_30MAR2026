@@ -13,13 +13,9 @@ export interface AyrshareConfig {
  * - Members without a connection: returns null (not_connected)
  */
 export async function getAyrshareConfig(uid: string | null): Promise<AyrshareConfig | null> {
+  if (!uid) return null
   const defaultKey = process.env.AYRSHARE_API_KEY
   if (!defaultKey) return null
-
-  if (!uid) {
-    // No user context — use default key (backwards compat for admin-only flows)
-    return { apiKey: defaultKey }
-  }
 
   const db = getDb()
 

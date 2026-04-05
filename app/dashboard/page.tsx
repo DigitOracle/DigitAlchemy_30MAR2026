@@ -27,7 +27,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) { router.push("/auth"); return }
     setLoading(true)
-    fetch(`/api/dashboard?platform=${platformFilter}&range=${rangeFilter}`)
+    fetch(`/api/dashboard?platform=${platformFilter}&range=${rangeFilter}&uid=${user?.uid || ""}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))

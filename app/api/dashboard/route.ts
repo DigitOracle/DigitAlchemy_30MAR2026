@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { fetchPostHistory, fetchAllPostHistory } from "@/lib/ayrshare"
 import { getAyrshareConfig } from "@/lib/firestore/integrations"
+import { getAuth } from "firebase-admin/auth"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -8,7 +9,24 @@ export const dynamic = "force-dynamic"
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const platformFilter = req.nextUrl.searchParams.get("platform") || "all"
   const rangeFilter = parseInt(req.nextUrl.searchParams.get("range") || "30", 10) || 30
-  const uid = req.nextUrl.searchParams.get("uid") || null
+  const uid = req.nextUrl.searchParams.get("uid")
+
+  if (!uid) {
+    return NextResponse.json({ error: "uid required" }, { status: 400 })
+  }
+
+  // Verify Firebase auth token matches the requested uid
+  const authHeader = req.headers.get("authorization")
+  if (authHeader?.startsWith("Bearer ")) {
+    try {
+      const token = await getAuth().verifyIdToken(authHeader.slice(7))
+      if (token.uid !== uid) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+    } catch {
+      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+    }
+  }
 
   // Resolve Ayrshare credentials for this user
   const ayrConfig = await getAyrshareConfig(uid)

@@ -3,14 +3,29 @@ import { fetchAllPostHistory } from "@/lib/ayrshare"
 import { getAyrshareConfig } from "@/lib/firestore/integrations"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
 import { saveDNASample, loadContentProfile, saveContentProfile, mergeProfileWithSample } from "@/lib/firestore/contentProfile"
+import { getAuth } from "firebase-admin/auth"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
 
 export async function POST(req: Request): Promise<NextResponse> {
   try {
-    const { uid } = await req.json()
+    const body = await req.json()
+    const { uid } = body
     if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 })
+
+    // Verify Firebase auth token matches the requested uid
+    const authHeader = req.headers.get("authorization")
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const token = await getAuth().verifyIdToken(authHeader.slice(7))
+        if (token.uid !== uid) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        }
+      } catch {
+        return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+      }
+    }
 
     console.log("[AUTO-INGEST] Starting for uid:", uid)
 

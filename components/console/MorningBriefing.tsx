@@ -191,7 +191,7 @@ export function MorningBriefing() {
   const [dashStats, setDashStats] = useState<{ totalPosts: number; totalViews: number; totalEngagement: number; avgCompletion: number } | null>(null)
   const [statsPlatform, setStatsPlatform] = useState("all")
   useEffect(() => {
-    fetch(`/api/dashboard?platform=${statsPlatform}`)
+    fetch(`/api/dashboard?platform=${statsPlatform}&uid=${user?.uid || ""}`)
       .then(r => r.json())
       .then(d => { if (d.stats) setDashStats(d.stats) })
       .catch(() => {})
