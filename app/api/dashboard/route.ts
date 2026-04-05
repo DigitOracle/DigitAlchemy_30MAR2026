@@ -1,11 +1,23 @@
-import { NextResponse } from "next/server"
-import { fetchAllPostHistory } from "@/lib/ayrshare"
+import { NextRequest, NextResponse } from "next/server"
+import { fetchPostHistory, fetchAllPostHistory } from "@/lib/ayrshare"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-export async function GET(): Promise<NextResponse> {
-  const posts = await fetchAllPostHistory()
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const platformFilter = req.nextUrl.searchParams.get("platform") || "all"
+  const rangeFilter = parseInt(req.nextUrl.searchParams.get("range") || "30", 10) || 30
+
+  let posts = platformFilter === "all"
+    ? await fetchAllPostHistory()
+    : await fetchPostHistory(platformFilter)
+
+  // Date range filter
+  const cutoff = new Date(Date.now() - rangeFilter * 24 * 60 * 60 * 1000)
+  posts = posts.filter(p => {
+    if (!p.publishedAt) return true
+    return new Date(p.publishedAt) >= cutoff
+  })
 
   if (posts.length === 0) {
     return NextResponse.json({ posts: 0, stats: null, timeline: [], topPosts: [] })
@@ -55,5 +67,6 @@ export async function GET(): Promise<NextResponse> {
     stats: { totalPosts, totalViews, totalLikes, totalComments, totalShares, totalEngagement, avgCompletion },
     timeline,
     topPosts,
+    filters: { platform: platformFilter, range: rangeFilter },
   })
 }
