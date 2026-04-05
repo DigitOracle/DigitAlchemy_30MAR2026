@@ -12,18 +12,36 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!config) return NextResponse.json({ platforms: [] })
 
   try {
-    const headers: Record<string, string> = { Authorization: `Bearer ${config.apiKey}` }
-    if (config.profileKey) headers["Profile-Key"] = config.profileKey
+    let platforms: string[] = []
 
-    const res = await fetch("https://app.ayrshare.com/api/user", {
-      headers,
-      signal: AbortSignal.timeout(8000),
-    })
-    const rawBody = await res.text()
-    if (!res.ok) return NextResponse.json({ platforms: [], _debug: { status: res.status, body: rawBody.slice(0, 200) } })
-    const data = JSON.parse(rawBody)
-    const platforms = (data.activeSocialAccounts as string[]) || []
-    if (platforms.length === 0) return NextResponse.json({ platforms, _debug: { keys: Object.keys(data), hasProfileKey: !!config.profileKey, body: rawBody.slice(0, 300) } })
+    if (config.profileKey) {
+      // Member: GET /api/user with Profile-Key can return stale data without activeSocialAccounts.
+      // GET /api/profiles consistently includes activeSocialAccounts for all child profiles.
+      const db = getDb()
+      const integSnap = await db.doc(`users/${uid}/integrations/ayrshare`).get()
+      const refId = integSnap.exists ? (integSnap.data()?.refId as string) : null
+
+      const res = await fetch("https://app.ayrshare.com/api/profiles", {
+        headers: { Authorization: `Bearer ${config.apiKey}` },
+        signal: AbortSignal.timeout(10000),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        const profiles = (data.profiles || []) as { activeSocialAccounts?: string[]; refId?: string }[]
+        const match = profiles.find(p => p.refId === refId)
+        if (match?.activeSocialAccounts) platforms = match.activeSocialAccounts
+      }
+    } else {
+      // Admin: primary profile via GET /api/user (always has activeSocialAccounts)
+      const res = await fetch("https://app.ayrshare.com/api/user", {
+        headers: { Authorization: `Bearer ${config.apiKey}` },
+        signal: AbortSignal.timeout(8000),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        platforms = (data.activeSocialAccounts as string[]) || []
+      }
+    }
 
     if (platforms.length > 0) {
       const db = getDb()
