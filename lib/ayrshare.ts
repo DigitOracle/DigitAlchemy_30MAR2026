@@ -35,7 +35,10 @@ export async function fetchPostHistory(platform: string): Promise<AyrsharePost[]
     const posts = Array.isArray(data) ? data : (data?.history || data?.posts || data?.data || [])
     if (!Array.isArray(posts)) return []
 
-    return posts.map((p: Record<string, unknown>) => normalizePost(p, platform)).filter((p): p is AyrsharePost => p !== null)
+    const normalized = posts.map((p: Record<string, unknown>) => normalizePost(p, platform)).filter((p): p is AyrsharePost => p !== null)
+    // Enrich YouTube with real engagement data from Data API
+    if (platform === "youtube") return enrichYouTubeWithDataAPI(normalized)
+    return normalized
   } catch (e) {
     console.log("[AYRSHARE]", platform, "fetch error:", e)
     return []
@@ -96,6 +99,45 @@ function normalizePost(p: Record<string, unknown>, platform: string): AyrsharePo
     hashtags: [],
     publishedAt: (p.publishedAt || p.created || "") as string,
     postUrl: (p.postUrl || "") as string,
+  }
+}
+
+// Enrich YouTube posts with real metrics from YouTube Data API v3
+async function enrichYouTubeWithDataAPI(posts: AyrsharePost[]): Promise<AyrsharePost[]> {
+  const apiKey = process.env.YOUTUBE_API_KEY
+  if (!apiKey || posts.length === 0) return posts
+
+  const idMap = new Map<string, number>()
+  for (let i = 0; i < posts.length; i++) {
+    const match = posts[i].postUrl?.match(/[?&]v=([^&]+)/) || posts[i].postUrl?.match(/youtu\.be\/([^?]+)/)
+    if (match) idMap.set(match[1], i)
+  }
+  if (idMap.size === 0) return posts
+
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${[...idMap.keys()].join(",")}&key=${apiKey}`,
+      { signal: AbortSignal.timeout(10000) },
+    )
+    if (!res.ok) return posts
+    const data = await res.json()
+    const enriched = [...posts]
+    for (const item of (data.items || []) as { id: string; statistics: Record<string, string> }[]) {
+      const idx = idMap.get(item.id)
+      if (idx !== undefined) {
+        enriched[idx] = {
+          ...enriched[idx],
+          views: parseInt(item.statistics.viewCount || "0", 10),
+          likes: parseInt(item.statistics.likeCount || "0", 10),
+          comments: parseInt(item.statistics.commentCount || "0", 10),
+        }
+      }
+    }
+    console.log("[AYRSHARE] YouTube enriched", idMap.size, "videos with Data API stats")
+    return enriched
+  } catch (e) {
+    console.log("[AYRSHARE] YouTube Data API enrichment error:", e)
+    return posts
   }
 }
 

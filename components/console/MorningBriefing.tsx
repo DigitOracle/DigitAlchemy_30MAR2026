@@ -187,14 +187,15 @@ export function MorningBriefing() {
       .catch(() => {})
   }, [user])
 
-  // Dashboard stats
+  // Dashboard stats with platform filter
   const [dashStats, setDashStats] = useState<{ totalPosts: number; totalViews: number; totalEngagement: number; avgCompletion: number } | null>(null)
+  const [statsPlatform, setStatsPlatform] = useState("all")
   useEffect(() => {
-    fetch("/api/dashboard")
+    fetch(`/api/dashboard?platform=${statsPlatform}`)
       .then(r => r.json())
       .then(d => { if (d.stats) setDashStats(d.stats) })
       .catch(() => {})
-  }, [])
+  }, [statsPlatform])
 
   // Fetch recommendations when platform section is active (generic + personalised)
   useEffect(() => {
@@ -431,18 +432,29 @@ export function MorningBriefing() {
 
           {/* Stats bar */}
           {dashStats && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 22, padding: "5px 0", marginBottom: 8, borderBottom: `0.5px solid ${RULE}` }}>
-              {([
-                { label: "Posts", value: String(dashStats.totalPosts) },
-                { label: "Views", value: dashStats.totalViews.toLocaleString() },
-                { label: "Engagements", value: dashStats.totalEngagement.toLocaleString() },
-                { label: "Completion", value: `${(dashStats.avgCompletion * 100).toFixed(0)}%` },
-              ] as { label: string; value: string }[]).map((s, i) => (
-                <div key={i} style={{ textAlign: "center" }}>
-                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: BROWN }}>{s.value}</div>
-                  <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.1em" }}>{s.label}</div>
-                </div>
-              ))}
+            <div style={{ padding: "5px 0", marginBottom: 8, borderBottom: `0.5px solid ${RULE}` }}>
+              <div style={{ display: "flex", justifyContent: "center", gap: 22 }}>
+                {([
+                  { label: "Posts", value: String(dashStats.totalPosts) },
+                  { label: "Views", value: dashStats.totalViews.toLocaleString() },
+                  { label: "Engagements", value: dashStats.totalEngagement.toLocaleString() },
+                  { label: "Completion", value: `${(dashStats.avgCompletion * 100).toFixed(0)}%` },
+                ] as { label: string; value: string }[]).map((s, i) => (
+                  <div key={i} style={{ textAlign: "center" }}>
+                    <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: BROWN }}>{s.value}</div>
+                    <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.1em" }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 3, marginTop: 4 }}>
+                {(["all", "tiktok", "linkedin", "youtube"] as const).map(p => (
+                  <button key={p} onClick={() => setStatsPlatform(p)} style={{
+                    padding: "2px 7px", fontFamily: TYPEWRITER, fontSize: 8, textTransform: "uppercase", letterSpacing: "0.05em",
+                    backgroundColor: statsPlatform === p ? BROWN : "transparent", color: statsPlatform === p ? "#F4F1E4" : ACCENT,
+                    border: `0.5px solid ${statsPlatform === p ? BROWN : RULE}`, cursor: "pointer",
+                  }}>{p === "all" ? "All" : p}</button>
+                ))}
+              </div>
             </div>
           )}
 
