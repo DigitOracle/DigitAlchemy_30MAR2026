@@ -19,9 +19,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       headers,
       signal: AbortSignal.timeout(8000),
     })
-    if (!res.ok) return NextResponse.json({ platforms: [] })
-    const data = await res.json()
+    const rawBody = await res.text()
+    if (!res.ok) return NextResponse.json({ platforms: [], _debug: { status: res.status, body: rawBody.slice(0, 200) } })
+    const data = JSON.parse(rawBody)
     const platforms = (data.activeSocialAccounts as string[]) || []
+    if (platforms.length === 0) return NextResponse.json({ platforms, _debug: { keys: Object.keys(data), hasProfileKey: !!config.profileKey, body: rawBody.slice(0, 300) } })
 
     if (platforms.length > 0) {
       const db = getDb()
