@@ -13,7 +13,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const config = await getAyrshareConfig(uid)
   console.log("[STATUS] Config:", config ? { apiKey: config.apiKey.slice(0, 8) + "...", profileKey: config.profileKey?.slice(0, 8) + "..." } : "null")
 
-  if (!config) return NextResponse.json({ platforms: [] })
+  if (!config) return NextResponse.json({ platforms: [], debug: "no_config" })
 
   try {
     const headers: Record<string, string> = { Authorization: `Bearer ${config.apiKey}` }
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const body = await res.text()
     console.log("[STATUS] Ayrshare response:", res.status, body.slice(0, 200))
 
-    if (!res.ok) return NextResponse.json({ platforms: [] })
+    if (!res.ok) return NextResponse.json({ platforms: [], debug: { status: res.status, body: body.slice(0, 200) } })
     const data = JSON.parse(body)
     const platforms = (data.activeSocialAccounts as string[]) || []
 
@@ -43,6 +43,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ platforms })
   } catch (e) {
     console.log("[STATUS] Error:", e)
-    return NextResponse.json({ platforms: [] })
+    return NextResponse.json({ platforms: [], error: String(e).slice(0, 200) })
   }
 }
