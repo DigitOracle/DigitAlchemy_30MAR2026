@@ -80,7 +80,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        domain: "digitalchemy-console.vercel.app",
+        domain: process.env.AYRSHARE_DOMAIN || "digitalchemy-console.vercel.app",
         privateKey,
         profileKey,
       }),
