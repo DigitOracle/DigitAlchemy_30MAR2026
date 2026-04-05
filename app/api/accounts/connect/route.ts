@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth"
 import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
+export const maxDuration = 30
 
 const AYRSHARE_API = "https://app.ayrshare.com/api"
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const apiKey = process.env.AYRSHARE_API_KEY
-  const privateKey = process.env.AYRSHARE_PRIVATE_KEY
+  const privateKey = process.env.AYRSHARE_PRIVATE_KEY?.replace(/\\n/g, "\n")
   if (!apiKey) return NextResponse.json({ error: "Ayrshare not configured" }, { status: 500 })
   if (!privateKey) return NextResponse.json({ error: "Ayrshare private key not configured" }, { status: 500 })
 
@@ -48,13 +49,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         signal: AbortSignal.timeout(10000),
       })
 
+      const createBody = await createRes.text()
+      console.log("[ACCOUNTS] Profile creation response:", createRes.status, createBody.slice(0, 300))
       if (!createRes.ok) {
-        const err = await createRes.json().catch(() => ({}))
-        console.error("[ACCOUNTS] Profile creation failed:", createRes.status, err)
-        return NextResponse.json({ error: "Failed to create social profile" }, { status: 500 })
+        return NextResponse.json({ error: "Failed to create social profile", details: createBody.slice(0, 200) }, { status: 500 })
       }
 
-      const createData = await createRes.json()
+      const createData = JSON.parse(createBody)
       profileKey = createData.profileKey as string
       const refId = (createData.refId as string) || ""
 
@@ -87,13 +88,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       signal: AbortSignal.timeout(10000),
     })
 
+    const jwtBody = await jwtRes.text()
+    console.log("[ACCOUNTS] JWT response:", jwtRes.status, jwtBody.slice(0, 300))
     if (!jwtRes.ok) {
-      const err = await jwtRes.json().catch(() => ({}))
-      console.error("[ACCOUNTS] JWT generation failed:", jwtRes.status, err)
-      return NextResponse.json({ error: "Failed to generate linking URL" }, { status: 500 })
+      return NextResponse.json({ error: "Failed to generate linking URL", details: jwtBody.slice(0, 200) }, { status: 500 })
     }
 
-    const jwtData = await jwtRes.json()
+    const jwtData = JSON.parse(jwtBody)
     const url = jwtData.url as string
 
     if (!url) {
