@@ -40,7 +40,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       await db.doc(`users/${uid}/integrations/ayrshare`).update({ platforms }).catch(() => {})
     }
 
-    return NextResponse.json({ platforms, debug: { hasProfileKey: !!config.profileKey, ayrshareStatus: res.status, rawAccounts: data.activeSocialAccounts } })
+    return NextResponse.json({ platforms, debug: { hasProfileKey: !!config.profileKey, ayrshareStatus: res.status, rawAccounts: data.activeSocialAccounts, allKeys: Object.keys(data), bodyPreview: body.slice(0, 300) } })
   } catch (e) {
     console.log("[STATUS] Error:", e)
     return NextResponse.json({ platforms: [], error: String(e).slice(0, 200) })
