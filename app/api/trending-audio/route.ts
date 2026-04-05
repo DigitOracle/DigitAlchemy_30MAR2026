@@ -41,7 +41,7 @@ async function fetchTrendingSounds(region: string): Promise<TrendingSound[]> {
     if (!res.ok) { console.log("[TRENDING-AUDIO] ScrapeCreators status:", res.status); return [] }
     const data = await res.json()
     const items = Array.isArray(data) ? data : (data?.sound_list ?? data?.data ?? data?.songs ?? data?.items ?? [])
-    return (items as Record<string, unknown>[]).slice(0, 8).map((s) => ({
+    return (items as Record<string, unknown>[]).slice(0, 50).map((s) => ({
       title: (s.title ?? s.songName ?? s.name ?? "Unknown") as string,
       author: (s.author ?? s.authorName ?? s.artist ?? "Unknown") as string,
       rank: (s.rank ?? 0) as number,

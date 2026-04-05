@@ -45,7 +45,7 @@ async function fetchWikipedia(): Promise<WikiItem[]> {
 async function fetchGdelt(regionLabel: string): Promise<GdeltItem[]> {
   try {
     const q = encodeURIComponent(`trending ${regionLabel}`)
-    const res = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${q}&mode=ArtList&maxrecords=9&format=json&sort=DateDesc`, { signal: AbortSignal.timeout(12000) })
+    const res = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${q}&mode=ArtList&maxrecords=50&format=json&sort=DateDesc`, { signal: AbortSignal.timeout(12000) })
     if (!res.ok) return []
     const data = await res.json()
     return ((data?.articles ?? []) as Record<string, unknown>[]).slice(0, 9).map((a) => ({
@@ -60,7 +60,7 @@ async function fetchYoutube(region: string): Promise<YoutubeItem[]> {
   const apiKey = process.env.YOUTUBE_API_KEY
   if (!apiKey) return []
   try {
-    const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=${region}&maxResults=5&key=${apiKey}`, { signal: AbortSignal.timeout(10000) })
+    const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=${region}&maxResults=50&key=${apiKey}`, { signal: AbortSignal.timeout(10000) })
     if (!res.ok) return []
     const data = await res.json()
     return ((data?.items ?? []) as Record<string, unknown>[]).map((v) => {

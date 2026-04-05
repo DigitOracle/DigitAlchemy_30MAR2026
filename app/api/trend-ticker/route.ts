@@ -45,7 +45,7 @@ async function fetchTikTokHashtags(region: string): Promise<string[]> {
     const items = Array.isArray(data) ? data : (data?.list ?? data?.data ?? data?.hashtags ?? data?.hashtag_list ?? data?.items ?? [])
     isDev && console.log("[TICKER] TikTok items count:", (items as unknown[]).length, "sample:", JSON.stringify(items[0])?.slice(0, 150))
     const hashtags: string[] = []
-    for (const h of (items as Record<string, unknown>[]).slice(0, 10)) {
+    for (const h of (items as Record<string, unknown>[]).slice(0, 50)) {
       const tag = (h.hashtag_name ?? h.name ?? h.hashtag ?? h.title ?? "") as string
       if (tag) hashtags.push(`#${tag.replace(/^#/, "")}`)
     }
@@ -70,7 +70,7 @@ async function fetchInstagramHashtags(region: string, regionLabel: string): Prom
     const items = Array.isArray(data) ? data : (data?.data ?? data?.reels ?? data?.items ?? [])
     isDev && console.log("[TICKER] Instagram items count:", (items as unknown[]).length)
     const hashtags: string[] = []
-    for (const r of (items as Record<string, unknown>[]).slice(0, 15)) {
+    for (const r of (items as Record<string, unknown>[]).slice(0, 50)) {
       const caption = (r.caption ?? r.text ?? "") as string
       for (const t of (caption.match(/#[\w\u00C0-\u024F]+/g) ?? [])) {
         hashtags.push(t)
@@ -88,7 +88,7 @@ async function fetchYouTubeTags(region: string): Promise<string[]> {
   if (!apiKey) { console.log("[TICKER] YouTube: no YOUTUBE_API_KEY"); return [] }
   try {
     const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode=${region}&maxResults=10&key=${apiKey}`,
+      `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&regionCode=${region}&maxResults=50&key=${apiKey}`,
       { signal: AbortSignal.timeout(8000) },
     )
     if (!res.ok) return []

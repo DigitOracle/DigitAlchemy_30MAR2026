@@ -49,7 +49,7 @@ async function fetchScrapeCreatorsTikTokPlatform(region: string): Promise<{ song
     if (songsRes.ok) {
       const data = await songsRes.json()
       const items = Array.isArray(data) ? data : (data?.sound_list ?? data?.data ?? data?.songs ?? data?.items ?? [])
-      for (const s of (items as Record<string, unknown>[]).slice(0, 10)) {
+      for (const s of (items as Record<string, unknown>[]).slice(0, 50)) {
         const relatedItems = (s.related_items ?? []) as unknown[]
         songs.push({
           title: (s.title ?? s.songName ?? s.name ?? "") as string,
@@ -67,7 +67,7 @@ async function fetchScrapeCreatorsTikTokPlatform(region: string): Promise<{ song
     if (hashtagsRes.ok) {
       const data = await hashtagsRes.json()
       const items = Array.isArray(data) ? data : (data?.list ?? data?.data ?? data?.hashtags ?? data?.items ?? [])
-      for (const h of (items as Record<string, unknown>[]).slice(0, 15)) {
+      for (const h of (items as Record<string, unknown>[]).slice(0, 50)) {
         const tag = (h.hashtag_name ?? h.name ?? h.hashtag ?? h.title ?? "") as string
         if (tag) hashtags.push(tag.replace(/^#/, ""))
       }
