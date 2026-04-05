@@ -31,6 +31,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (!apiKey) return NextResponse.json({ error: "Ayrshare not configured" }, { status: 500 })
   if (!privateKey) return NextResponse.json({ error: "Ayrshare private key not configured" }, { status: 500 })
 
+  // Optional: specific platform to link
+  let platform: string | null = null
+  try {
+    const body = await req.json().catch(() => ({}))
+    platform = (body as Record<string, unknown>).platform as string || null
+  } catch { /* no body is fine */ }
+
   try {
     // Check if user already has a profile key
     const integSnap = await db.doc(`users/${uid}/integrations/ayrshare`).get()
@@ -103,14 +110,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Generate JWT link URL for social account linking
     console.log("[ACCOUNTS] Generating JWT URL for", uid)
 
+    const jwtPayload: Record<string, unknown> = {
+      domain: process.env.AYRSHARE_DOMAIN || "digitalchemy-console.vercel.app",
+      privateKey,
+      profileKey,
+    }
+    if (platform) jwtPayload.allowedSocial = [platform]
+
+    console.log("[ACCOUNTS] JWT request — platform:", platform || "all", "profileKey:", profileKey?.slice(0, 8) + "...")
+
     const jwtRes = await fetch(`${AYRSHARE_API}/profiles/generateJWT`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        domain: process.env.AYRSHARE_DOMAIN || "digitalchemy-console.vercel.app",
-        privateKey,
-        profileKey,
-      }),
+      body: JSON.stringify(jwtPayload),
       signal: AbortSignal.timeout(10000),
     })
 

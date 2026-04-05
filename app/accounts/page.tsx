@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/AuthContext"
+import { auth } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 
 const DISPLAY = "'Playfair Display', Georgia, serif"
@@ -46,15 +47,16 @@ export default function AccountsPage() {
     return () => window.removeEventListener("focus", onFocus)
   }, [])
 
-  const handleConnect = async () => {
-    if (!user) return
+  const handleConnect = async (platform?: string) => {
+    if (!auth?.currentUser) { setError("Not signed in"); return }
     setConnecting(true)
     setError("")
     try {
-      const idToken = await user.getIdToken()
+      const idToken = await auth.currentUser.getIdToken(true)
       const res = await fetch("/api/accounts/connect", {
         method: "POST",
         headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify(platform ? { platform } : {}),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -110,11 +112,14 @@ export default function AccountsPage() {
               {ALL_PLATFORMS.map(p => {
                 const isLinked = connectedPlatforms.includes(p.id)
                 return (
-                  <div key={p.id} style={{ backgroundColor: "#FDFCF8", border: `1px solid ${isLinked ? "#3E2723" : "#C4B9A0"}`, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div key={p.id} onClick={() => !isLinked && !connecting && handleConnect(p.id)}
+                    style={{ backgroundColor: "#FDFCF8", border: `1px solid ${isLinked ? "#3E2723" : "#C4B9A0"}`, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: isLinked ? "default" : "pointer", transition: "border-color 0.15s" }}
+                    onMouseEnter={e => { if (!isLinked) (e.currentTarget.style.borderColor = "#3E2723") }}
+                    onMouseLeave={e => { if (!isLinked) (e.currentTarget.style.borderColor = "#C4B9A0") }}>
                     <div>
                       <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, color: "#1A1A1A" }}>{p.name}</div>
                       <div style={{ fontFamily: "system-ui", fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: isLinked ? "#065F46" : "#8B7355", marginTop: 2 }}>
-                        {isLinked ? "\u2713 Connected" : "Not connected"}
+                        {isLinked ? "\u2713 Connected" : "Click to connect"}
                       </div>
                     </div>
                     <div style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui", fontWeight: 700, fontSize: 16, color: isLinked ? p.color : "#C4B9A0", opacity: isLinked ? 1 : 0.4 }}>
@@ -140,7 +145,7 @@ export default function AccountsPage() {
           )}
 
           {/* Connect Accounts button */}
-          <button onClick={handleConnect} disabled={connecting}
+          <button onClick={() => handleConnect()} disabled={connecting}
             style={{ width: "100%", padding: 13, backgroundColor: connecting ? "#8B7355" : hasAnyConnection ? "transparent" : "#3E2723", color: hasAnyConnection ? "#3E2723" : "#F4F1E4", border: hasAnyConnection ? "1px solid #C4B9A0" : "none", cursor: connecting ? "wait" : "pointer", fontFamily: DISPLAY, fontWeight: 700, fontSize: hasAnyConnection ? 13 : 15, letterSpacing: "0.03em", marginBottom: 4 }}>
             {connecting ? "Opening link page\u2026" : hasAnyConnection ? "Link more accounts" : "Connect Your Social Accounts"}
           </button>
