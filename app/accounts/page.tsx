@@ -71,15 +71,16 @@ export default function AccountsPage() {
   }
 
   const handleSync = async () => {
-    if (!user) return
+    if (!auth?.currentUser) return
     setSyncing(true)
     setError("")
     setSyncResult(null)
     try {
+      const idToken = await auth.currentUser.getIdToken(true)
       const res = await fetch("/api/content-dna/auto-ingest", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: user.uid }),
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: auth.currentUser.uid }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)

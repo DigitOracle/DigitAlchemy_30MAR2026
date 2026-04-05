@@ -821,9 +821,9 @@ export function MorningBriefing() {
                 {!hasContentDNA ? (
                   <>
                     <p style={{ fontFamily: BODY, fontSize: 12, color: SEC, fontStyle: "italic", margin: "0 0 10px" }}>
-                      Want personalised recommendations? Upload 2&ndash;3 of your best videos and we&rsquo;ll learn your content style.
+                      Want personalised recommendations? Connect your social accounts and we&rsquo;ll learn your content style automatically.
                     </p>
-                    <button onClick={() => { window.location.href = "/upload" }}
+                    <button onClick={() => { window.location.href = "/accounts" }}
                       style={{ padding: "7px 18px", backgroundColor: BROWN, color: "#F4F1E4", border: "none", cursor: "pointer", fontFamily: DISPLAY, fontWeight: 700, fontSize: 11 }}>
                       Build my Content DNA
                     </button>
