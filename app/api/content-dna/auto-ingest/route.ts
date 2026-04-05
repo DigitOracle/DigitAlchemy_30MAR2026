@@ -4,12 +4,16 @@ import { getAyrshareConfig } from "@/lib/firestore/integrations"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
 import { saveDNASample, loadContentProfile, saveContentProfile, mergeProfileWithSample } from "@/lib/firestore/contentProfile"
 import { getAuth } from "firebase-admin/auth"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
 
 export async function POST(req: Request): Promise<NextResponse> {
   try {
+    // Ensure Firebase Admin is initialized before verifyIdToken
+    getDb()
+
     const body = await req.json()
     const { uid } = body
     if (!uid) return NextResponse.json({ error: "Missing uid" }, { status: 400 })
