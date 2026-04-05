@@ -169,7 +169,7 @@ export function MorningBriefing() {
   const [personalRecs, setPersonalRecs] = useState<RecPost[]>([])
   const [recsLoading, setRecsLoading] = useState(false)
 
-  const firstName = profile?.name?.split(" ")[0] || ""
+  const firstName = user && profile?.name ? profile.name.split(" ")[0] : ""
 
   useEffect(() => { setMounted(true) }, [])
   useEffect(() => {

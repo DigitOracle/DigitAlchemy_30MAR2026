@@ -62,8 +62,18 @@ export default function AuthPage() {
       }
       router.push("/")
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message.replace("Firebase: ", "").replace(/\(auth\/.*\)/, "").trim() : "Something went wrong"
-      setError(msg)
+      const raw = err instanceof Error ? err.message : ""
+      const code = raw.match(/\(auth\/([^)]+)\)/)?.[1] || ""
+      const friendly: Record<string, string> = {
+        "user-not-found": "No account found with this email. Please create an account.",
+        "wrong-password": "Incorrect password. Please try again.",
+        "invalid-credential": "Invalid credentials. Please check your email and password.",
+        "too-many-requests": "Too many attempts. Please try again later.",
+        "email-already-in-use": "An account with this email already exists. Please sign in.",
+        "weak-password": "Password is too weak. Please use at least 6 characters.",
+        "invalid-email": "Please enter a valid email address.",
+      }
+      setError(friendly[code] || raw.replace("Firebase: ", "").replace(/\(auth\/.*\)/, "").trim() || "Something went wrong")
     } finally {
       setSubmitting(false)
     }
