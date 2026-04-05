@@ -15,13 +15,21 @@ export interface AyrsharePost {
   thumbnailUrl?: string
 }
 
-export async function fetchPostHistory(platform: string): Promise<AyrsharePost[]> {
-  const apiKey = process.env.AYRSHARE_API_KEY
-  if (!apiKey) { console.log("[AYRSHARE] No AYRSHARE_API_KEY"); return [] }
+export interface AyrshareOpts {
+  apiKey?: string
+  profileKey?: string
+}
+
+export async function fetchPostHistory(platform: string, opts?: AyrshareOpts): Promise<AyrsharePost[]> {
+  const apiKey = opts?.apiKey || process.env.AYRSHARE_API_KEY
+  if (!apiKey) { console.log("[AYRSHARE] No API key"); return [] }
+
+  const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}` }
+  if (opts?.profileKey) headers["Profile-Key"] = opts.profileKey
 
   try {
     const res = await fetch(`https://app.ayrshare.com/api/history/${platform}`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers,
       signal: AbortSignal.timeout(15000),
     })
     if (!res.ok) { console.log("[AYRSHARE]", platform, "status:", res.status); return [] }
@@ -141,9 +149,9 @@ async function enrichYouTubeWithDataAPI(posts: AyrsharePost[]): Promise<Ayrshare
   }
 }
 
-export async function fetchAllPostHistory(): Promise<AyrsharePost[]> {
+export async function fetchAllPostHistory(opts?: AyrshareOpts): Promise<AyrsharePost[]> {
   const platforms = ["tiktok", "linkedin", "youtube"]
-  const results = await Promise.allSettled(platforms.map(p => fetchPostHistory(p)))
+  const results = await Promise.allSettled(platforms.map(p => fetchPostHistory(p, opts)))
   const allPosts: AyrsharePost[] = []
   for (const r of results) {
     if (r.status === "fulfilled") allPosts.push(...r.value)

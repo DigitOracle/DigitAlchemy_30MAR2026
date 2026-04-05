@@ -43,11 +43,14 @@ export default function AuthPage() {
         if (!name.trim()) { setError("Name is required"); setSubmitting(false); return }
         const cred = await createUserWithEmailAndPassword(auth, email, password)
         await updateProfile(cred.user, { displayName: name.trim() })
+        const isAdmin = email === "digitalabbot.io@gmail.com"
         await setDoc(doc(db, "users", cred.user.uid), {
           uid: cred.user.uid,
           name: name.trim(),
           email,
           defaultRegion: region,
+          role: isAdmin ? "admin" : "member",
+          hasConnectedAccounts: isAdmin,
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
         })

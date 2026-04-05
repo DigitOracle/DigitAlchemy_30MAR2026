@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { fetchPostHistory, fetchAllPostHistory } from "@/lib/ayrshare"
+import { getAyrshareConfig } from "@/lib/firestore/integrations"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -7,10 +8,18 @@ export const dynamic = "force-dynamic"
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const platformFilter = req.nextUrl.searchParams.get("platform") || "all"
   const rangeFilter = parseInt(req.nextUrl.searchParams.get("range") || "30", 10) || 30
+  const uid = req.nextUrl.searchParams.get("uid") || null
+
+  // Resolve Ayrshare credentials for this user
+  const ayrConfig = await getAyrshareConfig(uid)
+  if (!ayrConfig) {
+    return NextResponse.json({ posts: 0, stats: null, timeline: [], topPosts: [], status: "not_connected" })
+  }
+  const opts = { apiKey: ayrConfig.apiKey, profileKey: ayrConfig.profileKey }
 
   let posts = platformFilter === "all"
-    ? await fetchAllPostHistory()
-    : await fetchPostHistory(platformFilter)
+    ? await fetchAllPostHistory(opts)
+    : await fetchPostHistory(platformFilter, opts)
 
   // Date range filter
   const cutoff = new Date(Date.now() - rangeFilter * 24 * 60 * 60 * 1000)

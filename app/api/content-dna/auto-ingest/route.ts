@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { fetchAllPostHistory } from "@/lib/ayrshare"
+import { getAyrshareConfig } from "@/lib/firestore/integrations"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
 import { saveDNASample, loadContentProfile, saveContentProfile, mergeProfileWithSample } from "@/lib/firestore/contentProfile"
 
@@ -13,7 +14,13 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     console.log("[AUTO-INGEST] Starting for uid:", uid)
 
-    const posts = await fetchAllPostHistory()
+    // Resolve Ayrshare credentials for this user
+    const ayrConfig = await getAyrshareConfig(uid)
+    if (!ayrConfig) {
+      return NextResponse.json({ error: "No social accounts connected. Link your accounts first.", status: "not_connected" })
+    }
+
+    const posts = await fetchAllPostHistory({ apiKey: ayrConfig.apiKey, profileKey: ayrConfig.profileKey })
     console.log("[AUTO-INGEST] Fetched", posts.length, "posts across all platforms")
 
     if (posts.length === 0) {
