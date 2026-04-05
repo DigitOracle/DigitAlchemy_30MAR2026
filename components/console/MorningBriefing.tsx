@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useAuth } from "@/lib/AuthContext"
 
 type WikiItem = { name: string; views: number }
 type GdeltItem = { title: string; domain: string; url?: string }
@@ -83,16 +84,117 @@ function WingRule() {
   </div>
 }
 
+// ── Post recommendation cards ──
+function RecommendsSection({ posts, loading: isLoading, platform }: {
+  posts: { topic: string; caption: string; hashtags: string; audio: string; best_time: string; format: string }[]
+  loading: boolean
+  platform: string
+}) {
+  return (
+    <div style={{ marginTop: 20, borderTop: `2px solid ${BROWN}`, paddingTop: 14 }}>
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#8B0000", marginBottom: 2 }}>
+          DigitAlchemy&reg; Recommends
+        </div>
+        <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT }}>
+          If you&rsquo;re posting on {platform} today, here are three ideas ready to go.
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: ACCENT, padding: "16px 0" }}>
+          Preparing your recommendations&hellip;
+        </div>
+      ) : posts.length === 0 ? (
+        <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT, padding: "8px 0" }}>
+          No recommendations available right now.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
+          {posts.map((post, i) => (
+            <div key={i} style={{ border: `1px solid ${RULE}`, padding: 14, backgroundColor: "#FDFCF8", position: "relative" }}>
+              {/* Card number */}
+              <div style={{ fontFamily: DISPLAY, fontWeight: 900, fontSize: 26, color: "#E8E0D0", position: "absolute", top: 6, right: 10, lineHeight: 1 }}>{i + 1}</div>
+
+              {/* Topic */}
+              <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 13, lineHeight: 1.3, color: INK, marginBottom: 6, paddingRight: 22 }}>{post.topic}</div>
+
+              {/* Caption */}
+              <div style={{ backgroundColor: PAPER_LIGHT, border: "1px solid #E8E0D0", padding: "7px 9px", marginBottom: 7, position: "relative" }}>
+                <div style={{ fontFamily: BODY, fontSize: 11.5, lineHeight: 1.4, color: BROWN }}>{post.caption}</div>
+                <button onClick={() => navigator.clipboard.writeText(post.caption)}
+                  style={{ position: "absolute", top: 3, right: 3, fontFamily: LABEL, fontSize: 8, color: ACCENT, background: "none", border: "none", cursor: "pointer", padding: "1px 5px" }}>Copy</button>
+              </div>
+
+              {/* Hashtags */}
+              <div style={{ marginBottom: 7 }}>
+                <div style={{ fontFamily: LABEL, fontSize: 8, textTransform: "uppercase", letterSpacing: "0.1em", color: ACCENT, marginBottom: 3 }}>Hashtags</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                  {(post.hashtags || "").split(/\s+/).filter(Boolean).map((tag, j) => (
+                    <button key={j} onClick={() => navigator.clipboard.writeText(tag.startsWith("#") ? tag : `#${tag}`)}
+                      style={{ fontFamily: BODY, fontSize: 10.5, color: BROWN, background: "none", border: `1px dotted ${RULE}`, padding: "1px 5px", cursor: "pointer" }}>
+                      {tag.startsWith("#") ? tag : `#${tag}`}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => navigator.clipboard.writeText(post.hashtags)}
+                  style={{ fontFamily: LABEL, fontSize: 8, color: ACCENT, background: "none", border: "none", cursor: "pointer", marginTop: 3 }}>Copy all</button>
+              </div>
+
+              {/* Audio */}
+              {post.audio && post.audio !== "Original audio" && (
+                <div style={{ marginBottom: 5 }}>
+                  <div style={{ fontFamily: LABEL, fontSize: 8, textTransform: "uppercase", letterSpacing: "0.1em", color: ACCENT, marginBottom: 2 }}>Audio</div>
+                  <div style={{ fontFamily: BODY, fontSize: 10.5, color: BROWN }}>{"\u266B"} {post.audio}</div>
+                </div>
+              )}
+
+              {/* Time + Format */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px dotted ${RULE}`, paddingTop: 5, marginTop: 6 }}>
+                <div style={{ fontFamily: TYPEWRITER, fontSize: 9, color: ACCENT }}>Post {post.best_time || "today"}</div>
+                <div style={{ fontFamily: LABEL, fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: BROWN, backgroundColor: "#E8E0D0", padding: "2px 7px" }}>{post.format || "Post"}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function MorningBriefing() {
+  const { profile } = useAuth()
   const [mounted, setMounted] = useState(false)
-  const [region, setRegion] = useState("AE")
+  const [region, setRegion] = useState(profile?.defaultRegion || "AE")
   const [data, setData] = useState<BriefingData | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectorOpen, setSelectorOpen] = useState(false)
   const [tickerData, setTickerData] = useState<TickerData | null>(null)
   const [audioData, setAudioData] = useState<AudioData | null>(null)
+  const [activeSection, setActiveSection] = useState<string>("briefing")
+  const [recs, setRecs] = useState<{ posts: { topic: string; caption: string; hashtags: string; audio: string; best_time: string; format: string }[] } | null>(null)
+  const [recsLoading, setRecsLoading] = useState(false)
+
+  const firstName = profile?.name?.split(" ")[0] || ""
 
   useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    if (profile?.defaultRegion && region === "AE" && profile.defaultRegion !== "AE") {
+      setRegion(profile.defaultRegion)
+    }
+  }, [profile]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch recommendations when platform section is active
+  useEffect(() => {
+    const platformSections = ["tiktok", "instagram", "youtube"]
+    if (!platformSections.includes(activeSection)) { setRecs(null); return }
+    setRecsLoading(true)
+    fetch(`/api/post-recommendations?region=${region}&platform=${activeSection}`)
+      .then(r => r.json())
+      .then(d => { setRecs(d); setRecsLoading(false) })
+      .catch(() => setRecsLoading(false))
+  }, [activeSection, region])
+
   useEffect(() => {
     setLoading(true)
     Promise.allSettled([
@@ -166,10 +268,36 @@ export function MorningBriefing() {
 
         <div style={{ maxWidth: 920, margin: "0 auto", padding: "10px 20px 8px", position: "relative", zIndex: 3 }}>
 
-          {/* ── SKYLINE ── */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 9, fontFamily: LABEL, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.12em", padding: "2px 0 4px", borderBottom: `0.5px solid ${RULE}` }}>
-            <span>Inside: Platform Watch &middot; Global Curiosity Index &middot; Regional Wire</span>
-            <span>{edition} Edition &middot; {editionTag}</span>
+          {/* ── SECTION NAV ── */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2, padding: "6px 0", borderBottom: `2px solid ${BROWN}`, borderTop: `0.5px solid ${RULE}`, flexWrap: "wrap" }}>
+            {([
+              { id: "briefing", label: "Front Page" },
+              { id: "tiktok", label: "TikTok", icon: "tiktok" as const },
+              { id: "instagram", label: "Instagram", icon: "instagram" as const },
+              { id: "youtube", label: "YouTube", icon: "youtube" as const },
+              { id: "news", label: "News Wire" },
+              { id: "culture", label: "Culture" },
+              { id: "deepdive", label: "Deep Dive \u2192" },
+            ] as const).map(sec => (
+              <button key={sec.id}
+                onClick={() => {
+                  if (sec.id === "deepdive") { document.getElementById("scan-setup")?.scrollIntoView({ behavior: "smooth" }); return }
+                  setActiveSection(sec.id)
+                }}
+                style={{
+                  fontFamily: DISPLAY, fontSize: 10.5, fontWeight: activeSection === sec.id ? 700 : 400,
+                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  color: activeSection === sec.id ? BROWN : ACCENT,
+                  background: "none", border: "none",
+                  borderBottom: activeSection === sec.id ? `2px solid ${BROWN}` : "2px solid transparent",
+                  padding: "3px 10px", cursor: "pointer", transition: "all 0.15s",
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                }}>
+                {"icon" in sec && sec.icon && <PlatformIcon platform={sec.icon} size={11} style={{ opacity: activeSection === sec.id ? 0.9 : 0.5, marginRight: 0 }} />}
+                {sec.label}
+              </button>
+            ))}
+            <span style={{ marginLeft: "auto", fontFamily: LABEL, fontSize: 8, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.1em" }}>{edition} &middot; {editionTag}</span>
           </div>
 
           {/* ── MASTHEAD ── */}
@@ -222,7 +350,12 @@ export function MorningBriefing() {
             <span>Digital Intelligence for the Built World</span>
           </div>
           {/* Thick-thin rule below folio */}
-          <div style={{ marginBottom: 10 }}><ThickThinRule /></div>
+          <div style={{ marginBottom: firstName ? 6 : 10 }}><ThickThinRule /></div>
+          {firstName && (
+            <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: SEC, textAlign: "center", marginBottom: 8 }}>
+              Prepared for {firstName}
+            </div>
+          )}
 
           {loading && (
             <div style={{ textAlign: "center", padding: "28px 0" }}>
@@ -230,9 +363,11 @@ export function MorningBriefing() {
             </div>
           )}
 
-          {/* ════ ABOVE THE FOLD ════ */}
+          {/* ════ CONTENT AREA ════ */}
           {!loading && data && (
             <>
+              {/* ── FRONT PAGE (default briefing) ── */}
+              {activeSection === "briefing" && (<>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 210px", gap: 0 }} className="gazette-grid">
                 {/* ── LEAD STORY ── */}
                 <div style={{ paddingRight: 16, borderRight: `1px solid ${RULE}` }}>
@@ -430,7 +565,142 @@ export function MorningBriefing() {
                 </>
               )}
 
-              {/* Pull quote */}
+              </>)}
+
+              {/* ── TIKTOK SECTION ── */}
+              {activeSection === "tiktok" && (
+                <div>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#8B0000", marginBottom: 4 }}>
+                    TikTok Intelligence &middot; {regionLabel}
+                  </div>
+                  <h2 style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 900, lineHeight: 1.15, color: INK, marginBottom: 12, textShadow: "0.3px 0.3px 0px rgba(62,39,35,0.15)" }}>
+                    What TikTok Is Talking About in {regionLabel}
+                  </h2>
+                  {ttTags.length > 0 ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px 24px", marginBottom: 20 }}>
+                      {ttTags.map((tag, i) => (
+                        <div key={i} style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, borderBottom: `1px dotted ${RULE}`, paddingBottom: 4, marginBottom: 4, color: INK }}>
+                          {tag}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: ACCENT }}>No TikTok hashtag data available for this region.</p>
+                  )}
+                  {sounds.length > 0 && (
+                    <>
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 8 }}>
+                        Sounds Driving TikTok &middot; {regionLabel}
+                      </div>
+                      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 8 }}>
+                        {sounds.map((s, i) => (
+                          <div key={i} style={{ flexShrink: 0, width: 86, textAlign: "center" }}>
+                            {(s.albumArt || s.cover) && <img src={s.albumArt || s.cover || ""} alt="" style={{ width: 78, height: 78, objectFit: "cover", filter: "grayscale(40%) contrast(1.1) sepia(20%)", border: `1px solid ${RULE}`, display: "block", margin: "0 auto" }} />}
+                            {s.rank > 0 && <div style={{ fontFamily: LABEL, fontSize: 8, fontWeight: 700, color: "#8B0000", marginTop: 2 }}>#{s.rank}{s.rankDiffType === 1 ? " \u25B2" : s.rankDiffType === 2 ? " \u25BC" : ""}</div>}
+                            <div style={{ fontFamily: BODY, fontSize: 10, fontWeight: 700, lineHeight: 1.2, marginTop: 2, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                            <div style={{ fontFamily: BODY, fontSize: 9, color: ACCENT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.author}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, marginTop: 4 }}>
+                        Trending sounds &middot; ScrapeCreators live &middot; Album art via Spotify
+                      </div>
+                    </>
+                  )}
+                  <RecommendsSection posts={recs?.posts ?? []} loading={recsLoading} platform="TikTok" />
+                </div>
+              )}
+
+              {/* ── INSTAGRAM SECTION ── */}
+              {activeSection === "instagram" && (
+                <div>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7A5230", marginBottom: 4 }}>
+                    Instagram Intelligence &middot; {regionLabel}
+                  </div>
+                  <h2 style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 900, lineHeight: 1.15, color: INK, marginBottom: 12, textShadow: "0.3px 0.3px 0px rgba(62,39,35,0.15)" }}>
+                    What Instagram Is Watching in {regionLabel}
+                  </h2>
+                  {igTags.length > 0 ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px 24px", marginBottom: 20 }}>
+                      {igTags.map((tag, i) => (
+                        <div key={i} style={{ fontFamily: BODY, fontSize: 14, fontWeight: 700, borderBottom: `1px dotted ${RULE}`, paddingBottom: 4, marginBottom: 4, color: INK }}>
+                          {tag}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: ACCENT }}>No Instagram hashtag data available for this region.</p>
+                  )}
+                  <RecommendsSection posts={recs?.posts ?? []} loading={recsLoading} platform="Instagram" />
+                </div>
+              )}
+
+              {/* ── YOUTUBE SECTION ── */}
+              {activeSection === "youtube" && (
+                <div>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#8B0000", marginBottom: 4 }}>
+                    YouTube Intelligence &middot; {regionLabel}
+                  </div>
+                  <h2 style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 900, lineHeight: 1.15, color: INK, marginBottom: 16, textShadow: "0.3px 0.3px 0px rgba(62,39,35,0.15)" }}>
+                    Trending on YouTube &middot; {regionLabel}
+                  </h2>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                    {(data.youtube || []).map((v, i) => (
+                      <div key={i} style={{ borderBottom: `1px solid ${RULE}`, paddingBottom: 12 }}>
+                        {v.thumbnail && <img src={v.thumbnail} alt="" style={{ width: "100%", height: 140, objectFit: "cover", filter: "grayscale(50%) contrast(1.15) sepia(15%)", border: `1px solid ${RULE}`, marginBottom: 6, display: "block" }} />}
+                        <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, lineHeight: 1.3, color: INK, marginBottom: 2 }}>{v.title}</div>
+                        <div style={{ fontFamily: BODY, fontSize: 11, color: ACCENT }}>{v.channel} &middot; {Number(v.views).toLocaleString()} views</div>
+                      </div>
+                    ))}
+                  </div>
+                  <RecommendsSection posts={recs?.posts ?? []} loading={recsLoading} platform="YouTube" />
+                </div>
+              )}
+
+              {/* ── NEWS WIRE SECTION ── */}
+              {activeSection === "news" && (
+                <div>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 4 }}>
+                    Regional News Wire &middot; {regionLabel}
+                  </div>
+                  <h2 style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 900, lineHeight: 1.15, color: INK, marginBottom: 16, textShadow: "0.3px 0.3px 0px rgba(62,39,35,0.15)" }}>
+                    From the {regionLabel} Desk
+                  </h2>
+                  <div style={{ columnCount: 2, columnGap: 32, columnRule: `0.5px solid ${RULE}` }}>
+                    {gdelt.map((a, i) => (
+                      <div key={i} style={{ breakInside: "avoid", marginBottom: 16 } as React.CSSProperties}>
+                        <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, lineHeight: 1.3, color: INK, marginBottom: 4 }}>{a.title}</div>
+                        <div style={{ fontFamily: TYPEWRITER, fontSize: 10, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.05em" }}>&mdash; {a.domain}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── CULTURE SECTION ── */}
+              {activeSection === "culture" && (
+                <div>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 4 }}>
+                    Global Cultural Pulse
+                  </div>
+                  <h2 style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 900, lineHeight: 1.15, color: INK, marginBottom: 16, textShadow: "0.3px 0.3px 0px rgba(62,39,35,0.15)" }}>
+                    What the World Is Curious About
+                  </h2>
+                  <div style={{ columnCount: 2, columnGap: 32, columnRule: `0.5px solid ${RULE}` }}>
+                    {wiki.map((w, i) => (
+                      <div key={i} style={{ breakInside: "avoid", marginBottom: 16 } as React.CSSProperties}>
+                        <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, lineHeight: 1.3, color: INK }}>{w.name}</div>
+                        <div style={{ fontFamily: BODY, fontSize: 12, color: SEC, marginTop: 2 }}>{Number(w.views).toLocaleString()} readers worldwide in the past 24 hours</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, marginTop: 12 }}>
+                    Source: Wikipedia &middot; Most-viewed articles &middot; Past 24 hours
+                  </div>
+                </div>
+              )}
+
+              {/* Pull quote — always visible */}
               <DiamondDivider />
               <div style={{ position: "relative", maxWidth: "65%", margin: "0 auto", padding: "4px 0", textAlign: "center" }}>
                 <span style={{ position: "absolute", top: -12, left: -24, fontFamily: DISPLAY, fontSize: 60, color: RULE, lineHeight: 1, userSelect: "none" }}>&ldquo;</span>

@@ -1,18 +1,19 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { auth, db } from "@/lib/firebase"
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth"
 import { doc, setDoc, updateDoc } from "firebase/firestore"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/AuthContext"
 
 const REGIONS = [
-  { id: "AE", label: "UAE", flag: "\ud83c\udde6\ud83c\uddea" },
-  { id: "SA", label: "Saudi Arabia", flag: "\ud83c\uddf8\ud83c\udde6" },
-  { id: "KW", label: "Kuwait", flag: "\ud83c\uddf0\ud83c\uddfc" },
-  { id: "QA", label: "Qatar", flag: "\ud83c\uddf6\ud83c\udde6" },
-  { id: "US", label: "United States", flag: "\ud83c\uddfa\ud83c\uddf8" },
-  { id: "SG", label: "Singapore", flag: "\ud83c\uddf8\ud83c\uddec" },
+  { id: "AE", label: "UAE" }, { id: "SA", label: "Saudi Arabia" }, { id: "KW", label: "Kuwait" },
+  { id: "QA", label: "Qatar" }, { id: "US", label: "United States" }, { id: "SG", label: "Singapore" },
 ]
+
+const DISPLAY = "'Playfair Display', Georgia, serif"
+const BODY = "'Libre Baskerville', Georgia, serif"
+const TYPEWRITER = "'Special Elite', 'Courier New', monospace"
 
 export default function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login")
@@ -21,116 +22,153 @@ export default function AuthPage() {
   const [password, setPassword] = useState("")
   const [region, setRegion] = useState("AE")
   const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const router = useRouter()
+  const { user, loading } = useAuth()
+
+  useEffect(() => {
+    if (!loading && user) router.push("/")
+  }, [user, loading, router])
+
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError("")
-    setLoading(true)
-
+    setSubmitting(true)
     try {
-      if (!auth || !db) { setError("Authentication not configured"); setLoading(false); return }
+      if (!auth || !db) { setError("Authentication not configured"); setSubmitting(false); return }
       if (mode === "signup") {
-        const cred = await createUserWithEmailAndPassword(auth!, email, password)
-        await setDoc(doc(db!, "users", cred.user.uid), {
+        if (!name.trim()) { setError("Name is required"); setSubmitting(false); return }
+        const cred = await createUserWithEmailAndPassword(auth, email, password)
+        await setDoc(doc(db, "users", cred.user.uid), {
           uid: cred.user.uid,
-          name,
+          name: name.trim(),
           email,
           defaultRegion: region,
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
         })
       } else {
-        const cred = await signInWithEmailAndPassword(auth!, email, password)
-        await updateDoc(doc(db!, "users", cred.user.uid), {
+        const cred = await signInWithEmailAndPassword(auth, email, password)
+        await updateDoc(doc(db, "users", cred.user.uid), {
           lastLogin: new Date().toISOString(),
-        }).catch(() => { /* profile may not exist yet */ })
+        }).catch(() => {})
       }
       router.push("/")
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message.replace("Firebase: ", "") : "Something went wrong"
+      const msg = err instanceof Error ? err.message.replace("Firebase: ", "").replace(/\(auth\/.*\)/, "").trim() : "Something went wrong"
       setError(msg)
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#F4F1E4" }}>
+      <p style={{ fontFamily: BODY, fontSize: 16, color: "#5D4E37", fontStyle: "italic" }}>Loading&hellip;</p>
+    </div>
+  )
+  if (user) return null
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "9px 11px", fontFamily: BODY, fontSize: 13,
+    border: "1px solid #C4B9A0", background: "#FDFCF8", color: "#1A1A1A",
+    outline: "none", boxSizing: "border-box",
+  }
+  const labelStyle: React.CSSProperties = {
+    fontFamily: TYPEWRITER, fontSize: 10, textTransform: "uppercase",
+    letterSpacing: "0.1em", color: "#8B7355", display: "block", marginBottom: 4,
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-[#190A46] text-white flex items-center justify-center text-xs font-bold">DA</div>
-            <span className="text-lg font-semibold text-gray-900">DigitAlchemy&reg; Console</span>
+    <>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Special+Elite&display=swap');`}</style>
+      <div style={{ minHeight: "100vh", backgroundColor: "#F4F1E4", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, position: "relative" }}>
+        {/* Paper grain */}
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", opacity: 0.04, mixBlendMode: "multiply" }}>
+          <filter id="authGrain"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves={3} stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
+          <rect width="100%" height="100%" filter="url(#authGrain)" />
+        </svg>
+
+        <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: 400 }}>
+          {/* Masthead */}
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={{ fontSize: 12, color: "#8B7355", letterSpacing: "0.3em", marginBottom: 4 }}>{"\u2726 \u2726 \u2726"}</div>
+            <div style={{ fontFamily: DISPLAY, fontWeight: 900, fontSize: 32, color: "#1A1A1A", letterSpacing: "0.04em" }}>DIGITALCHEMY</div>
+            <div style={{ fontFamily: DISPLAY, fontSize: 18, fontStyle: "italic", color: "#3E2723", marginTop: -2 }}>Console</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "8px 0" }}>
+              <div style={{ flex: 1, maxWidth: 100, borderTop: "0.5px solid #C4B9A0" }} />
+              <span style={{ fontSize: 8, color: "#8B7355" }}>{"\u2726"}</span>
+              <div style={{ flex: 1, maxWidth: 100, borderTop: "0.5px solid #C4B9A0" }} />
+            </div>
+            <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 14, color: "#5D4E37" }}>
+              {greeting}.
+            </p>
           </div>
-          <p className="text-sm text-gray-500">{greeting}</p>
-        </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">
-            {mode === "signup" ? "Create your account" : "Welcome back"}
-          </h2>
-          <p className="text-sm text-gray-500 mb-5">
-            {mode === "signup" ? "Get your personalised daily briefing" : "Sign in to your Console"}
-          </p>
+          {/* Card */}
+          <div style={{ background: "#FDFCF8", border: "1px solid #C4B9A0", padding: "28px 28px 24px" }}>
+            <h2 style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 18, color: "#1A1A1A", marginBottom: 4, textAlign: "center" }}>
+              {mode === "login" ? "Welcome back" : "Create your account"}
+            </h2>
+            <p style={{ fontFamily: BODY, fontSize: 12, color: "#8B7355", textAlign: "center", marginBottom: 20, fontStyle: "italic" }}>
+              {mode === "login" ? "Sign in to your Console" : "Get your personalised daily briefing"}
+            </p>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-700">{error}</div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Full name</label>
-                <input type="text" required value={name} onChange={e => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300"
-                  placeholder="Kendall Wilson" />
+            {error && (
+              <div style={{ fontFamily: BODY, fontSize: 12, color: "#8B0000", marginBottom: 14, textAlign: "center", padding: "8px 12px", border: "1px solid #dca0a0", background: "#fdf5f5" }}>
+                {error}
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-              <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300"
-                placeholder="you@company.com" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Password</label>
-              <input type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300"
-                placeholder={mode === "signup" ? "Min 8 characters" : "Enter password"} />
-            </div>
-
-            {mode === "signup" && (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Default region</label>
-                <select value={region} onChange={e => setRegion(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-300 bg-white">
-                  {REGIONS.map(r => <option key={r.id} value={r.id}>{r.flag} {r.label}</option>)}
-                </select>
+            <form onSubmit={handleSubmit}>
+              {mode === "signup" && (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={labelStyle}>Full Name</label>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Kendall Wilson" style={inputStyle} />
+                </div>
+              )}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Email</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="you@company.com" style={inputStyle} />
               </div>
-            )}
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Password</label>
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6}
+                  placeholder={mode === "signup" ? "Min 6 characters" : "Enter password"} style={inputStyle} />
+              </div>
+              {mode === "signup" && (
+                <div style={{ marginBottom: 18 }}>
+                  <label style={labelStyle}>Default Region</label>
+                  <select value={region} onChange={e => setRegion(e.target.value)} style={inputStyle}>
+                    {REGIONS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                  </select>
+                </div>
+              )}
 
-            <button type="submit" disabled={loading}
-              className="w-full py-2.5 bg-[#190A46] text-white rounded-lg text-sm font-medium hover:bg-[#2a1566] transition-colors disabled:opacity-50">
-              {loading ? "Please wait..." : mode === "signup" ? "Create account" : "Sign in"}
-            </button>
-          </form>
+              <button type="submit" disabled={submitting}
+                style={{ width: "100%", padding: "11px 0", fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, letterSpacing: "0.05em", color: "#FDFCF8", background: submitting ? "#8B7355" : "#3E2723", border: "none", cursor: submitting ? "default" : "pointer" }}>
+                {submitting ? "Please wait\u2026" : mode === "login" ? "Sign In" : "Create Account"}
+              </button>
+            </form>
 
-          <p className="text-xs text-gray-500 text-center mt-4">
-            {mode === "signup" ? "Already have an account? " : "Don\u2019t have an account? "}
-            <button onClick={() => { setMode(mode === "signup" ? "login" : "signup"); setError("") }}
-              className="text-[#534AB7] hover:underline font-medium">
-              {mode === "signup" ? "Sign in" : "Create one"}
-            </button>
-          </p>
+            <div style={{ textAlign: "center", marginTop: 16 }}>
+              <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError("") }}
+                style={{ fontFamily: BODY, fontSize: 12, color: "#8B7355", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textDecorationColor: "#C4B9A0", textUnderlineOffset: 3 }}>
+                {mode === "login" ? "New here? Create an account" : "Already have an account? Sign in"}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ textAlign: "center", marginTop: 16 }}>
+            <span style={{ fontFamily: TYPEWRITER, fontSize: 9, color: "#8B7355", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+              DigitAlchemy&reg; Tech Limited &middot; Abu Dhabi
+            </span>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }

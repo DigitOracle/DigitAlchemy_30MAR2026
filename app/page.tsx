@@ -1,5 +1,9 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/AuthContext"
+import { signOut } from "firebase/auth"
+import { auth } from "@/lib/firebase"
 import { useStream } from "@/lib/useStream"
 import { ProgressStrip } from "@/components/ProgressStrip"
 import type { ProgressChip } from "@/components/ProgressStrip"
@@ -64,6 +68,8 @@ function DevDebugPanel({ mode, stage, platform, niche, lag, trendRadarData }: {
 }
 
 export default function ConsolePage() {
+  const { user, profile, loading: authLoading } = useAuth()
+  const router = useRouter()
   const { state, startStream, reset } = useStream()
 
   const [appMode, setAppMode] = useState<AppMode>(null)
@@ -80,6 +86,11 @@ export default function ConsolePage() {
   const [reIndustry, setReIndustry] = useState<string | null>(null)
   const [reAudience, setReAudience] = useState<string | null>(null)
   const [confirmedFocus, setConfirmedFocus] = useState<{ topic: string; summary: string; keywords: string[]; editedByUser: boolean } | null>(null)
+
+  // Auth guard
+  useEffect(() => {
+    if (!authLoading && !user) router.push("/auth")
+  }, [user, authLoading, router])
 
   const ingestion = state.ingestion
 
@@ -508,6 +519,16 @@ export default function ConsolePage() {
 
   const isLoading = stage === "ingesting" || stage === "generating"
 
+  // Auth loading / redirect
+  if (authLoading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#F4F1E4" }}>
+      <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, color: "#5D4E37", fontStyle: "italic" }}>
+        Composing today&rsquo;s edition&hellip;
+      </p>
+    </div>
+  )
+  if (!user) return null
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
@@ -529,6 +550,12 @@ export default function ConsolePage() {
             {(stage === "complete" || stage === "error" || (appMode && stage !== "mode_select")) && (
               <button onClick={handleFullReset} className="text-xs text-gray-400 hover:text-[#190A46] border border-gray-200 px-3 py-1 rounded-lg">New task</button>
             )}
+            {auth && (
+              <button onClick={() => signOut(auth!)}
+                style={{ fontFamily: "'Special Elite', cursive", fontSize: 11, color: "#8B7355", background: "none", border: "none", cursor: "pointer" }}>
+                Sign out
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -541,7 +568,9 @@ export default function ConsolePage() {
           {stage === "mode_select" && <MorningBriefing />}
 
           {/* MODE SELECT */}
-          {stage === "mode_select" && <ModeSelectStage onSelect={handleModeSelect} />}
+          <div id="scan-setup">
+            {stage === "mode_select" && <ModeSelectStage onSelect={handleModeSelect} />}
+          </div>
 
           {/* ══ OPTIMIZE FLOW ══ */}
 
