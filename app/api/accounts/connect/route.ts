@@ -8,6 +8,9 @@ export const maxDuration = 30
 const AYRSHARE_API = "https://app.ayrshare.com/api"
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // Ensure Firebase Admin is initialized (getDb triggers init in jobStore.ts)
+  const db = getDb()
+
   // Require Firebase ID token
   const authHeader = req.headers.get("authorization")
   if (!authHeader?.startsWith("Bearer ")) {
@@ -18,7 +21,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const token = await getAuth().verifyIdToken(authHeader.slice(7))
     uid = token.uid
-  } catch {
+  } catch (err) {
+    console.error("[ACCOUNTS] Token verification failed:", err)
     return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
   }
 
@@ -26,8 +30,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const privateKey = process.env.AYRSHARE_PRIVATE_KEY?.replace(/\\n/g, "\n")
   if (!apiKey) return NextResponse.json({ error: "Ayrshare not configured" }, { status: 500 })
   if (!privateKey) return NextResponse.json({ error: "Ayrshare private key not configured" }, { status: 500 })
-
-  const db = getDb()
 
   try {
     // Check if user already has a profile key
