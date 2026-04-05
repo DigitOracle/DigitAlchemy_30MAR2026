@@ -27,9 +27,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const apiKey = process.env.AYRSHARE_API_KEY
-  const privateKey = process.env.AYRSHARE_PRIVATE_KEY?.replace(/\\n/g, "\n")
+  // Handle both Vercel (real newlines) and local (escaped \\n) storage formats, strip surrounding quotes
+  const rawKey = process.env.AYRSHARE_PRIVATE_KEY || ""
+  const privateKey = rawKey.replace(/\\n/g, "\n").replace(/^["']|["']$/g, "").trim()
   if (!apiKey) return NextResponse.json({ error: "Ayrshare not configured" }, { status: 500 })
   if (!privateKey) return NextResponse.json({ error: "Ayrshare private key not configured" }, { status: 500 })
+  console.log("[ACCOUNTS] Private key starts:", privateKey.slice(0, 30), "ends:", privateKey.slice(-30), "length:", privateKey.length)
 
   // Optional: specific platform to link
   let platform: string | null = null
