@@ -163,7 +163,7 @@ function RecommendsSection({ posts, loading: isLoading, platform }: {
 }
 
 export function MorningBriefing() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [region, setRegion] = useState(profile?.defaultRegion || "AE")
   const [data, setData] = useState<BriefingData | null>(null)
@@ -189,7 +189,7 @@ export function MorningBriefing() {
     const platformSections = ["tiktok", "instagram", "youtube"]
     if (!platformSections.includes(activeSection)) { setRecs(null); return }
     setRecsLoading(true)
-    fetch(`/api/post-recommendations?region=${region}&platform=${activeSection}`)
+    fetch(`/api/post-recommendations?region=${region}&platform=${activeSection}&uid=${user?.uid || ""}`)
       .then(r => r.json())
       .then(d => { setRecs(d); setRecsLoading(false) })
       .catch(() => setRecsLoading(false))

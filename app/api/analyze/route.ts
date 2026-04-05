@@ -7,6 +7,8 @@ import { getSupadataTranscript } from "@/lib/transcription/supadata"
 import { getAllServers, serversToRegistryString } from "@/lib/registry"
 import { agentsToProfileString } from "@/lib/agentProfiles"
 import Anthropic from "@anthropic-ai/sdk"
+import { extractContentDNA } from "@/lib/profile/extractContentDNA"
+import { saveDNASample, loadContentProfile, saveContentProfile, mergeProfileWithSample } from "@/lib/firestore/contentProfile"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -42,7 +44,7 @@ async function callClaude(prompt: string, maxTokens = 1500): Promise<Record<stri
 
 export async function POST(req: NextRequest): Promise<Response> {
   const body = await req.json()
-  const { task, workflowId, workflowLabel, intakeContext, storagePath: uploadedStoragePath } = body
+  const { task, workflowId, workflowLabel, intakeContext, storagePath: uploadedStoragePath, uid: requestUid } = body
 
   if (!task || task.trim().length < 5) {
     return new Response(JSON.stringify({ success: false, error: "Task required" }), {
@@ -419,6 +421,38 @@ Provide 2-3 keyQuotes and 3 hookCandidates based on the topic and content detect
               },
             })
           } catch { /* non-critical */ }
+
+          // Extract Content DNA from transcript (non-blocking)
+          if (whisperTranscript && requestUid) {
+          try {
+            const platform = (intakeContext?.platform as string) || "tiktok"
+            const dna = await extractContentDNA(whisperTranscript, platform, {
+              duration: videoMeta?.duration,
+              title: videoMeta?.title,
+              description: undefined,
+            })
+            if (dna) {
+              const dnaSample = {
+                sourceType: (isUpload ? "upload" : "url") as "upload" | "url",
+                platform,
+                transcript: whisperTranscript.slice(0, 500),
+                topics: dna.topics,
+                tone: dna.tone,
+                visualStyle: dna.visualStyle,
+                audioPreference: dna.audioPreference,
+                captionStyle: dna.captionStyle,
+                hashtags: dna.hashtags,
+                duration: videoMeta?.duration ? Math.round(videoMeta.duration) : 0,
+                analyzedAt: new Date().toISOString(),
+              }
+              await saveDNASample(requestUid, dnaSample)
+              const existingProfile = await loadContentProfile(requestUid)
+              const updatedProfile = mergeProfileWithSample(existingProfile, dnaSample)
+              await saveContentProfile(requestUid, updatedProfile)
+              console.log("[CONTENT DNA] Profile updated:", requestUid, "samples:", updatedProfile.sampleCount, "confidence:", updatedProfile.confidence)
+            }
+          } catch (err) { console.log("[CONTENT DNA] Non-critical error:", err) }
+          }
         }
 
         // Phase 1 complete — ingestion + content intelligence done

@@ -68,6 +68,8 @@ export function useStream() {
           intakeContext,
           // Extract storagePath to top-level so /api/analyze can detect upload flow
           storagePath: intakeContext.storagePath ?? undefined,
+          // Pass uid for Content DNA extraction
+          uid: intakeContext.uid ?? undefined,
         }),
       })
 

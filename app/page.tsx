@@ -384,7 +384,7 @@ export default function ConsolePage() {
   // ── Optimize: handlers ──
   const handleUrlSubmit = async (url: string, task: string) => {
     setSourceLabel(url.length > 50 ? url.slice(0, 47) + "\u2026" : url)
-    await startStream(task, "social-video-optimization", "Social Video Intelligence", { videoUrl: url })
+    await startStream(task, "social-video-optimization", "Social Video Intelligence", { videoUrl: url, uid: user?.uid || "" })
   }
 
   const handleUploadComplete = useCallback((storagePath: string, filename: string) => {
@@ -393,9 +393,9 @@ export default function ConsolePage() {
       `Analyze uploaded video: ${filename}`,
       "social-video-optimization",
       "Social Video Intelligence",
-      { storagePath }
+      { storagePath, uid: user?.uid || "" }
     )
-  }, [startStream])
+  }, [startStream, user])
 
   const handleContentFocusConfirm = async (focus: { topic: string; summary: string; keywords: string[]; editedByUser: boolean }) => {
     setConfirmedFocus(focus)

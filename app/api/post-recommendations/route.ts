@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import { loadContentProfile } from "@/lib/firestore/contentProfile"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -20,7 +21,28 @@ interface PostRec {
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const region = req.nextUrl.searchParams.get("region") || "AE"
   const platform = req.nextUrl.searchParams.get("platform") || "tiktok"
+  const uid = req.nextUrl.searchParams.get("uid") || null
   const regionLabel = REGION_LABELS[region] || "UAE"
+
+  // Load Content DNA profile for personalisation
+  let profileContext = ""
+  if (uid) {
+    try {
+      const profile = await loadContentProfile(uid)
+      if (profile && profile.confidence !== "low") {
+        profileContext = `\nCREATOR CONTENT PROFILE (personalise recommendations to match this style):
+- Topics they usually cover: ${profile.topics.join(", ")}
+- Their tone: ${profile.tone}
+- Their visual style: ${profile.visualStyle}
+- Their audio preference: ${profile.audioPreference}
+- Their caption style: ${profile.captionStyle}
+- Their usual hashtags: ${profile.hashtagPatterns.join(", ")}
+- Profile confidence: ${profile.confidence} (based on ${profile.sampleCount} videos analyzed)
+
+IMPORTANT: Recommendations should feel like natural extensions of this creator's existing content, not generic advice.\n`
+      }
+    } catch { /* profile not available — use generic recs */ }
+  }
 
   // Fetch trending data to ground recommendations
   const base = `${req.nextUrl.protocol}//${req.nextUrl.host}`
@@ -60,6 +82,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 Trending hashtags on TikTok: ${tiktokTags || "none available"}
 Trending hashtags on Instagram: ${instagramTags || "none available"}
 Trending sounds: ${trendingSounds || "none available"}
+${profileContext}
 Suggested posting time: ${postingTimes[platform] || "today"}
 
 Generate exactly 3 quick post recommendations for ${platform} in ${regionLabel}. Each must be immediately actionable — a social media manager should be able to copy and post within 5 minutes.
