@@ -15,7 +15,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "uid required" }, { status: 400 })
   }
 
-  // Verify Firebase auth token matches the requested uid
+  // Verify Firebase auth token if provided (prevents uid spoofing when token is sent)
   const authHeader = req.headers.get("authorization")
   if (authHeader?.startsWith("Bearer ")) {
     try {

@@ -21,8 +21,8 @@ export interface AyrshareOpts {
 }
 
 export async function fetchPostHistory(platform: string, opts?: AyrshareOpts): Promise<AyrsharePost[]> {
-  const apiKey = opts?.apiKey || process.env.AYRSHARE_API_KEY
-  if (!apiKey) { console.log("[AYRSHARE] No API key"); return [] }
+  const apiKey = opts?.apiKey
+  if (!apiKey) { console.log("[AYRSHARE] No API key — caller must provide via getAyrshareConfig"); return [] }
 
   const headers: Record<string, string> = { Authorization: `Bearer ${apiKey}` }
   if (opts?.profileKey) headers["Profile-Key"] = opts.profileKey

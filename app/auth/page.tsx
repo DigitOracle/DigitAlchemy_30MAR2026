@@ -141,7 +141,7 @@ export default function AuthPage() {
               {mode === "signup" && (
                 <div style={{ marginBottom: 14 }}>
                   <label style={labelStyle}>Full Name</label>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Kendall Wilson" style={inputStyle} />
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} required placeholder="Your full name" style={inputStyle} />
                 </div>
               )}
               <div style={{ marginBottom: 14 }}>
