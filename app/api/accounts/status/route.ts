@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAyrshareConfig } from "@/lib/firestore/integrations"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 
@@ -21,7 +22,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     })
     if (!res.ok) return NextResponse.json({ platforms: [] })
     const data = await res.json()
-    return NextResponse.json({ platforms: (data.activeSocialAccounts as string[]) || [] })
+    const platforms = (data.activeSocialAccounts as string[]) || []
+
+    // Sync connected platforms back to Firestore
+    if (platforms.length > 0) {
+      const db = getDb()
+      await db.doc(`users/${uid}`).update({ hasConnectedAccounts: true }).catch(() => {})
+      await db.doc(`users/${uid}/integrations/ayrshare`).update({ platforms }).catch(() => {})
+    }
+
+    return NextResponse.json({ platforms })
   } catch {
     return NextResponse.json({ platforms: [] })
   }

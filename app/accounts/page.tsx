@@ -26,15 +26,47 @@ export default function AccountsPage() {
   const [error, setError] = useState("")
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([])
   const [loadingPlatforms, setLoadingPlatforms] = useState(true)
+  const [connecting, setConnecting] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // Fetch actual connected platforms for this user
   useEffect(() => {
     if (!user) { setLoadingPlatforms(false); return }
+    setLoadingPlatforms(true)
     fetch(`/api/accounts/status?uid=${user.uid}`)
       .then(r => r.json())
       .then(d => { setConnectedPlatforms(d.platforms || []); setLoadingPlatforms(false) })
       .catch(() => setLoadingPlatforms(false))
-  }, [user])
+  }, [user, refreshKey])
+
+  // Listen for window focus to refresh after returning from Ayrshare linking page
+  useEffect(() => {
+    const onFocus = () => setRefreshKey(k => k + 1)
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
+  }, [])
+
+  const handleConnect = async () => {
+    if (!user) return
+    setConnecting(true)
+    setError("")
+    try {
+      const idToken = await user.getIdToken()
+      const res = await fetch("/api/accounts/connect", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      if (data.url) {
+        window.open(data.url, "_blank")
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Connection failed")
+    } finally {
+      setConnecting(false)
+    }
+  }
 
   const handleSync = async () => {
     if (!user) return
@@ -107,12 +139,14 @@ export default function AccountsPage() {
             </>
           )}
 
-          {!hasAnyConnection && !loadingPlatforms && profile?.role !== "admin" && (
-            <div style={{ backgroundColor: "#FDFCF8", border: "1px solid #C4B9A0", padding: "24px 20px", textAlign: "center" }}>
-              <div style={{ fontFamily: DISPLAY, fontSize: 16, color: "#3E2723", marginBottom: 6 }}>No accounts connected</div>
-              <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: "#8B7355" }}>
-                Contact your administrator to get your Ayrshare profile key, or upload videos manually.
-              </div>
+          {/* Connect Accounts button */}
+          <button onClick={handleConnect} disabled={connecting}
+            style={{ width: "100%", padding: 13, backgroundColor: connecting ? "#8B7355" : hasAnyConnection ? "transparent" : "#3E2723", color: hasAnyConnection ? "#3E2723" : "#F4F1E4", border: hasAnyConnection ? "1px solid #C4B9A0" : "none", cursor: connecting ? "wait" : "pointer", fontFamily: DISPLAY, fontWeight: 700, fontSize: hasAnyConnection ? 13 : 15, letterSpacing: "0.03em", marginBottom: 4 }}>
+            {connecting ? "Opening link page\u2026" : hasAnyConnection ? "Link more accounts" : "Connect Your Social Accounts"}
+          </button>
+          {!hasAnyConnection && (
+            <div style={{ fontFamily: TYPEWRITER, fontSize: 10, color: "#8B7355", textAlign: "center", marginTop: 2, marginBottom: 12 }}>
+              Opens Ayrshare&rsquo;s secure linking page where you authenticate directly with each platform
             </div>
           )}
 
