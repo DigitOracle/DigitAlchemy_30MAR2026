@@ -575,7 +575,9 @@ export default function ConsolePage() {
                     </div>
                     {[
                       { label: "My Content DNA", href: "/profile" },
+                      { label: "Dashboard", href: "/dashboard" },
                       { label: "Upload Video", href: "/upload" },
+                      { label: "Link Social Accounts", href: "/accounts" },
                     ].map(item => (
                       <button key={item.href} onClick={() => { setShowUserMenu(false); router.push(item.href) }}
                         style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", border: "none", backgroundColor: "transparent", fontFamily: "'Libre Baskerville', serif", fontSize: 12, color: "#3E2723", cursor: "pointer", borderBottom: "1px dotted #E8E0D0" }}

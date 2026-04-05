@@ -187,6 +187,15 @@ export function MorningBriefing() {
       .catch(() => {})
   }, [user])
 
+  // Dashboard stats
+  const [dashStats, setDashStats] = useState<{ totalPosts: number; totalViews: number; totalEngagement: number; avgCompletion: number } | null>(null)
+  useEffect(() => {
+    fetch("/api/dashboard")
+      .then(r => r.json())
+      .then(d => { if (d.stats) setDashStats(d.stats) })
+      .catch(() => {})
+  }, [])
+
   // Fetch recommendations when platform section is active (generic + personalised)
   useEffect(() => {
     const platformSections = ["tiktok", "instagram", "youtube"]
@@ -417,6 +426,23 @@ export function MorningBriefing() {
           {firstName && (
             <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: SEC, textAlign: "center", marginBottom: 8 }}>
               Prepared for {firstName}
+            </div>
+          )}
+
+          {/* Stats bar */}
+          {dashStats && (
+            <div style={{ display: "flex", justifyContent: "center", gap: 22, padding: "5px 0", marginBottom: 8, borderBottom: `0.5px solid ${RULE}` }}>
+              {([
+                { label: "Posts", value: String(dashStats.totalPosts) },
+                { label: "Views", value: dashStats.totalViews.toLocaleString() },
+                { label: "Engagements", value: dashStats.totalEngagement.toLocaleString() },
+                { label: "Completion", value: `${(dashStats.avgCompletion * 100).toFixed(0)}%` },
+              ] as { label: string; value: string }[]).map((s, i) => (
+                <div key={i} style={{ textAlign: "center" }}>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: BROWN }}>{s.value}</div>
+                  <div style={{ fontFamily: TYPEWRITER, fontSize: 8, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.1em" }}>{s.label}</div>
+                </div>
+              ))}
             </div>
           )}
 
