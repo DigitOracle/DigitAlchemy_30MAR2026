@@ -3,7 +3,7 @@ import { getAuth } from "firebase-admin/auth"
 import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
-export const maxDuration = 30
+export const maxDuration = 60
 
 const AYRSHARE_API = "https://app.ayrshare.com/api"
 
@@ -57,15 +57,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       console.log("[ACCOUNTS] Creating Ayrshare profile for", uid, "title:", title)
 
+      const createStart = Date.now()
+      console.log("[ACCOUNTS] POST", `${AYRSHARE_API}/profiles`, "— timeout 30s")
       const createRes = await fetch(`${AYRSHARE_API}/profiles`, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(30000),
       })
 
       const createBody = await createRes.text()
-      console.log("[ACCOUNTS] Profile creation response:", createRes.status, createBody.slice(0, 300))
+      console.log("[ACCOUNTS] Profile creation response:", createRes.status, `(${Date.now() - createStart}ms)`, createBody.slice(0, 300))
 
       const createData = JSON.parse(createBody)
 
@@ -73,10 +75,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         // Handle duplicate profile (code 146) — retrieve existing profile key
         if (createData.code === 146) {
           console.log("[ACCOUNTS] Duplicate profile — fetching existing profiles to find key")
+          const listStart = Date.now()
+          console.log("[ACCOUNTS] GET", `${AYRSHARE_API}/profiles`, "— timeout 30s")
           const listRes = await fetch(`${AYRSHARE_API}/profiles`, {
             headers: { Authorization: `Bearer ${apiKey}` },
-            signal: AbortSignal.timeout(10000),
+            signal: AbortSignal.timeout(30000),
           })
+          console.log("[ACCOUNTS] Profile list response:", listRes.status, `(${Date.now() - listStart}ms)`)
           if (listRes.ok) {
             const profiles = await listRes.json()
             const match = (Array.isArray(profiles) ? profiles : profiles.profiles || [])
@@ -128,15 +133,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     console.log("[ACCOUNTS] JWT request — platform:", platform || "all", "profileKey:", profileKey?.slice(0, 8) + "...")
 
+    const jwtStart = Date.now()
+    console.log("[ACCOUNTS] POST", `${AYRSHARE_API}/profiles/generateJWT`, "— timeout 30s")
     const jwtRes = await fetch(`${AYRSHARE_API}/profiles/generateJWT`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify(jwtPayload),
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(30000),
     })
 
     const jwtBody = await jwtRes.text()
-    console.log("[ACCOUNTS] JWT response:", jwtRes.status, jwtBody.slice(0, 300))
+    console.log("[ACCOUNTS] JWT response:", jwtRes.status, `(${Date.now() - jwtStart}ms)`, jwtBody.slice(0, 300))
     if (!jwtRes.ok) {
       return NextResponse.json({ error: "Failed to generate linking URL", details: jwtBody.slice(0, 200) }, { status: 500 })
     }
