@@ -3,6 +3,8 @@ import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/AuthContext"
 import { auth } from "@/lib/firebase"
 import { type Region, REGION_NARRATIVE_LABELS } from "@/types/gazette"
+import type { ConceptCard } from "@/types/conceptCard"
+import { ConceptCardGrid } from "./ConceptCardGrid"
 
 type WikiItem = { name: string; views: number }
 type GdeltItem = { title: string; domain: string; url?: string }
@@ -169,6 +171,8 @@ export function MorningBriefing() {
   const [genericRecs, setGenericRecs] = useState<RecPost[]>([])
   const [personalRecs, setPersonalRecs] = useState<RecPost[]>([])
   const [recsLoading, setRecsLoading] = useState(false)
+  const [conceptCards, setConceptCards] = useState<ConceptCard[]>([])
+  const [conceptCardsLoading, setConceptCardsLoading] = useState(false)
 
   const firstName = user && profile?.name ? profile.name.split(" ")[0] : ""
 
@@ -206,6 +210,20 @@ export function MorningBriefing() {
         .catch(() => {})
     }).catch(() => {})
   }, [statsPlatform, user])
+
+  // Fetch concept cards from unified pipeline
+  useEffect(() => {
+    if (!user) return
+    setConceptCardsLoading(true)
+    auth?.currentUser?.getIdToken().then(token => {
+      fetch(`/api/concept-cards?region=${region}&platform=${activeSection === "briefing" ? "all" : activeSection}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(d => { if (d.ok && d.cards) setConceptCards(d.cards); setConceptCardsLoading(false) })
+        .catch(() => setConceptCardsLoading(false))
+    }).catch(() => setConceptCardsLoading(false))
+  }, [region, user, activeSection])
 
   // Fetch recommendations when platform section is active (generic + personalised)
   useEffect(() => {
@@ -686,6 +704,19 @@ export function MorningBriefing() {
                 </>
               )}
 
+              {/* ── CONCEPT CARDS on Front Page ── */}
+              {(conceptCards.length > 0 || conceptCardsLoading) && (
+                <div style={{ marginTop: 20, borderTop: `2.5px solid ${BROWN}`, paddingTop: 14 }}>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 2 }}>
+                    Your Content Plays
+                  </div>
+                  <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT, marginBottom: 12 }}>
+                    Personalised recommendations based on your style and current trends.
+                  </div>
+                  <ConceptCardGrid cards={conceptCards} loading={conceptCardsLoading} />
+                </div>
+              )}
+
               </>)}
 
               {/* ── TIKTOK SECTION ── */}
@@ -728,7 +759,12 @@ export function MorningBriefing() {
                       </div>
                     </>
                   )}
-                  <TwoRowRecommends platform="TikTok" />
+                  {conceptCards.length > 0 || conceptCardsLoading ? (
+                    <div style={{ marginTop: 20, borderTop: `2px solid ${BROWN}`, paddingTop: 14 }}>
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 10 }}>Your Concept Cards</div>
+                      <ConceptCardGrid cards={conceptCards.filter(c => c.platformFormat.platform === "tiktok")} loading={conceptCardsLoading} />
+                    </div>
+                  ) : <TwoRowRecommends platform="TikTok" />}
                 </div>
               )}
 
@@ -752,7 +788,12 @@ export function MorningBriefing() {
                   ) : (
                     <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: ACCENT }}>No Instagram hashtag data available for this region.</p>
                   )}
-                  <TwoRowRecommends platform="Instagram" />
+                  {conceptCards.length > 0 || conceptCardsLoading ? (
+                    <div style={{ marginTop: 20, borderTop: `2px solid ${BROWN}`, paddingTop: 14 }}>
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 10 }}>Your Concept Cards</div>
+                      <ConceptCardGrid cards={conceptCards.filter(c => c.platformFormat.platform === "instagram")} loading={conceptCardsLoading} />
+                    </div>
+                  ) : <TwoRowRecommends platform="Instagram" />}
                 </div>
               )}
 
@@ -774,7 +815,12 @@ export function MorningBriefing() {
                       </div>
                     ))}
                   </div>
-                  <TwoRowRecommends platform="YouTube" />
+                  {conceptCards.length > 0 || conceptCardsLoading ? (
+                    <div style={{ marginTop: 20, borderTop: `2px solid ${BROWN}`, paddingTop: 14 }}>
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 10 }}>Your Concept Cards</div>
+                      <ConceptCardGrid cards={conceptCards.filter(c => c.platformFormat.platform === "youtube")} loading={conceptCardsLoading} />
+                    </div>
+                  ) : <TwoRowRecommends platform="YouTube" />}
                 </div>
               )}
 
