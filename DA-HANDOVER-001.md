@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 1.1 — create types/gazette.ts with UserContext, ConceptCard, ConceptCardCategory enum, and GazetteResponse type definitions. See the revised Phase 1 checklist in the master plan (held by Doli's conversation with Claude).
+**The immediate next step:** Phase 2.0 — extract ScrapeCreators fetch logic to lib/providers/scrapeCreators.ts
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -138,12 +138,12 @@ This is the concrete path from where we are now to the Gazette being the live Co
 
 **Goal:** Define the foundational TypeScript types that the unified pipeline will use.
 
-- [ ] **1.1** Create `types/gazette.ts` with the `UserContext` type (region, platform, horizon, industry, audience)
-- [ ] **1.2** Add the `ConceptCard` type (id, category, title, description, evidence, action, confidence, window, effort)
-- [ ] **1.3** Add the `ConceptCardCategory` enum (`AUDIO_VIRAL`, `TREND_ALERT`, `BRAND_SIGNAL`, `CULTURAL_MOMENT`, `CREATOR_SPOTLIGHT`, `REGIONAL_PULSE`, `TECH_INNOVATION`)
-- [ ] **1.4** Add the `GazetteResponse` type (context, cards, generated_at, source_snapshots, version)
-- [ ] **1.5** Write type tests or examples showing the shape of a valid response
-- [ ] **1.6** Commit: `feat(gazette): add core type definitions for unified pipeline`
+- [x] **1.1** Create `types/gazette.ts` with the `UserContext` type (region, platform, horizon, industry, audience)
+- [x] **1.2** Add the `ConceptCard` type (id, category, title, description, evidence, action, confidence, window, effort)
+- [x] **1.3** Add the `ConceptCardCategory` enum (`AUDIO_VIRAL`, `TREND_ALERT`, `BRAND_SIGNAL`, `CULTURAL_MOMENT`, `CREATOR_SPOTLIGHT`, `REGIONAL_PULSE`, `TECH_INNOVATION`)
+- [x] **1.4** Add the `GazetteResponse` type (context, cards, generated_at, source_snapshots, version)
+- [x] **1.5** Write type tests or examples showing the shape of a valid response
+- [x] **1.6** Commit: `feat(gazette): add core type definitions for unified pipeline`
 - [ ] **1.7** Push to GitHub
 
 **Exit criteria:** All downstream code can import from `types/gazette.ts` and get a consistent view of what a Gazette response looks like.
