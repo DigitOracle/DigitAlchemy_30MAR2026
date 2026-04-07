@@ -37,58 +37,6 @@
 
 <!-- New tasks append here. Claude Code reads top-down. -->
 
----
-
----
-
-### DA-Q-010 — Fix Python module naming for AutoAgent harnesses
-
-**Priority:** P0
-**Status:** PENDING
-**Captured:** 2026-04-07
-**Source:** DA-Q-009 baseline run blocker
-
-**Context:**
-Python module names cannot contain hyphens. The three agent harness files were created with hyphens which makes them unimportable. Also needs class-based agent interface for Harbor.
-
-**Files to touch:**
-- Rename: agent-trend-ticker.py → agent_trend_ticker.py (+ TrendTickerAgent class)
-- Rename: agent-trending-audio.py → agent_trending_audio.py (+ TrendingAudioAgent class)
-- Rename: agent-morning-briefing.py → agent_morning_briefing.py (+ MorningBriefingAgent class)
-
-**Acceptance criteria:**
-- All three files use underscores, define agent classes, import cleanly
-- Fixed adapter boundary and editable harness sections preserved
-
-**Commit message:**
-`fix(autoagent): rename harness files to valid Python modules and add agent classes`
-
----
-
-### DA-Q-009 — Run AutoAgent baseline (no optimization)
-
-**Priority:** P1
-**Status:** BLOCKED
-**Reason blocked:** Depends on DA-Q-010 completing first.
-**Captured:** 2026-04-07
-**Source:** Phase 1 of DA-TEC-2026-001
-
-**Context:**
-First baseline run. No optimization yet. Just measure where the agents are starting from on the concept-card-classification benchmark. This number becomes the "before" score that all future hill-climbing improvements measure against.
-
-**Files to touch:**
-- Create: autoagent/results.tsv (initial header row + first baseline entry)
-- Read: autoagent/agents/agent-trend-ticker.py
-- Read: autoagent/tasks/concept-card-classification/
-
-**Acceptance criteria:**
-- Docker base image builds successfully
-- Harbor runs the concept-card-classification task against agent-trend-ticker.py
-- Result written to autoagent/results.tsv with status: keep, description: "baseline run, no modifications"
-- Baseline score reported back to me (Doli) so I know where we're starting
-
----
-
 <!-- APPEND NEW TASKS BELOW THIS LINE -->
 
 ---
@@ -164,6 +112,27 @@ First baseline run. No optimization yet. Just measure where the agents are start
 **Captured:** 2026-04-07
 **Completed:** 2026-04-07
 **Commit:** `e1e6468`
+
+---
+
+### DA-Q-010 — Fix Python module naming for AutoAgent harnesses
+
+**Priority:** P0
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `8e0471e`
+
+---
+
+### DA-Q-009 — Run AutoAgent baseline (no optimization)
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `9e4a45f`
+**Baseline F1 Score:** 0.9020 (PASS, threshold ≥ 0.85)
 
 ---
 
