@@ -41,11 +41,35 @@
 
 ---
 
+### DA-Q-010 — Fix Python module naming for AutoAgent harnesses
+
+**Priority:** P0
+**Status:** PENDING
+**Captured:** 2026-04-07
+**Source:** DA-Q-009 baseline run blocker
+
+**Context:**
+Python module names cannot contain hyphens. The three agent harness files were created with hyphens which makes them unimportable. Also needs class-based agent interface for Harbor.
+
+**Files to touch:**
+- Rename: agent-trend-ticker.py → agent_trend_ticker.py (+ TrendTickerAgent class)
+- Rename: agent-trending-audio.py → agent_trending_audio.py (+ TrendingAudioAgent class)
+- Rename: agent-morning-briefing.py → agent_morning_briefing.py (+ MorningBriefingAgent class)
+
+**Acceptance criteria:**
+- All three files use underscores, define agent classes, import cleanly
+- Fixed adapter boundary and editable harness sections preserved
+
+**Commit message:**
+`fix(autoagent): rename harness files to valid Python modules and add agent classes`
+
+---
+
 ### DA-Q-009 — Run AutoAgent baseline (no optimization)
 
 **Priority:** P1
 **Status:** BLOCKED
-**Reason blocked:** Depends on DA-Q-006, DA-Q-007, DA-Q-008 completing first. Auto-unblock once those are DONE.
+**Reason blocked:** Depends on DA-Q-010 completing first.
 **Captured:** 2026-04-07
 **Source:** Phase 1 of DA-TEC-2026-001
 
