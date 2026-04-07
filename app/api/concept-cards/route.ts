@@ -45,10 +45,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const fwdHeaders: Record<string, string> = { Authorization: authHeader, "x-internal-caller": "concept-cards" };
 
     const [contentDNA, performanceDNA, recentPosts, regionalSamples, scoredTrends, genericRecsRes, personalRecsRes] = await Promise.all([
-      loadContentProfile(callerUid),
-      getPerformanceDNA(callerUid),
-      getPerformancePosts(callerUid),
-      getRegionalEngagementSamples({ platform, region, industry }),
+      loadContentProfile(callerUid).catch(() => null),
+      getPerformanceDNA(callerUid).catch(() => null),
+      getPerformancePosts(callerUid).catch(() => []),
+      getRegionalEngagementSamples({ platform, region, industry }).catch(() => []),
       fetchTrendsForContext({ region, platform, horizon: "24h" }).catch((): ScoredTrend[] => []),
       // Fetch Follow the Trend (generic) and Stay in Your Lane (personalised) recs
       fetch(`${base}/api/post-recommendations?region=${region}&platform=${platform}`, { headers: fwdHeaders, signal: AbortSignal.timeout(15000) })

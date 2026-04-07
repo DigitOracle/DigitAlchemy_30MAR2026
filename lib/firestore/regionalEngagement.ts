@@ -62,7 +62,14 @@ export async function getRegionalEngagementSamples(filter: {
       .limit(filter.limit ?? 200);
   }
 
-  const snap = await query.get();
+  let snap;
+  try {
+    snap = await query.get();
+  } catch (err) {
+    // Composite index may not be deployed yet — return empty instead of crashing
+    console.error("[regionalEngagement] query failed (missing index?)", { error: err instanceof Error ? err.message : String(err), platform: filter.platform, region: filter.region });
+    return [];
+  }
   let samples = snap.docs.map((d) => d.data() as RegionalEngagementSample);
 
   // Client-side niche filtering via hashtag overlap (Firestore can't do array-contains-any with arbitrary keywords)
