@@ -1,280 +1,449 @@
-# DA-TEC-2026-003 — Gazette Refactor Reconnaissance Report
+# DA-TEC-2026-003 — Phase 0 Gazette Refactor Reconnaissance Report
 
 **Date:** 2026-04-07
 **Authors:** Kendall Wilson (Doli) + Claude Code
-**Status:** Reconnaissance complete — awaiting human review before any code changes
-**Scope:** Read-only investigation of existing Console code to plan a unified context-aware pipeline
+**Status:** Phase 0.1 complete — awaiting Doli's review before any code changes
+**Method:** Read-only pass over actual repo files. Every claim cites file path and line numbers.
+**Note:** DA-HANDOVER-001 was referenced in the task but does not exist in the repo. This report proceeds based on DA-UC-001-social-media.md and direct code reading.
 
 ---
 
-## 1. The Gazette Code
+## 1. Executive Summary
 
-### Files Found
-
-| File | Role |
-|------|------|
-| `components/console/MorningBriefing.tsx` | The Gazette UI — a full newspaper-styled React component (~450 lines) |
-| `app/api/morning-briefing/route.ts` | Backend: fetches Wikipedia, GDELT, YouTube data per region |
-| `app/api/trend-ticker/route.ts` | Backend: fetches TikTok + Instagram hashtags via ScrapeCreators |
-| `app/api/trending-audio/route.ts` | Backend: fetches TikTok trending sounds, enriches with Spotify |
-
-### Current Implementation
-
-The Gazette (`MorningBriefing.tsx`) is a self-contained newspaper-layout component with:
-
-- **Inputs:** Region (user-selectable from 6 options: AE, SA, KW, QA, US, SG)
-- **Data fetching:** Three parallel `fetch()` calls on mount/region change:
-  - `/api/morning-briefing?region=X` → Wikipedia trending pages + GDELT news + YouTube trending
-  - `/api/trend-ticker?region=X` → TikTok hashtags + Instagram hashtags
-  - `/api/trending-audio?region=X` → TikTok trending sounds + Spotify album art
-- **Output format:** Rendered as a visual newspaper with sections: masthead, editorial quote, Global Curiosity Index (Wikipedia), Regional News (GDELT narrative), Trend Ticker (hashtags), Sounds of the Moment (audio), platform-specific tabs (TikTok/Instagram/YouTube), post recommendations (generic + personalised via Content DNA)
-- **State management:** Local `useState` hooks — no shared state store
-
-### Key Observation
-
-The Gazette currently has **zero concept-card awareness**. It displays raw trend data (hashtag lists, song lists, news articles) without any classification, scoring, or concept-card structure. The "concept cards" pattern only exists in the reverse-engineer route's "React Now" mode.
+The Gazette is a single 800+ line React component (`components/console/MorningBriefing.tsx`) that renders a newspaper-styled UI with 7 client-side tabs. It fetches data from 3 lightweight GET routes (`morning-briefing`, `trend-ticker`, `trending-audio`) that return raw provider data with zero classification. The "concept card" pattern exists only inside `app/api/reverse-engineer/route.ts` — a separate 1,100-line SSE route that takes full user context and calls Claude. These two systems share no types, no state, and no pipeline logic. The 7-category taxonomy from DA-UC-001 (`AUDIO_VIRAL`, `TREND_ALERT`, etc.) does not exist anywhere in the TypeScript codebase. There is no `UserContext` type. Tab switching is local `useState`, not routing. Post recommendations ("Follow the Trend" / "Stay in Your Lane") are rendered by an inline `RecommendsSection` function using a `RecPost` type defined inside the component — not exported, not shared. Personalisation comes from a Firestore `ContentProfile` document at `users/{uid}/content_profile/main`, loaded by the `/api/post-recommendations` route.
 
 ---
 
-## 2. The Console Landing Page
+## 2. Tab Architecture
 
-### File: `app/page.tsx`
+### 2a. What renders on initial load
 
-The landing page is a multi-stage wizard with these stages:
-
-```
-mode_select → source_input → ingesting → ingestion_confirmed →
-content_focus_confirm → platform_select → re_setup → generating → complete
+`app/page.tsx:608`:
+```tsx
+{stage === "mode_select" && <MorningBriefing />}
 ```
 
-### Filter UI Location
+The default `stage` is `"mode_select"` (`app/page.tsx:76`). So the **first thing a user sees** is the `MorningBriefing` component. It is a `"use client"` component that triggers 3 parallel fetches on mount (`MorningBriefing.tsx:220-232`):
 
-The filter UI lives in `components/stages/ReverseEngineerSetupStage.tsx`. It presents:
-
-| Filter | Options | Type |
-|--------|---------|------|
-| Platform | TikTok, Instagram, YouTube, LinkedIn, X, Facebook | Single select (card grid) |
-| Region | AE, SA, KW, QA, US, SG | Single select (flag cards) |
-| Time Horizon | React Now (same_day, 24h, 48h, 72h), Plan Ahead (1w, 2w, 4w), Analyse History (6m, 12m) | Grouped radio |
-| Industry | 10 industries (Real Estate, Automotive, Hospitality, etc.) | Optional single select (icon grid) |
-| Audience | Gen Z, Millennials, Gen X, Boomers, All Ages | Optional single select |
-| Quick Pulse | TikTok Trending, Instagram Trending, YouTube Trending, News Headlines, Cultural Pulse | Quick-start shortcuts |
-| Niche | Free-text input | Text field |
-
-### What Happens on Selection
-
-`onConfirm(platform, niche, lag, region, industry, audience, quickPulse)` → triggers a POST to `/api/reverse-engineer` with all context as JSON body → response is an SSE stream of "card" events rendered by `PlatformWorkspace.tsx`.
-
-### State Management
-
-**No shared state store.** All state is local `useState` in `app/page.tsx`:
-- `reNiche`, `reRegion`, `reLag`, `reIndustry`, `reAudience` — filter values
-- `selectedPlatforms` — chosen platforms
-- `platformCards` — SSE card data received from reverse-engineer
-
----
-
-## 3. The Existing Context Flow
-
-### How context flows today:
-
-```
-ReverseEngineerSetupStage (UI)
-  → onConfirm(platform, niche, lag, region, industry, audience)
-    → app/page.tsx stores in local state
-      → POST /api/reverse-engineer { platform, niche, region, lag, industry, audience }
-        → SSE stream of cards back to PlatformWorkspace
+```tsx
+useEffect(() => {
+  setLoading(true)
+  Promise.allSettled([
+    fetch(`/api/morning-briefing?region=${region}`).then(r => r.json()),
+    fetch(`/api/trend-ticker?region=${region}`).then(r => r.json()),
+    fetch(`/api/trending-audio?region=${region}`).then(r => r.json()),
+  ]).then(([briefing, ticker, audio]) => {
+    if (briefing.status === "fulfilled") setData(briefing.value)
+    if (ticker.status === "fulfilled") setTickerData(ticker.value)
+    if (audio.status === "fulfilled") setAudioData(audio.value)
+    setLoading(false)
+  })
+}, [region])
 ```
 
-### Is there a unified "user context" object?
+Additionally, if the user is authenticated: `/api/content-dna/profile?uid=X` (line 184) and `/api/dashboard?platform=all&uid=X` (line 195). When a platform tab is active, `/api/post-recommendations?region=X&platform=Y` is also fetched (line 207).
 
-**No.** Each filter is a separate state variable in `app/page.tsx`. They're bundled into a JSON body only at the POST call. The three Gazette routes (`morning-briefing`, `trend-ticker`, `trending-audio`) each take only `?region=X` as a query param — they don't receive platform, industry, audience, or niche.
+### 2b. The seven tabs
 
-### The gap:
+Defined inline at `MorningBriefing.tsx:347-354`:
 
-The Gazette and the reverse-engineer route are **two separate worlds**:
-- **Gazette:** Region-only context → raw trend lists → newspaper layout
-- **Reverse-engineer:** Full context (platform + region + niche + lag + industry + audience) → Claude-generated concept cards → workspace cards
-
-There is no shared pipeline connecting them.
-
----
-
-## 4. Existing API Routes
-
-### All routes under `app/api/`:
-
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/morning-briefing` | GET | Wikipedia + GDELT + YouTube for Gazette |
-| `/api/trend-ticker` | GET | TikTok + Instagram hashtags |
-| `/api/trending-audio` | GET | TikTok sounds + Spotify enrichment |
-| `/api/reverse-engineer` | POST | Full SSE pipeline: scrape → Claude → concept cards |
-| `/api/trend-radar/capture` | POST | Capture trend snapshot to Firestore |
-| `/api/trend-radar/scores` | GET | Scored + classified trends from snapshots |
-| `/api/post-recommendations` | GET | Claude-generated post ideas (generic + personalised) |
-| `/api/content-dna/*` | Various | Content DNA profile management |
-| `/api/dashboard` | GET | Analytics dashboard stats |
-| `/api/accounts/*` | Various | User account management |
-| `/api/jobs/*` | Various | Job CRUD and SSE streaming |
-| `/api/upload/*` | Various | File upload handling |
-| `/api/health/*` | GET | Health checks |
-| `/api/platform-selection` | POST | Platform selection step |
-| `/api/analyze` | POST | Content analysis |
-
-### Trend-related route summaries:
-
-**`/api/trend-ticker` (GET)** — Takes `?region=X`. Calls ScrapeCreators for TikTok hashtags (`/v1/tiktok/hashtags/popular`) and Instagram reels (`/v2/instagram/reels/search`), also YouTube Data API for trending video tags. Returns `{ tiktok: string[], instagram: string[], youtube: string[], region }`. No Firestore reads, no Claude calls. Pure data fetch.
-
-**`/api/trending-audio` (GET)** — Takes `?region=X`. Calls ScrapeCreators for TikTok trending songs (`/v1/tiktok/songs/popular`), enriches top 5 with Spotify album art via `searchSpotifyTrack()`. Returns `{ sounds: TrendingSound[], source, region }`. No Firestore, no Claude.
-
-**`/api/morning-briefing` (GET)** — Takes `?region=X`. Fetches Wikipedia trending pages (yesterday's most-viewed), GDELT news articles (`trending {regionLabel}`), YouTube trending videos. Returns `{ wikipedia, gdelt, youtube, region, regionLabel, generatedAt }`. No Firestore, no Claude.
-
-**`/api/reverse-engineer` (POST)** — The big one. Takes full context body: `{ platform, niche, region, lag, industry, audience, quickPulse }`. Runs the inference-last provider chain: ScrapeCreators → Apify → xpoz → Perplexity → Claude. Produces SSE events with concept cards (trendSummary, concept1-4, executionGuide for React Now; videoIdeas, hooks, cadencePlan, contentPillars, competitivePosition for Plan Ahead). Heavy Claude usage. Writes to Firestore via job store.
-
-**`/api/trend-radar/capture` (POST)** — Takes `{ platform, scope, niche?, region? }`. Calls `captureTrends()` from `lib/trendRadar/capture.ts` which hits ScrapeCreators, writes a `TrendSnapshot` to Firestore `trend_snapshots` collection. Returns `{ snapshotId, entityCount, source }`.
-
-**`/api/trend-radar/scores` (GET)** — Takes `?platform=X&lag=X&niche=X&limit=X`. Reads recent snapshots from Firestore, computes velocity/persistence/novelty scores via `lib/trendRadar/score.ts`, classifies via `lib/trendRadar/classify.ts`. Returns scored and classified trends. Most sophisticated pipeline — already has the scoring/classification infrastructure.
-
-**`/api/post-recommendations` (GET)** — Takes `?region=X&platform=X&uid=X`. Fetches trend-ticker + trending-audio data, loads Content DNA profile if uid provided, calls Claude to generate personalised post recommendations. Returns `{ posts: PostRec[] }`.
-
----
-
-## 5. Type Definitions
-
-### What exists:
-
-| Type | Location | Purpose |
-|------|----------|---------|
-| `TrendSnapshot` | `lib/trendRadar/types.ts` | Raw capture: platform, region, entities[], capturedAt, source |
-| `TrendEntity` | `lib/trendRadar/types.ts` | Individual trend item: entity, entityType (hashtag/song), rank, metadata |
-| `TrendScore` | `lib/trendRadar/types.ts` | Derived metrics: velocity, persistence, novelty, classification, trendOutlook |
-| `TrendClassification` | `lib/trendRadar/types.ts` | `breakout_candidate | stable_opportunity | fading_fast | recurring_pattern | niche_advantage` |
-| `TrendOutlook` | `lib/trendRadar/types.ts` | Forecast: direction, stillWorthMaking, forecastConfidence, recommendedNextStep |
-| `JobV2` | `types/jobs.ts` | Console job schema with platform cards |
-| `PlatformCards` | `types/jobs.ts` | Card types: platformTrends, topicTrends, trendingAudio, etc. |
-
-### What's missing:
-
-| Missing Type | Needed For |
-|--------------|-----------|
-| `ConceptCard` | Unified output format — combining trend data, classification, and actionable content recommendation into one card |
-| `UserContext` | Shared context object bundling region, platform, niche, industry, audience, horizon |
-| `GazetteSection` | Typed output for Gazette sections (currently untyped JSON) |
-| `ClassificationCategory` | The 7 concept-card categories from DA-UC-001 (TREND_ALERT, BRAND_SIGNAL, etc.) — exists only in Python benchmark, not in TypeScript |
-
-### Key insight:
-
-The `TrendScore` type in `lib/trendRadar/types.ts` is **the closest thing to a concept card that already exists**. It has classification, velocity, persistence, confidence tiers, trend outlook, and production-lag fitness. The refactor could build concept cards on top of `TrendScore` rather than inventing a parallel system.
-
----
-
-## 6. Refactor Impact Assessment
-
-### New files to create:
-
-| File | Purpose | Risk |
-|------|---------|------|
-| `types/conceptCard.ts` | `ConceptCard` and `UserContext` type definitions | LOW — new file |
-| `lib/pipeline/context.ts` | Unified context builder: UI selections → `UserContext` object | LOW — new file |
-| `lib/pipeline/conceptCards.ts` | Pipeline: `UserContext` + `TrendScore[]` → `ConceptCard[]` | LOW — new file |
-| `app/api/concept-cards/route.ts` | New API route: single entry point for the unified pipeline | LOW — new route |
-| `components/console/ConceptCardGrid.tsx` | UI component for rendering concept cards | LOW — new component |
-
-### Files to modify:
-
-| File | Change | Risk |
-|------|--------|------|
-| `components/console/MorningBriefing.tsx` | Add concept-card section; fetch from new `/api/concept-cards` instead of (or in addition to) the three separate routes | MEDIUM — large component, visual regression possible |
-| `components/stages/ReverseEngineerSetupStage.tsx` | Export `UserContext` type from filter selections | LOW — type export only |
-| `app/page.tsx` | Pass `UserContext` to Gazette and new concept-card components | LOW — prop threading |
-| `lib/trendRadar/types.ts` | Add `ConceptCard` extension of `TrendScore` | LOW — additive |
-
-### Files that stay untouched:
-
-| File | Why |
-|------|-----|
-| `app/api/trend-ticker/route.ts` | Still serves raw hashtag data for Gazette ticker display |
-| `app/api/trending-audio/route.ts` | Still serves raw audio data for Gazette sounds section |
-| `app/api/morning-briefing/route.ts` | Still serves Wikipedia/GDELT/YouTube for Gazette sections |
-| `app/api/reverse-engineer/route.ts` | The existing React Now / Plan Ahead SSE pipeline stays as-is — concept cards are a parallel offering, not a replacement |
-| `app/api/trend-radar/*` | Capture and scoring infrastructure is reused, not modified |
-| `lib/trendRadar/capture.ts` | Snapshot capture stays unchanged |
-| `lib/trendRadar/score.ts` | Scoring logic is consumed by the new pipeline |
-| `lib/trendRadar/classify.ts` | Classification logic is consumed by the new pipeline |
-
-### Proposed pipeline (pseudo-code):
-
+```tsx
+{([
+  { id: "briefing", label: "Front Page" },
+  { id: "tiktok", label: "TikTok", icon: "tiktok" as const },
+  { id: "instagram", label: "Instagram", icon: "instagram" as const },
+  { id: "youtube", label: "YouTube", icon: "youtube" as const },
+  { id: "news", label: "News Wire" },
+  { id: "culture", label: "Culture" },
+  { id: "deepdive", label: "Deep Dive \u2192" },
+] as const).map(sec => (
 ```
-// New unified pipeline: context → trends → concept cards
 
-function buildConceptCards(ctx: UserContext): ConceptCard[] {
+| Tab | ID | Component | API routes called | Data shape | Client/Server |
+|-----|----|-----------|-------------------|-----------|---------------|
+| Front Page | `briefing` | Inline JSX in `MorningBriefing.tsx:472-671` | Pre-fetched: `morning-briefing`, `trend-ticker`, `trending-audio` | `BriefingData`, `TickerData`, `AudioData` (local types, lines 6-11) | Client-side fetch |
+| TikTok | `tiktok` | Inline JSX `MorningBriefing.tsx:674-715` + `TwoRowRecommends` (line 713) | Pre-fetched ticker/audio + lazy `/api/post-recommendations?platform=tiktok` | `TickerData.tiktok: string[]`, `AudioData.sounds: TrendingSound[]`, `RecPost[]` | Client-side fetch |
+| Instagram | `instagram` | Inline JSX `MorningBriefing.tsx:718-739` + `TwoRowRecommends` (line 737) | Pre-fetched ticker + lazy `/api/post-recommendations?platform=instagram` | `TickerData.instagram: string[]`, `RecPost[]` | Client-side fetch |
+| YouTube | `youtube` | Inline JSX `MorningBriefing.tsx:742-761` + `TwoRowRecommends` (line 759) | Pre-fetched briefing + lazy `/api/post-recommendations?platform=youtube` | `BriefingData.youtube: YoutubeItem[]`, `RecPost[]` | Client-side fetch |
+| News Wire | `news` | Inline JSX `MorningBriefing.tsx:764-781` | Pre-fetched briefing | `BriefingData.gdelt: GdeltItem[]` | Client-side (no additional fetch) |
+| Culture | `culture` | Inline JSX `MorningBriefing.tsx:784-801` | Pre-fetched briefing | `BriefingData.wikipedia: WikiItem[]` | Client-side (no additional fetch) |
+| Deep Dive | `deepdive` | No content — scrolls to `#scan-setup` (line 358) | N/A — jumps to ReverseEngineerSetupStage | N/A | Client-side scroll |
 
-  // 1. Gather trend data (reuse existing infrastructure)
-  const snapshots = await getRecentSnapshots(ctx.platform, "platform_wide", null, 30)
-  const scores: TrendScore[] = computeScores(snapshots)
-  const classified = classifyAndSort(scores, ctx.productionLag)
+### 2c. Tab switching mechanism
 
-  // 2. Fetch supplementary context (reuse existing routes internally)
-  const ticker = await fetchTrendTicker(ctx.region)      // hashtags
-  const audio = await fetchTrendingAudio(ctx.region)      // sounds
-  const briefing = await fetchMorningBriefing(ctx.region)  // news/wiki/youtube
+Tab switching is **client-side state**, not URL routing. At `MorningBriefing.tsx:165`:
 
-  // 3. Build concept cards from scored trends + context
-  const cards: ConceptCard[] = classified.map(trend => ({
-    // From TrendScore (already computed)
-    entity: trend.entity,
-    entityType: trend.entityType,
-    classification: trend.classification,
-    velocity: trend.velocity_24h,
-    persistence: trend.persistence,
-    confidenceTier: trend.confidenceTier,
-    trendOutlook: trend.trendOutlook,
+```tsx
+const [activeSection, setActiveSection] = useState<string>("briefing")
+```
 
-    // New: concept-card category (from DA-UC-001 taxonomy)
-    conceptCategory: classifyIntoConceptCard(trend, ticker, audio, briefing),
+Each tab button calls `setActiveSection(sec.id)` (line 359), except "Deep Dive" which scrolls to the scan setup form. Conditional rendering via `{activeSection === "tiktok" && (...)}` pattern at lines 472, 674, 718, 742, 764, 784.
 
-    // New: context-aware fields
-    region: ctx.region,
-    platform: ctx.platform,
-    industry: ctx.industry,
-    audience: ctx.audience,
-    relevanceScore: computeRelevance(trend, ctx),
+---
 
-    // New: actionability
-    suggestedAction: trend.trendOutlook.recommendedNextStep,
-    contentIdea: null,  // Populated by Claude in inference-last step
-  }))
+## 3. Concept Card Infrastructure
 
-  // 4. Inference-last: Claude enriches top cards with content ideas
-  const enriched = await enrichWithClaude(cards.slice(0, 10), ctx)
+### 3a. "Follow the Trend" / "Stay in Your Lane" card component
 
-  return enriched
+The cards are rendered by `RecommendsSection`, an inline function at `MorningBriefing.tsx:88-153`. It is **not exported** and **not in its own file**. Each card receives a `RecPost` type defined locally at line 167:
+
+```tsx
+type RecPost = {
+  topic: string
+  caption: string
+  hashtags: string
+  audio: string
+  best_time: string
+  format: string
 }
 ```
 
-### Estimated scope:
+Card layout (lines 106-149): Each card shows a numbered index, topic headline, copyable caption in a shaded box, clickable hashtag chips with "Copy all" button, audio name with music note icon, and a footer with posting time + format tag (e.g., "VIDEO").
 
-- **New files:** 5
-- **Modified files:** 3-4
-- **Lines of new code:** ~400-600 (types + pipeline + route + component)
-- **Lines of modified code:** ~50-100 (prop threading, optional new section in Gazette)
-- **Production risk:** LOW — the refactor is additive. Existing routes and Gazette continue to work. The new `/api/concept-cards` route and concept-card UI are opt-in additions.
+`TwoRowRecommends` (line 261) renders two rows of `RecommendsSection`: "Follow the Trend" (generic `genericRecs`) and "Stay in Your Lane" (personalised `personalRecs`). Used identically on TikTok (line 713), Instagram (line 737), and YouTube (line 759) tabs.
+
+### 3b. DA-UC-001 taxonomy in TypeScript
+
+**Does not exist.** Grep results:
+
+```
+AUDIO_VIRAL       — 0 matches in *.ts/*.tsx
+TREND_ALERT       — 0 matches
+BRAND_SIGNAL      — 0 matches
+CULTURAL_MOMENT   — 0 matches
+CREATOR_SPOTLIGHT — 0 matches
+REGIONAL_PULSE    — 0 matches
+TECH_INNOVATION   — 0 matches
+```
+
+The taxonomy exists only in the Python benchmark files under `autoagent/`. The closest TypeScript equivalent is `TrendClassification` in `lib/trendRadar/types.ts:47-52`:
+
+```typescript
+export type TrendClassification =
+  | "breakout_candidate"
+  | "stable_opportunity"
+  | "fading_fast"
+  | "recurring_pattern"
+  | "niche_advantage"
+```
+
+This is a velocity/lifecycle taxonomy, not a content-type taxonomy. The two serve different purposes.
+
+### 3c. "Stay in Your Lane" personalisation source
+
+The personalisation flows through Content DNA stored in Firestore:
+
+1. User uploads videos → `/api/content-dna/analyze` processes them → `lib/firestore/contentProfile.ts:31-35` writes to `users/{uid}/content_samples/{docId}`
+2. Profile is merged via `mergeProfileWithSample()` (line 53) and saved to `users/{uid}/content_profile/main` (line 47)
+3. On tab switch, `MorningBriefing.tsx:207` fetches `/api/post-recommendations?region=X&platform=Y&uid=Z`
+4. The route at `app/api/post-recommendations/route.ts:28-48` calls `loadContentProfile(uid)` which reads `users/{uid}/content_profile/main` from Firestore
+5. The profile is injected into the Claude prompt as `profileContext` (line 37): topics, tone, visual style, audio preference, caption style, hashtag patterns
+6. Claude generates 3 personalised posts grounded in both trending data AND the user's content DNA
+
+The `ContentProfile` interface (`lib/firestore/contentProfile.ts:18-29`):
+```typescript
+export interface ContentProfile {
+  topics: string[]         // e.g. ["construction", "BIM", "digital twins"]
+  tone: string
+  visualStyle: string
+  audioPreference: string
+  captionStyle: string
+  hashtagPatterns: string[]
+  sampleCount: number
+  confidence: "low" | "medium" | "high"
+}
+```
+
+There is **no hardcoded profile**. Doli's construction/BIM/ISO content DNA exists because Doli uploaded those videos. Any user gets personalisation matching their uploads.
+
+### 3d. Instagram vs TikTok card components
+
+**Same component.** All three platform tabs (TikTok, Instagram, YouTube) call `<TwoRowRecommends platform="X" />` which renders the same `RecommendsSection` with the same `RecPost` type and same card layout. The YouTube tab additionally shows raw video thumbnails/titles/views in a grid above the recommendations (lines 750-758) — those are from `BriefingData.youtube: YoutubeItem[]`, not cards.
 
 ---
 
-## Open Questions Requiring Human Judgment
+## 4. Existing Types and Shared Code
 
-1. **Should concept cards replace or supplement the Gazette?** The current Gazette is a polished newspaper layout that users (Doli's family) already see. Options: (a) add concept cards as a new tab/section within the Gazette, (b) replace the raw trend sections with concept cards, (c) build concept cards as a separate page/view entirely.
+### 4a. Files under `types/`
 
-2. **Should the unified pipeline reuse `/api/reverse-engineer` or be a new route?** The reverse-engineer route already generates concept cards for React Now mode. We could extend it to serve the Gazette too, or keep them separate to avoid bloating a 1000+ line route.
+| File | Exports |
+|------|---------|
+| `types/index.ts` | Orchestration primitives: `WorkflowCategory`, `MCPServer`, `StandardsEntry`, `ConditionOperator`, `IntakeStep` — used by the original intake wizard, not Gazette |
+| `types/jobs.ts` | Console job schema: `JobV2`, `JobStatusV2`, `PlatformCards`, `IngestionData`, `ConfirmedFocus`, `AccessAttempt` — used by reverse-engineer SSE flow |
 
-3. **How should we handle the YouTube exclusion rule?** Trend Ticker excludes YouTube (DA-UC-001 constraint), but the Gazette and concept cards may want YouTube data for the "Video Trending" section. Clarify: is YouTube excluded only from hashtag detection, or from the entire concept-card pipeline?
+### 4b. UserContext type
 
-4. **Should Content DNA integration happen now or later?** The post-recommendations route already personalises based on Content DNA. Concept cards could also be personalised, but this adds complexity. Recommend: ship generic concept cards first, add personalisation in a follow-up.
+**Does not exist.** No type named `UserContext` or `userContext` exists anywhere in the codebase. The closest is the `onConfirm` callback signature in `ReverseEngineerSetupStage.tsx:46`:
 
-5. **What's the priority: Gazette refactor or overnight optimization cycle?** The hybrid architecture (DA-TEC-2026-002) and the Gazette refactor are parallel workstreams. Which one should get focus first?
+```typescript
+type Props = {
+  onConfirm: (platform: string, niche: string, lag: ProductionLag,
+              region: string, industry: string | null,
+              audience: string | null, quickPulse?: string) => void
+}
+```
+
+These 7 values are destructured from the POST body at `reverse-engineer/route.ts:634`:
+
+```typescript
+const { platform, niche, region = "AE", lag = "same_day",
+        industry = null, audience = null, quickPulse = null } = body
+```
+
+But they're never bundled into a reusable type — just positional args and inline destructuring.
+
+### 4c. Files under `lib/`
+
+| File | Role |
+|------|------|
+| `lib/firebase.ts` | Client-side Firebase SDK init (auth + Firestore) |
+| `lib/jobStore.ts` | Firebase Admin init + Firestore `getDb()` helper for server routes |
+| `lib/spotify.ts` | `searchSpotifyTrack()` — Spotify enrichment for trending audio |
+| `lib/useStream.ts` | React hook for consuming SSE streams from reverse-engineer route |
+| `lib/AuthContext.tsx` | React context for Firebase Auth state |
+| `lib/ayrshare.ts` | Ayrshare social media API integration |
+| `lib/analyzeTask.ts` | Task analysis for orchestration wizard |
+| `lib/registry.ts` | MCP server registry |
+| `lib/scoring.ts` | Intake wizard step scoring |
+| `lib/standards.ts` | Standards lookup |
+| `lib/formatter.ts` | Output formatting |
+| `lib/conditionEvaluator.ts` | Condition evaluation for intake steps |
+| `lib/workflowDetector.ts` | Workflow detection |
+| `lib/orchestrationPlanner.ts` | Orchestration planning |
+| `lib/fileHandler.ts` | File processing |
+| `lib/media/access.ts` | Media access/download |
+| `lib/transcription/whisper.ts` | Whisper transcription |
+| `lib/transcription/supadata.ts` | Supadata transcription fallback |
+| `lib/profile/extractContentDNA.ts` | Content DNA extraction from transcripts |
+| `lib/firestore/contentProfile.ts` | Content DNA Firestore CRUD |
+| `lib/firestore/jobs.ts` | Job v2 Firestore CRUD |
+| `lib/firestore/integrations.ts` | Ayrshare integration Firestore CRUD |
+| `lib/providers/*.ts` | Registry/standards provider adapters |
+
+**Shared pipeline code:** `lib/jobStore.ts` (Firestore admin), `lib/spotify.ts` (enrichment), `lib/firestore/contentProfile.ts` (Content DNA). No shared trend classification or concept-card pipeline exists.
+
+### 4d. `lib/trendRadar/` files
+
+| File | Purpose |
+|------|---------|
+| `lib/trendRadar/types.ts` | Type definitions: `TrendSnapshot`, `TrendEntity`, `TrendScore`, `TrendClassification`, `TrendOutlook`, `TrendPlatform`, `ProductionLag`, and 15+ related types |
+| `lib/trendRadar/capture.ts` | Calls ScrapeCreators/Apify/Perplexity, builds `TrendSnapshot`, writes to Firestore `trend_snapshots` collection |
+| `lib/trendRadar/score.ts` | Rule-based scoring engine: computes velocity (6h/24h/72h), acceleration, persistence, novelty, decay_risk, half-life, cross-platform echo, niche fit from snapshot history |
+| `lib/trendRadar/classify.ts` | Maps `TrendScore` → `TrendClassification` (`breakout_candidate`, `stable_opportunity`, `fading_fast`, `recurring_pattern`, `niche_advantage`) |
+| `lib/trendRadar/normalize.ts` | Entity normalization: lowercase, strip `#`, collapse whitespace, deduplicate |
+| `lib/trendRadar/influx.ts` | Optional InfluxDB write-through for time-series storage; silently skips if env vars missing |
+
+`TrendScore` (defined at `lib/trendRadar/types.ts:84-133`) is the most sophisticated type in the codebase — it includes velocity, persistence, novelty, confidence tiers, trend cause analysis, production-lag fitness, classification, and a forecast outlook. This is the natural foundation for concept cards.
 
 ---
 
-**End of reconnaissance report. No code was modified. Awaiting human review before proceeding.**
+## 5. Region Picker
+
+The region picker is **inline in MorningBriefing.tsx**, not a separate component.
+
+At line 382-395, the masthead shows `{editionTag} EDITION` with a "Change" dropdown:
+
+```tsx
+<button onClick={() => setSelectorOpen(!selectorOpen)}
+  style={{ /* underlined link style */ }}>
+  Change &#9662;
+</button>
+{selectorOpen && (
+  <div style={{ position: "absolute", /* dropdown styles */ }}>
+    {REGIONS.map(r => (
+      <div key={r.id}
+        onClick={() => { setRegion(r.id); setSelectorOpen(false) }}
+        /* ... */
+      >{r.label}</div>
+    ))}
+  </div>
+)}
+```
+
+It is a **lightweight dropdown** — not a router link, not a form. It sets `region` state, which triggers re-fetches of all 3 API routes. The 6 regions are defined at line 19-22:
+
+```tsx
+const REGIONS = [
+  { id: "AE", label: "the UAE" }, { id: "SA", label: "Saudi Arabia" },
+  { id: "KW", label: "Kuwait" }, { id: "QA", label: "Qatar" },
+  { id: "US", label: "the United States" }, { id: "SG", label: "Singapore" },
+]
+```
+
+This is separate from the `ReverseEngineerSetupStage` region picker (which has flags and 6 matching codes). They are not connected — changing the Gazette region does not affect the Deep Dive setup, and vice versa.
+
+---
+
+## 6. API Routes Inventory
+
+| Route | Methods | Request | Response | SSE? |
+|-------|---------|---------|----------|------|
+| `app/api/morning-briefing/route.ts` | GET | `?region=X` | `{ wikipedia: WikiItem[], gdelt: GdeltItem[], youtube: YoutubeItem[], region, regionLabel, generatedAt }` | No |
+| `app/api/trend-ticker/route.ts` | GET | `?region=X` | `{ tiktok: string[], instagram: string[], youtube: string[], region }` | No |
+| `app/api/trending-audio/route.ts` | GET | `?region=X` | `{ sounds: TrendingSound[], source, region }` | No |
+| `app/api/reverse-engineer/route.ts` | POST | `{ platform, niche, region, lag, industry, audience, quickPulse }` | SSE stream of `card`, `processor.started`, `complete`, `error` events | **Yes** |
+| `app/api/post-recommendations/route.ts` | GET | `?region=X&platform=Y&uid=Z` | `{ posts: PostRec[], platform, region, regionLabel }` | No |
+| `app/api/trend-radar/capture/route.ts` | POST | `{ platform, scope, niche?, region? }` | `{ ok, snapshotId, entityCount, source }` | No |
+| `app/api/trend-radar/scores/route.ts` | GET | `?platform=X&lag=X&niche=X&limit=X` | `{ ok, platform, productionLag, insufficientHistory, snapshotCount, trends: TrendScore[] }` | No |
+| `app/api/dashboard/route.ts` | GET | `?platform=X&uid=X` | `{ stats: { totalPosts, totalViews, totalEngagement, avgCompletion } }` | No |
+| `app/api/content-dna/profile/route.ts` | GET | `?uid=X` | `{ profile: ContentProfile }` | No |
+| `app/api/content-dna/save/route.ts` | POST | Content DNA save payload | `{ ok }` | No |
+| `app/api/content-dna/analyze/route.ts` | POST | Video analysis payload | `{ ok, sample: ContentDNASample }` | No |
+| `app/api/content-dna/auto-ingest/route.ts` | POST | Auto-ingest payload | `{ ok }` | No |
+| `app/api/analyze/route.ts` | POST | Content analysis payload | Analysis results | No |
+| `app/api/accounts/connect/route.ts` | POST | Account connection payload | `{ ok }` | No |
+| `app/api/accounts/status/route.ts` | GET | `?uid=X` | Account status data | No |
+| `app/api/platform-selection/route.ts` | POST | Platform selection payload | Job update result | No |
+| `app/api/jobs/[jobId]/route.ts` | GET | Path param `jobId` | `{ ok, job: JobV2 }` | No |
+| `app/api/jobs/[jobId]/stream/route.ts` | GET | Path param `jobId` | SSE stream | **Yes** |
+| `app/api/upload/presign/route.ts` | POST | Upload metadata | Presigned URL | No |
+| `app/api/upload/complete/route.ts` | POST | Upload completion | `{ ok }` | No |
+| `app/api/health/providers/route.ts` | GET | None | Provider health status | No |
+
+### Shared logic and duplication
+
+The three Gazette routes (`morning-briefing`, `trend-ticker`, `trending-audio`) each call ScrapeCreators independently. The `reverse-engineer` route also calls ScrapeCreators with nearly identical code. ScrapeCreators fetch logic is duplicated at least 3 times:
+
+- `app/api/trend-ticker/route.ts:33-53` (`fetchTikTokHashtags`)
+- `app/api/reverse-engineer/route.ts:38+` (`fetchScrapeCreatorsTikTokPlatform`)
+- `lib/trendRadar/capture.ts:16-51` (`captureScrapeCreatorsTikTok`)
+
+Each has slightly different parsing and field mapping. This is the primary candidate for extraction to shared code.
+
+---
+
+## 7. Provider Chain and Fixed Boundaries
+
+### 7a. Inference-last provider chain
+
+The chain `ScrapeCreators → Apify → xpoz → Perplexity → Claude` is implemented primarily in `app/api/reverse-engineer/route.ts`. The provider functions are defined inline in that file starting at line 38:
+
+- `fetchScrapeCreatorsTikTokPlatform()` — line 38
+- `fetchScrapeCreatorsInstagramSupport()` — later in file
+- `fetchApifyTrends()` — later in file  
+- `fetchPerplexityContext()` — later in file
+- `callClaude()` — line 18
+
+The chain fallback logic is at approximately lines 730-900 (the SSE `start()` handler). If ScrapeCreators fails, it falls back to Apify, then context-guided Perplexity, then Claude inference. This logic is **not shared** — `lib/trendRadar/capture.ts` has its own separate provider chain with different code paths.
+
+### 7b. SSE streaming adapter
+
+Single location: `app/api/reverse-engineer/route.ts:677-1092`. The `safeClose` and `safeEnqueue` guards are at lines 680-681:
+
+```typescript
+let streamClosed = false
+const safeEnqueue = (chunk: Uint8Array) => {
+  if (!streamClosed) { try { controller.enqueue(chunk) } catch { /* closed */ } }
+}
+const safeClose = () => {
+  if (!streamClosed) { streamClosed = true; try { controller.close() } catch { /* already closed */ } }
+}
+```
+
+This is the **only SSE streaming implementation** for concept-card generation. The job stream at `app/api/jobs/[jobId]/stream/route.ts` has its own SSE adapter for the optimize flow.
+
+### 7c. Firestore logging to `da-experiments/`
+
+**Does not exist in the TypeScript codebase.** Grep for `da-experiments` returned zero matches across all `.ts`/`.tsx` files. This collection path is referenced only in `autoagent/DA-UC-001-social-media.md:38` as a constraint for the Python experiment harness. The production TypeScript routes do not write experiment logs to this collection.
+
+---
+
+## 8. Two-Worlds Verification
+
+The split is **confirmed and unchanged**. The two worlds are:
+
+**World 1: The Gazette** (`components/console/MorningBriefing.tsx`)
+
+```typescript
+// Line 1
+"use client"
+import { useState, useEffect } from "react"
+import { useAuth } from "@/lib/AuthContext"
+
+// Line 156
+export function MorningBriefing() {
+```
+
+Context: region only (line 159: `useState(profile?.defaultRegion || "AE")`). Fetches 3 lightweight GET routes. No Claude calls. No concept-card types. No SSE.
+
+**World 2: The Reverse-Engineer Route** (`app/api/reverse-engineer/route.ts`)
+
+```typescript
+// Line 1
+import { NextRequest } from "next/server"
+import { PLATFORMS } from "@/config/platforms"
+import Anthropic from "@anthropic-ai/sdk"
+
+// Line 632
+export async function POST(req: NextRequest): Promise<Response> {
+  const { platform, niche, region = "AE", lag = "same_day",
+          industry = null, audience = null, quickPulse = null } = body
+```
+
+Context: full 7-parameter context object. Calls Claude for concept cards. SSE streaming. Writes to Firestore via job store.
+
+**The bridge between them:** The "Deep Dive" tab (7th tab) calls `document.getElementById("scan-setup")?.scrollIntoView()` (line 358), which scrolls to the `ReverseEngineerSetupStage` rendered below the Gazette in `app/page.tsx:612`. This is a UI scroll — not a data connection. The Gazette region selection does not propagate to the Deep Dive setup form.
+
+---
+
+## 9. Open Questions Surfaced During Recon
+
+1. **DA-HANDOVER-001 does not exist.** The task referenced it but it's not in the repo. Should it be created, or was this referring to a different document?
+
+2. **`da-experiments/` Firestore collection is unused.** DA-UC-001 mandates experiment logs go there, but the TypeScript code never writes to it. Is this intentional (Python-only logging), or should the production routes also log there?
+
+3. **ScrapeCreators is called 3 different ways.** The trend-ticker route, reverse-engineer route, and trendRadar capture each have their own fetch + parse logic for the same ScrapeCreators API. Unification should extract this to `lib/providers/scrapeCreators.ts`.
+
+4. **The `RecPost` type is trapped inside a component.** It's defined at `MorningBriefing.tsx:167` as a local type, but it's the de facto concept card type for the Gazette. Should it become the shared `ConceptCard` type, or should a new type supersede it?
+
+5. **TrendRadar scores are not used by the Gazette.** The `trend-radar/scores` route produces rich `TrendScore` objects with classification, velocity, persistence, and forecast — but the Gazette never calls this route. Connecting them would give the Gazette structured intelligence instead of raw hashtag lists.
+
+6. **YouTube exclusion scope is ambiguous.** DA-UC-001 says "Trend Ticker is TikTok + Instagram only" but the Gazette's trend-ticker route at `app/api/trend-ticker/route.ts:16-19` still fetches YouTube:
+
+   ```typescript
+   const [tiktok, instagram, youtube] = await Promise.allSettled([
+     fetchTikTokHashtags(region),
+     fetchInstagramHashtags(region, regionLabel),
+     fetchYouTubeTags(region),
+   ])
+   ```
+
+   Is this a violation of the constraint, or does "Trend Ticker" in DA-UC-001 refer only to the Python agent, not the TypeScript route?
+
+7. **Content DNA personalisation is per-user, not per-profile.** The system supports multiple child profiles under a parent account (evidenced by `app/api/accounts/status/route.ts`), but Content DNA is stored per `uid`. If a parent manages a business account, whose DNA drives "Stay in Your Lane"?
+
+---
+
+## 10. Recommended Revisions to Master Plan
+
+Based on what the code actually contains, these adjustments to any Gazette unification plan are recommended:
+
+### Phase 1 should be: Extract shared providers
+
+Before touching the Gazette, extract the duplicated ScrapeCreators/Apify/Perplexity fetch logic from 3 locations into `lib/providers/scrapeCreators.ts`, `lib/providers/apify.ts`, `lib/providers/perplexity.ts`. This is low-risk refactoring that reduces surface area for the bigger changes.
+
+### Phase 2 should be: Create `types/conceptCard.ts`
+
+Define `ConceptCard` and `UserContext` types. `ConceptCard` should extend or compose `TrendScore` (which already has classification, velocity, forecast) rather than reinventing it. Add the 7-category DA-UC-001 taxonomy as a TypeScript union type.
+
+### Phase 3 should be: Wire TrendRadar scores into the Gazette
+
+The Gazette currently calls 3 raw-data routes. A unified approach would call `trend-radar/scores` (which already produces `TrendScore[]`) and map those to concept cards. This replaces raw hashtag lists with classified, scored, forecasted trend intelligence.
+
+### Phase 4 should be: Extract `RecommendsSection` to its own file
+
+Move the card component and `RecPost` type out of `MorningBriefing.tsx` into `components/console/ConceptCard.tsx`. This is prerequisite for reuse across tabs and potential standalone concept-card views.
+
+### Phase 5 should be: Add concept-card classification
+
+The DA-UC-001 7-category taxonomy does not exist in TypeScript. Adding it to `lib/trendRadar/classify.ts` alongside the existing velocity-based classification creates a dual-axis system: *what kind of trend* (content type) + *what stage is it in* (lifecycle).
+
+### Phases that should NOT change
+
+- The "Deep Dive" flow (reverse-engineer SSE pipeline) should remain separate — it's the heavy Claude-intensive path. The Gazette should remain the lightweight daily intelligence view.
+- The SSE adapter and fixed boundaries should not be touched.
+- The Firestore job store should not be modified.
+
+---
+
+**End of Phase 0 reconnaissance. No code was modified. Awaiting Doli's review.**
