@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 2.0 — extract ScrapeCreators fetch logic to lib/providers/scrapeCreators.ts
+**The immediate next step:** Phase 2.1 — create lib/gazette/context.ts with UserContext validation helpers
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -154,7 +154,7 @@ This is the concrete path from where we are now to the Gazette being the live Co
 
 **Goal:** Create the unified `context → trends → concept cards` pipeline as a library module that all API routes can call.
 
-- [ ] **2.0** Extract duplicated ScrapeCreators fetch logic from trend-ticker/route.ts, reverse-engineer/route.ts, and lib/trendRadar/capture.ts into `lib/providers/scrapeCreators.ts`
+- [x] **2.0** Extract duplicated ScrapeCreators fetch logic from trend-ticker/route.ts, reverse-engineer/route.ts, and lib/trendRadar/capture.ts into `lib/providers/scrapeCreators.ts`
 - [ ] **2.1** Create `lib/gazette/context.ts` — helpers for validating and defaulting `UserContext` objects
 - [ ] **2.2** Create `lib/gazette/trends.ts` — fetches relevant `trend_snapshots` from Firestore based on `UserContext` (platform, region filtering)
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
@@ -408,3 +408,5 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - Key finding: /api/post-recommendations powers the TikTok and Instagram card sections with Firestore Content DNA profiles. Content DNA personalisation is already shipped on platform tabs.
 - Revised master plan decisions: Phase 2 rewritten around TrendRadar as trend source. Phase 2.0 added for ScrapeCreators dedup. Phase 4 expanded to include MorningBriefing.tsx split into per-tab components. Phases 1, 3, 5–10 unchanged.
 - Next actionable step: Phase 1.1 — create types/gazette.ts
+- Phase 1 complete — types/gazette.ts committed with UserContext, ConceptCard, ConceptCardCategory, GazetteResponse, and example values. tsc --noEmit passes clean.
+- Phase 2.0 complete — ScrapeCreators canonical module extracted to lib/providers/scrapeCreators.ts. Four original callers remain unchanged until Phase 4. Diff analysis at docs/DA-TEC-2026-004-scrapecreators-diff.md. Unit tests blocked — no test runner in package.json.
