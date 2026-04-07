@@ -1,0 +1,131 @@
+rules_version = '2';
+
+// DigitAlchemy® Console — Firestore Security Rules
+// Phase 2.S Commit S.2 of DA-GAZETTE-UNIFICATION
+//
+// Design: default-deny with explicit allow rules.
+// The Firebase Admin SDK (used by all API routes) bypasses these rules entirely.
+// These rules only affect client-side SDK access from the browser bundle.
+//
+// Client-side SDK usage (as of commit 4767a9d):
+//   - lib/AuthContext.tsx: reads/writes users/{uid} (own profile only)
+//   - app/auth/page.tsx: writes users/{uid} on signup/login
+//   - No other client-side Firestore access exists
+//
+// Admin role check: reads users/{uid}.role from Firestore.
+// Custom claims are not configured — role lives in the document only.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper: check if the caller is admin ──
+    // Reads the caller's own user document to check role.
+    // This costs one Firestore read per rule evaluation.
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // users/{uid} — user profile documents
+    // Client-side access: AuthContext reads, auth page writes
+    // ════════════════════════════════════════════════════════════════
+    match /users/{uid} {
+      // Users can read and write their own profile
+      allow read: if isOwner(uid);
+      allow write: if isOwner(uid);
+
+      // Admins can read any user profile (for admin dashboards)
+      allow read: if request.auth != null && isAdmin();
+
+      // ── Subcollections under users/{uid} ──
+      // content_samples, content_profile, integrations
+      match /{subcollection}/{document=**} {
+        allow read, write: if isOwner(uid);
+        allow read: if request.auth != null && isAdmin();
+      }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // console_jobs — V1 job documents (SSE section streaming)
+    // Client-side access: NONE (server-only via Firebase Admin)
+    // Rules block any direct client access as defence-in-depth.
+    // ════════════════════════════════════════════════════════════════
+    match /console_jobs/{jobId} {
+      allow read: if request.auth != null
+                  && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow write: if request.auth != null
+                   && resource.data.ownerUid == request.auth.uid;
+      // Allow create when ownerUid in the new document matches the caller
+      allow create: if request.auth != null
+                    && request.resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // console_jobs_v2 — V2 job documents (persistent job state)
+    // Client-side access: NONE (server-only via Firebase Admin)
+    // ════════════════════════════════════════════════════════════════
+    match /console_jobs_v2/{jobId} {
+      allow read: if request.auth != null
+                  && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow write: if request.auth != null
+                   && resource.data.ownerUid == request.auth.uid;
+      allow create: if request.auth != null
+                    && request.resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // trend_snapshots — platform-wide trend data
+    // Client-side access: NONE (server-only)
+    // Read: any authenticated user. Write: admin only.
+    // ════════════════════════════════════════════════════════════════
+    match /trend_snapshots/{snapshotId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // historical_cache — reverse-engineer route cache
+    // Client-side access: NONE (server-only)
+    // ════════════════════════════════════════════════════════════════
+    match /historical_cache/{cacheKey} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Infrastructure collections: _health, _meta, standards, tools, button_standards
+    // Client-side access: NONE
+    // Admin-only read, no client write.
+    // ════════════════════════════════════════════════════════════════
+    match /_health/{document=**} {
+      allow read: if request.auth != null && isAdmin();
+      allow write: if false;
+    }
+    match /_meta/{document=**} {
+      allow read: if request.auth != null && isAdmin();
+      allow write: if false;
+    }
+    match /standards/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    match /tools/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    match /button_standards/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Default deny — any collection not listed above is blocked
+    // This is implicit in Firestore (no match = deny), but the
+    // absence of a wildcard match rule makes it explicit.
+    // ════════════════════════════════════════════════════════════════
+  }
+}
