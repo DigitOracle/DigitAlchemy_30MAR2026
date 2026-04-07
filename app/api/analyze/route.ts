@@ -81,6 +81,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   const sourceUrl = (intakeContext?.videoUrl as string) ?? null
   const isUpload = !!uploadedStoragePath
   const jobV2 = await createJobV2({
+    ownerUid: authenticatedUid,
     task: task.trim(),
     sourceUrl,
     sourceType: isUpload ? "upload" : (sourceUrl ? "url" : null),

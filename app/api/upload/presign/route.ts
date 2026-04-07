@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuth } from "firebase-admin/auth"
 import { getStorageBucket, getDb } from "@/lib/jobStore"
+import { getJobV2 } from "@/lib/firestore/jobs"
 
 export const runtime = "nodejs"
 
@@ -18,8 +19,10 @@ export async function POST(req: NextRequest) {
   if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 })
   }
+  let callerUid: string
   try {
-    await getAuth().verifyIdToken(authHeader.slice(7))
+    const token = await getAuth().verifyIdToken(authHeader.slice(7))
+    callerUid = token.uid
   } catch {
     return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
   }
@@ -33,6 +36,12 @@ export async function POST(req: NextRequest) {
 
     if (!ALLOWED_TYPES.has(contentType)) {
       return NextResponse.json({ error: `Unsupported file type: ${contentType}. Allowed: MP4, MOV, WebM` }, { status: 400 })
+    }
+
+    // Ownership check: verify caller owns the job
+    const job = await getJobV2(jobId)
+    if (job?.ownerUid && job.ownerUid !== callerUid) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const bucket = getStorageBucket()

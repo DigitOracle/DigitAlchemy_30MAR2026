@@ -62,6 +62,7 @@ export type ConfirmedFocus = {
 
 export type JobV2 = {
   id: string
+  ownerUid: string
   status: JobStatusV2
   phase: JobPhase
   sourceUrl: string | null
@@ -80,6 +81,7 @@ export type JobV2 = {
 }
 
 export type CreateJobInput = {
+  ownerUid: string
   task: string
   sourceUrl?: string | null
   sourceType?: SourceType
