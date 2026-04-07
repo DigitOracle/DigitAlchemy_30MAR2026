@@ -37,117 +37,7 @@
 
 <!-- New tasks append here. Claude Code reads top-down. -->
 
-### DA-Q-001 — [EXAMPLE] Fix provider order in trend-ticker route
-
-**Priority:** P1
-**Status:** PENDING
-**Captured:** 2026-04-07
-**Source:** Voice note via Claude mobile
-
-**Context:**
-Per inference-last architecture, ScrapeCreators must precede Apify in all trend detection routes. Current `/api/trend-ticker` has them reversed.
-
-**Files to touch:**
-- `app/api/trend-ticker/route.ts`
-
-**Acceptance criteria:**
-- [ ] Provider chain array starts with `scrapeCreators`
-- [ ] `apify` is second in the chain
-- [ ] Existing SSE streaming logic untouched (fixed adapter boundary)
-- [ ] Test with `npm run dev` and hit endpoint manually
-
-**Commands:**
-```bash
-# Claude Code will edit the file and verify
-npm run dev
-curl http://localhost:3000/api/trend-ticker
-```
-
-**Commit message:**
-`fix(trend-ticker): correct provider order per inference-last architecture`
-
 ---
-
-### DA-Q-002 — Bootstrap AutoAgent directory structure
-
-**Priority:** P1
-**Status:** DONE
-**Captured:** 2026-04-07
-**Completed:** 2026-04-07
-**Source:** AutoAgent integration setup
-
-**Context:**
-Create the `autoagent/` directory structure with `agents/`, `tasks/`, `.agent/`, `jobs/` subdirectories, `.gitkeep` files, and a `.gitignore` for transient artifacts.
-
-**Acceptance criteria:**
-- [x] `autoagent/agents/`, `autoagent/tasks/`, `autoagent/.agent/`, `autoagent/jobs/` exist
-- [x] `.gitkeep` in each empty directory
-- [x] `autoagent/.gitignore` ignores `jobs/`, `results.tsv`, `run.log`, `*.log`
-
----
-
-### DA-Q-003 — Commit DA-UC-001 directive file
-
-**Priority:** P1
-**Status:** DONE
-**Captured:** 2026-04-07
-**Completed:** 2026-04-07
-**Source:** AutoAgent integration setup
-
-**Context:**
-Copy `DA-UC-001-social-media.md` into `autoagent/` as the primary directive file for the social media intelligence use case.
-
-**Acceptance criteria:**
-- [x] `autoagent/DA-UC-001-social-media.md` exists with full directive content
-- [x] File matches source exactly
-
----
-
-### DA-Q-004 — Extract trend-ticker route into agent harness
-
-**Priority:** P2
-**Status:** PENDING
-**Captured:** 2026-04-07
-**Source:** AutoAgent integration setup
-
-**Context:**
-Create `autoagent/agents/agent-trend-ticker.py` with an editable section above and a `# === FIXED ADAPTER BOUNDARY ===` comment below. The editable section should contain `SYSTEM_PROMPT`, `PROVIDER_CHAIN`, `TOOL_DEFINITIONS`, and `ROUTING_LOGIC` placeholders. The fixed section should import and delegate to the existing Vercel route.
-
-**Files to touch:**
-- `autoagent/agents/agent-trend-ticker.py`
-
-**Acceptance criteria:**
-- [ ] File has editable section above `# === FIXED ADAPTER BOUNDARY ===`
-- [ ] Editable section has `SYSTEM_PROMPT`, `PROVIDER_CHAIN`, `TOOL_DEFINITIONS`, `ROUTING_LOGIC`
-- [ ] Fixed section below boundary is clearly marked as off-limits
-
-**Commit message:**
-`feat(autoagent): extract trend-ticker route into agent harness`
-
----
-
-### DA-Q-005 — Add Dockerfile.base for AutoAgent
-
-**Priority:** P2
-**Status:** PENDING
-**Captured:** 2026-04-07
-**Source:** AutoAgent integration setup
-
-**Context:**
-Create `autoagent/Dockerfile.base` with `python:3.11-slim` base, Node.js 18, `uv` (Python package manager), and Harbor CLI. This is the base image for all AutoAgent experiment runs.
-
-**Files to touch:**
-- `autoagent/Dockerfile.base`
-
-**Acceptance criteria:**
-- [ ] Base image is `python:3.11-slim`
-- [ ] Node.js 18 installed
-- [ ] `uv` installed
-- [ ] Harbor CLI installed
-- [ ] Image builds successfully: `docker build -f autoagent/Dockerfile.base -t autoagent-base ./autoagent`
-
-**Commit message:**
-`feat(autoagent): add Dockerfile.base with python 3.11, node 18, uv, harbor`
 
 ---
 
@@ -159,11 +49,57 @@ Create `autoagent/Dockerfile.base` with `python:3.11-slim` base, Node.js 18, `uv
 
 <!-- DONE tasks move here after execution -->
 
+### DA-Q-002 — Bootstrap AutoAgent directory structure
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `005c18e`
+
+---
+
+### DA-Q-003 — Commit DA-UC-001 directive file
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `005c18e`
+
+---
+
+### DA-Q-004 — Extract trend-ticker route into agent harness
+
+**Priority:** P2
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `8aa2e59`
+
+---
+
+### DA-Q-005 — Add Dockerfile.base for AutoAgent
+
+**Priority:** P2
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `dd68a66`
+
 ---
 
 ## Blocked
 
 <!-- BLOCKED tasks with reason -->
+
+### DA-Q-001 — [EXAMPLE] Fix provider order in trend-ticker route
+
+**Priority:** P1
+**Status:** BLOCKED
+**Captured:** 2026-04-07
+**Source:** Voice note via Claude mobile
+**Reason:** This was a template example task. The actual `app/api/trend-ticker/route.ts` uses ScrapeCreators for both TikTok and Instagram — Apify is not present in this route, so there is no reversed provider order to fix. Doli: remove this example card or rewrite with a real task.
 
 ---
 
