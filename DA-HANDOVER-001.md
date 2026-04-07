@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Final Codex re-audit (S.3) against post-S.2.1 state. If clean, security loop is closed and we resume Gazette pipeline at Phase 2.3. for users/{uid}/**
+**The immediate next step:** Phase 2.3 — concept card generator (rethink required, see UI inventory findings — five card vocabularies in production, design decision needed before implementation). for users/{uid}/**
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -143,6 +143,7 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **1.3** Add the `ConceptCardCategory` enum (`AUDIO_VIRAL`, `TREND_ALERT`, `BRAND_SIGNAL`, `CULTURAL_MOMENT`, `CREATOR_SPOTLIGHT`, `REGIONAL_PULSE`, `TECH_INNOVATION`)
 - [x] **1.4** Add the `GazetteResponse` type (context, cards, generated_at, source_snapshots, version)
 - [x] **1.5** Write type tests or examples showing the shape of a valid response
+- [x] **1.5a** Phase 1.5 structural type patch: 5 enums centralised (Horizon 9 vals, Industry 10, Audience 5, Region 7 with India, Platform 7 with x), 3 components refactored, context validator tightened
 - [x] **1.6** Commit: `feat(gazette): add core type definitions for unified pipeline`
 - [ ] **1.7** Push to GitHub
 
@@ -416,7 +417,8 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - **v1.6 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.6 complete — fail-closed ownership on five job-touching routes, presign requires job existence, /api/health/providers requires admin auth.
 - **v1.7 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.7: V1 createJob ownerUid (20d10d6) + /orchestrate admin gate (4767a9d).
 - **v1.8 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.2 complete — firestore.rules added.
-- **v1.9 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.2.1 complete — three Codex re-audit findings closed. /api/trend-radar/capture admin-gated, three Gazette data routes (/api/trending-audio, /api/morning-briefing, /api/trend-ticker) authenticated with client callers updated, /api/post-recommendations server-to-server calls now forward auth header, firestore.rules contract tightened (infra/trend/cache all admin-only, da-experiments added, explicit terminal default-deny). Codex audit session 019d66d7.
+- **v1.9 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.2.1 complete — three Codex re-audit findings closed.
+- **v1.10 — April 7, 2026 (Session 5)** — Phase 1.5 complete — type system now matches production reality. Horizon expanded to 9 values, Industry constrained to 10, Audience constrained to 5 (now single value not array), Region expanded to 7 with India added per P1.5-001, Platform expanded to 7 with x not twitter. Three components refactored to import from types/gazette.ts. lib/gazette/context.ts validation tightened to enum membership checks. 7 type errors caught and fixed by the new constrained types. Tests expanded from 74 to 77.
 
 ---
 

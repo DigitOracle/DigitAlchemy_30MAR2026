@@ -137,8 +137,8 @@ describe("computeComposite", () => {
 
 describe("horizonToProductionLag", () => {
   it("maps 24h to 24h", () => expect(horizonToProductionLag("24h")).toBe("24h"));
-  it("maps 7d to 1w", () => expect(horizonToProductionLag("7d")).toBe("1w"));
-  it("maps 30d to 4w", () => expect(horizonToProductionLag("30d")).toBe("4w"));
+  it("maps 1w to 1w", () => expect(horizonToProductionLag("1w")).toBe("1w"));
+  it("maps 4w to 4w", () => expect(horizonToProductionLag("4w")).toBe("4w"));
   it("maps 6m to 6m", () => expect(horizonToProductionLag("6m")).toBe("6m"));
 });
 
@@ -245,7 +245,7 @@ describe("fetchTrendsForContext", () => {
   });
 
   it("throws validation_failed on invalid context", async () => {
-    const bad = { region: "", platform: "tiktok", horizon: "24h" } as UserContext;
+    const bad = { region: "XX", platform: "tiktok", horizon: "24h" } as unknown as UserContext;
     await expect(fetchTrendsForContext(bad)).rejects.toThrow(TrendsFetchError);
     await expect(fetchTrendsForContext(bad)).rejects.toMatchObject({ code: "validation_failed" });
   });

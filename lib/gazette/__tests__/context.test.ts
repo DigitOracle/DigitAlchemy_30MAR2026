@@ -15,7 +15,10 @@ describe("isValidPlatform", () => {
   it("returns true for instagram", () => expect(isValidPlatform("instagram")).toBe(true));
   it("returns true for youtube", () => expect(isValidPlatform("youtube")).toBe(true));
   it("returns true for all", () => expect(isValidPlatform("all")).toBe(true));
-  it("returns false for facebook", () => expect(isValidPlatform("facebook")).toBe(false));
+  it("returns true for facebook", () => expect(isValidPlatform("facebook")).toBe(true));
+  it("returns true for linkedin", () => expect(isValidPlatform("linkedin")).toBe(true));
+  it("returns true for x", () => expect(isValidPlatform("x")).toBe(true));
+  it("returns false for heygen", () => expect(isValidPlatform("heygen")).toBe(false));
   it("returns false for null", () => expect(isValidPlatform(null)).toBe(false));
   it("returns false for 42", () => expect(isValidPlatform(42)).toBe(false));
 });
@@ -24,8 +27,8 @@ describe("isValidPlatform", () => {
 
 describe("isValidHorizon", () => {
   it("returns true for 24h", () => expect(isValidHorizon("24h")).toBe(true));
-  it("returns true for 7d", () => expect(isValidHorizon("7d")).toBe(true));
-  it("returns true for 30d", () => expect(isValidHorizon("30d")).toBe(true));
+  it("returns true for same_day", () => expect(isValidHorizon("same_day")).toBe(true));
+  it("returns true for 1w", () => expect(isValidHorizon("1w")).toBe(true));
   it("returns true for 6m", () => expect(isValidHorizon("6m")).toBe(true));
   it("returns false for 1y", () => expect(isValidHorizon("1y")).toBe(false));
   it("returns false for null", () => expect(isValidHorizon(null)).toBe(false));
@@ -47,13 +50,13 @@ describe("withDefaults", () => {
   });
 
   it("preserves optional industry when provided", () => {
-    const result = withDefaults({ industry: "construction" });
-    expect(result.industry).toBe("construction");
+    const result = withDefaults({ industry: "real_estate" });
+    expect(result.industry).toBe("real_estate");
   });
 
   it("preserves optional audience when provided", () => {
-    const result = withDefaults({ audience: ["gen-z"] });
-    expect(result.audience).toEqual(["gen-z"]);
+    const result = withDefaults({ audience: "gen_z" });
+    expect(result.audience).toBe("gen_z");
   });
 
   it("omits industry when not provided", () => {
@@ -71,17 +74,17 @@ describe("withDefaults", () => {
 
 describe("validateUserContext", () => {
   const validFull = {
-    region: "UAE",
+    region: "AE",
     platform: "tiktok",
     horizon: "24h",
-    industry: "real-estate",
-    audience: ["all-ages"],
+    industry: "real_estate",
+    audience: "all_ages",
   };
 
   const validMinimal = {
     region: "US",
     platform: "all",
-    horizon: "7d",
+    horizon: "1w",
   };
 
   it("passes valid full input", () => {
@@ -122,7 +125,7 @@ describe("validateUserContext", () => {
 
   it("throws on invalid platform", () => {
     expect(() =>
-      validateUserContext({ region: "AE", platform: "facebook", horizon: "24h" }),
+      validateUserContext({ region: "AE", platform: "heygen", horizon: "24h" }),
     ).toThrow(UserContextValidationError);
   });
 
@@ -132,15 +135,15 @@ describe("validateUserContext", () => {
     ).toThrow(UserContextValidationError);
   });
 
-  it("throws on non-array audience", () => {
+  it("throws on invalid audience value", () => {
     expect(() =>
-      validateUserContext({ ...validMinimal, audience: "gen-z" }),
+      validateUserContext({ ...validMinimal, audience: "teenagers" }),
     ).toThrow(UserContextValidationError);
   });
 
-  it("throws on audience with empty string", () => {
+  it("throws on invalid industry value", () => {
     expect(() =>
-      validateUserContext({ ...validMinimal, audience: ["gen-z", ""] }),
+      validateUserContext({ ...validMinimal, industry: "construction" }),
     ).toThrow(UserContextValidationError);
   });
 

@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/AuthContext"
 const REGIONS = [
   { id: "AE", label: "UAE" }, { id: "SA", label: "Saudi Arabia" }, { id: "KW", label: "Kuwait" },
   { id: "QA", label: "Qatar" }, { id: "US", label: "United States" }, { id: "SG", label: "Singapore" },
+  { id: "IN", label: "India" },
 ]
 
 const DISPLAY = "'Playfair Display', Georgia, serif"

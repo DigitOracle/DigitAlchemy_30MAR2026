@@ -1,38 +1,36 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
 import { PLATFORMS } from "@/config/platforms"
+import {
+  type Region, type Industry, type Audience, type Horizon,
+  REGION_LABELS, REGION_FLAG_URLS,
+  INDUSTRY_LABELS, AUDIENCE_LABELS, AUDIENCE_SUBTITLES,
+  HORIZON_LABELS, horizonToBranch,
+} from "@/types/gazette"
 
-type ProductionLag = "same_day" | "24h" | "48h" | "72h" | "1w" | "2w" | "4w" | "6m" | "12m"
+const REGIONS = (Object.keys(REGION_LABELS) as Region[]).map((code) => ({
+  code,
+  label: REGION_LABELS[code],
+  flag: REGION_FLAG_URLS[code],
+}))
 
-const REGIONS = [
-  { code: "AE", label: "United Arab Emirates", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/AE.svg" },
-  { code: "SA", label: "Saudi Arabia", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/SA.svg" },
-  { code: "KW", label: "Kuwait", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/KW.svg" },
-  { code: "QA", label: "Qatar", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/QA.svg" },
-  { code: "US", label: "United States", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/US.svg" },
-  { code: "SG", label: "Singapore", flag: "https://purecatamphetamine.github.io/country-flag-icons/3x2/SG.svg" },
-]
+const INDUSTRY_ICONS: Record<Industry, string> = {
+  real_estate: "\u{1F3E2}", automotive: "\u{1F697}", hospitality: "\u{1F3E8}",
+  food_beverage: "\u{1F37D}\u{FE0F}", fashion_beauty: "\u{1F457}", fitness_wellness: "\u{1F4AA}",
+  ecommerce: "\u{1F6D2}", education: "\u{1F393}", healthcare: "\u{1F3E5}", financial_services: "\u{1F4B0}",
+}
 
-const INDUSTRIES = [
-  { id: "real_estate", label: "Real Estate", icon: "🏢" },
-  { id: "automotive", label: "Automotive", icon: "🚗" },
-  { id: "hospitality", label: "Hospitality", icon: "🏨" },
-  { id: "food_beverage", label: "Food & Beverage", icon: "🍽️" },
-  { id: "fashion_beauty", label: "Fashion & Beauty", icon: "👗" },
-  { id: "fitness_wellness", label: "Fitness & Wellness", icon: "💪" },
-  { id: "ecommerce", label: "E-commerce", icon: "🛒" },
-  { id: "education", label: "Education", icon: "🎓" },
-  { id: "healthcare", label: "Healthcare", icon: "🏥" },
-  { id: "financial_services", label: "Finance", icon: "💰" },
-]
+const INDUSTRIES = (Object.keys(INDUSTRY_LABELS) as Industry[]).map((id) => ({
+  id,
+  label: INDUSTRY_LABELS[id],
+  icon: INDUSTRY_ICONS[id],
+}))
 
-const AUDIENCES = [
-  { id: "gen_z", label: "Gen Z", subtitle: "18-24" },
-  { id: "millennials", label: "Millennials", subtitle: "25-40" },
-  { id: "gen_x", label: "Gen X", subtitle: "41-56" },
-  { id: "boomers", label: "Boomers", subtitle: "57+" },
-  { id: "all_ages", label: "All Ages", subtitle: "Broad" },
-]
+const AUDIENCES = (Object.keys(AUDIENCE_LABELS) as Audience[]).map((id) => ({
+  id,
+  label: AUDIENCE_LABELS[id],
+  subtitle: AUDIENCE_SUBTITLES[id],
+}))
 
 const QUICK_PULSE_OPTIONS = [
   { id: "tiktok", label: "TikTok Trending", icon: "\ud83d\udcf1", platform: "tiktok" },
@@ -43,7 +41,7 @@ const QUICK_PULSE_OPTIONS = [
 ]
 
 type Props = {
-  onConfirm: (platform: string, niche: string, lag: ProductionLag, region: string, industry: string | null, audience: string | null, quickPulse?: string) => void
+  onConfirm: (platform: string, niche: string, lag: Horizon, region: string, industry: string | null, audience: string | null, quickPulse?: string) => void
 }
 
 const scanPlatforms = Object.values(PLATFORMS).filter((p) => p.id !== "heygen")
@@ -55,12 +53,9 @@ const TIME_GROUPS = [
     subtitle: "What should I post today?",
     color: "border-red-300 bg-red-50",
     selectedColor: "border-red-500 bg-red-100",
-    options: [
-      { value: "same_day" as ProductionLag, label: "Same Day" },
-      { value: "24h" as ProductionLag, label: "24 Hours" },
-      { value: "48h" as ProductionLag, label: "48 Hours" },
-      { value: "72h" as ProductionLag, label: "72 Hours" },
-    ],
+    options: (Object.keys(HORIZON_LABELS) as Horizon[])
+      .filter((h) => horizonToBranch(h) === "react_now")
+      .map((h) => ({ value: h, label: HORIZON_LABELS[h] })),
   },
   {
     id: "plan_ahead",
@@ -68,11 +63,9 @@ const TIME_GROUPS = [
     subtitle: "What should I build toward?",
     color: "border-amber-300 bg-amber-50",
     selectedColor: "border-amber-500 bg-amber-100",
-    options: [
-      { value: "1w" as ProductionLag, label: "1 Week" },
-      { value: "2w" as ProductionLag, label: "2 Weeks" },
-      { value: "4w" as ProductionLag, label: "4 Weeks" },
-    ],
+    options: (Object.keys(HORIZON_LABELS) as Horizon[])
+      .filter((h) => horizonToBranch(h) === "plan_ahead")
+      .map((h) => ({ value: h, label: HORIZON_LABELS[h] })),
   },
   {
     id: "analyse_history",
@@ -80,10 +73,9 @@ const TIME_GROUPS = [
     subtitle: "What has worked in my industry?",
     color: "border-blue-300 bg-blue-50",
     selectedColor: "border-blue-500 bg-blue-100",
-    options: [
-      { value: "6m" as ProductionLag, label: "6 Months" },
-      { value: "12m" as ProductionLag, label: "12 Months" },
-    ],
+    options: (Object.keys(HORIZON_LABELS) as Horizon[])
+      .filter((h) => horizonToBranch(h) === "analyse_history")
+      .map((h) => ({ value: h, label: HORIZON_LABELS[h] })),
   },
 ]
 
@@ -99,7 +91,7 @@ const PLATFORM_LOGOS: Record<string, string> = {
 export function ReverseEngineerSetupStage({ onConfirm }: Props) {
   const [platform, setPlatform] = useState<string | null>(null)
   const [niche, setNiche] = useState("")
-  const [lag, setLag] = useState<ProductionLag>("same_day")
+  const [lag, setLag] = useState<Horizon>("same_day")
   const [lagChosen, setLagChosen] = useState(false)
   const [region, setRegion] = useState("AE")
   const [industry, setIndustry] = useState<string | null>(null)

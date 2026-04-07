@@ -74,10 +74,15 @@ export class TrendsFetchError extends Error {
 /** Map Gazette Horizon to the closest TrendRadar ProductionLag */
 export function horizonToProductionLag(horizon: Horizon): ProductionLag {
   const map: Record<Horizon, ProductionLag> = {
+    same_day: "same_day",
     "24h": "24h",
-    "7d": "1w",
-    "30d": "4w",
+    "48h": "48h",
+    "72h": "72h",
+    "1w": "1w",
+    "2w": "2w",
+    "4w": "4w",
     "6m": "6m",
+    "12m": "12m",
   };
   return map[horizon];
 }

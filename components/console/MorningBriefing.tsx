@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/AuthContext"
 import { auth } from "@/lib/firebase"
+import { type Region, REGION_NARRATIVE_LABELS } from "@/types/gazette"
 
 type WikiItem = { name: string; views: number }
 type GdeltItem = { title: string; domain: string; url?: string }
@@ -17,10 +18,9 @@ const QUOTES = [
   { text: "Every viral moment is a cultural signal. The question is whether you read it in time.", by: "The Editorial Desk" },
 ]
 
-const REGIONS = [
-  { id: "AE", label: "the UAE" }, { id: "SA", label: "Saudi Arabia" }, { id: "KW", label: "Kuwait" },
-  { id: "QA", label: "Qatar" }, { id: "US", label: "the United States" }, { id: "SG", label: "Singapore" },
-]
+const REGIONS = (Object.entries(REGION_NARRATIVE_LABELS) as [Region, string][]).map(
+  ([id, label]) => ({ id, label })
+)
 
 function deduplicateArticles(articles: GdeltItem[]): GdeltItem[] {
   const result: GdeltItem[] = []

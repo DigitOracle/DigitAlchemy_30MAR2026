@@ -5,28 +5,170 @@
  * See DA-HANDOVER-001.md and docs/DA-TEC-2026-003-gazette-refactor-recon.md
  * for background.
  *
- * Phase 1 of DA-GAZETTE-UNIFICATION. No runtime code. No dependencies.
+ * Phase 1 + Phase 1.5 of DA-GAZETTE-UNIFICATION.
  */
+
+// ============================================================================
+// Region — 7 supported regions
+// ============================================================================
+
+export type Region = "AE" | "SA" | "KW" | "QA" | "US" | "SG" | "IN";
+
+export const REGION_LABELS: Record<Region, string> = {
+  AE: "United Arab Emirates",
+  SA: "Saudi Arabia",
+  KW: "Kuwait",
+  QA: "Qatar",
+  US: "United States",
+  SG: "Singapore",
+  IN: "India",
+};
+
+export const REGION_SHORT_LABELS: Record<Region, string> = {
+  AE: "UAE",
+  SA: "KSA",
+  KW: "Kuwait",
+  QA: "Qatar",
+  US: "US",
+  SG: "SG",
+  IN: "India",
+};
+
+export const REGION_NARRATIVE_LABELS: Record<Region, string> = {
+  AE: "the UAE",
+  SA: "Saudi Arabia",
+  KW: "Kuwait",
+  QA: "Qatar",
+  US: "the United States",
+  SG: "Singapore",
+  IN: "India",
+};
+
+export const REGION_FLAG_URLS: Record<Region, string> = {
+  AE: "https://purecatamphetamine.github.io/country-flag-icons/3x2/AE.svg",
+  SA: "https://purecatamphetamine.github.io/country-flag-icons/3x2/SA.svg",
+  KW: "https://purecatamphetamine.github.io/country-flag-icons/3x2/KW.svg",
+  QA: "https://purecatamphetamine.github.io/country-flag-icons/3x2/QA.svg",
+  US: "https://purecatamphetamine.github.io/country-flag-icons/3x2/US.svg",
+  SG: "https://purecatamphetamine.github.io/country-flag-icons/3x2/SG.svg",
+  IN: "https://purecatamphetamine.github.io/country-flag-icons/3x2/IN.svg",
+};
+
+// ============================================================================
+// Platform — 7 social platforms + "all" for Front Page rollup
+// ============================================================================
+
+export type Platform = "tiktok" | "instagram" | "youtube" | "linkedin" | "x" | "facebook" | "all";
+
+export const PLATFORM_LABELS: Record<Platform, string> = {
+  tiktok: "TikTok",
+  instagram: "Instagram",
+  youtube: "YouTube",
+  linkedin: "LinkedIn",
+  x: "X / Twitter",
+  facebook: "Facebook",
+  all: "All Platforms",
+};
+
+// ============================================================================
+// Horizon — 9 production lag values
+// ============================================================================
+
+export type Horizon =
+  | "same_day" | "24h" | "48h" | "72h"
+  | "1w" | "2w" | "4w"
+  | "6m" | "12m";
+
+export const HORIZON_LABELS: Record<Horizon, string> = {
+  same_day: "Same Day",
+  "24h": "24 Hours",
+  "48h": "48 Hours",
+  "72h": "72 Hours",
+  "1w": "1 Week",
+  "2w": "2 Weeks",
+  "4w": "4 Weeks",
+  "6m": "6 Months",
+  "12m": "12 Months",
+};
+
+export type Branch = "react_now" | "plan_ahead" | "analyse_history";
+
+export function horizonToBranch(h: Horizon): Branch {
+  switch (h) {
+    case "same_day":
+    case "24h":
+    case "48h":
+    case "72h":
+      return "react_now";
+    case "1w":
+    case "2w":
+    case "4w":
+      return "plan_ahead";
+    case "6m":
+    case "12m":
+      return "analyse_history";
+  }
+}
+
+// ============================================================================
+// Industry — 10 constrained values
+// ============================================================================
+
+export type Industry =
+  | "real_estate" | "automotive" | "hospitality" | "food_beverage"
+  | "fashion_beauty" | "fitness_wellness" | "ecommerce" | "education"
+  | "healthcare" | "financial_services";
+
+export const INDUSTRY_LABELS: Record<Industry, string> = {
+  real_estate: "Real Estate",
+  automotive: "Automotive",
+  hospitality: "Hospitality",
+  food_beverage: "Food & Beverage",
+  fashion_beauty: "Fashion & Beauty",
+  fitness_wellness: "Fitness & Wellness",
+  ecommerce: "E-commerce",
+  education: "Education",
+  healthcare: "Healthcare",
+  financial_services: "Finance",
+};
+
+// ============================================================================
+// Audience — 5 constrained values
+// ============================================================================
+
+export type Audience = "gen_z" | "millennials" | "gen_x" | "boomers" | "all_ages";
+
+export const AUDIENCE_LABELS: Record<Audience, string> = {
+  gen_z: "Gen Z",
+  millennials: "Millennials",
+  gen_x: "Gen X",
+  boomers: "Boomers",
+  all_ages: "All Ages",
+};
+
+export const AUDIENCE_SUBTITLES: Record<Audience, string> = {
+  gen_z: "18-24",
+  millennials: "25-40",
+  gen_x: "41-56",
+  boomers: "57+",
+  all_ages: "Broad",
+};
 
 // ============================================================================
 // UserContext — describes who the user is and what they care about
 // ============================================================================
 
-export type Platform = "tiktok" | "instagram" | "youtube" | "all";
-
-export type Horizon = "24h" | "7d" | "30d" | "6m";
-
 export interface UserContext {
-  /** ISO country code or region identifier, e.g. "UAE", "SG", "US" */
-  region: string;
+  /** Region code, e.g. "AE", "SG", "US", "IN" */
+  region: Region;
   /** Platform scope. "all" covers the FRONT PAGE view. */
   platform: Platform;
   /** Time window for trend relevance. */
   horizon: Horizon;
-  /** Free-form industry, e.g. "construction", "real-estate". Optional. */
-  industry?: string;
-  /** Audience tags, e.g. ["all-ages"], ["professionals", "students"]. Optional. */
-  audience?: string[];
+  /** Industry vertical. Optional. */
+  industry?: Industry;
+  /** Audience segment. Optional. */
+  audience?: Audience;
 }
 
 // ============================================================================
@@ -105,11 +247,11 @@ export interface GazetteResponse {
 // ============================================================================
 
 export const exampleUserContext: UserContext = {
-  region: "UAE",
+  region: "AE",
   platform: "tiktok",
   horizon: "24h",
-  industry: "real-estate",
-  audience: ["all-ages"],
+  industry: "real_estate",
+  audience: "all_ages",
 };
 
 export const exampleConceptCard: ConceptCard = {
