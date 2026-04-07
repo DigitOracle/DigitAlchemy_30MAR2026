@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 2.3 — concept card generator (rethink required, see UI inventory findings — five card vocabularies in production, design decision needed before implementation). for users/{uid}/**
+**The immediate next step:** Phase 2.3b — Performance DNA data layer (scope determined by audit: extend existing Ayrshare flow, persist engagement data that's currently being fetched and discarded). for users/{uid}/**
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -167,6 +167,7 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **2.S.2.1** Codex re-audit fixes: /api/trend-radar/capture admin-gated, /api/trending-audio + /api/morning-briefing + /api/trend-ticker authenticated, firestore.rules contract tightened
 - [x] **2.1** Create `lib/gazette/context.ts` — helpers for validating and defaulting `UserContext` objects
 - [x] **2.2** Create `lib/gazette/trends.ts` — fetches relevant `trend_snapshots` from Firestore based on `UserContext` (platform, region filtering)
+- [x] **2.3a** Ayrshare integration audit complete (DA-TEC-2026-007) — engagement data fetched but discarded; Phase 2.3b is small (extend existing flow)
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
 - [ ] **2.4** Define the initial classification logic in `concept-cards.ts` — keyword rules matching the 7 categories, with the Post 7 and Post 18 fixes from the baseline failure analysis built in from day 1
 - [ ] **2.5** Unit test the concept card generator against the existing synthetic ground truth (`autoagent/tasks/concept-card-classification/files/ground_truth.json`) to confirm it hits the 0.9020+ baseline
@@ -418,7 +419,8 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - **v1.7 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.7: V1 createJob ownerUid (20d10d6) + /orchestrate admin gate (4767a9d).
 - **v1.8 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.2 complete — firestore.rules added.
 - **v1.9 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.2.1 complete — three Codex re-audit findings closed.
-- **v1.10 — April 7, 2026 (Session 5)** — Phase 1.5 complete — type system now matches production reality. Horizon expanded to 9 values, Industry constrained to 10, Audience constrained to 5 (now single value not array), Region expanded to 7 with India added per P1.5-001, Platform expanded to 7 with x not twitter. Three components refactored to import from types/gazette.ts. lib/gazette/context.ts validation tightened to enum membership checks. 7 type errors caught and fixed by the new constrained types. Tests expanded from 74 to 77.
+- **v1.10 — April 7, 2026 (Session 5)** — Phase 1.5 complete — type system matches production. 77 tests.
+- **v1.11 — April 7, 2026 (Session 5)** — Phase 2.3a complete — Ayrshare integration audit (DA-TEC-2026-007). Key finding: engagement data (views, likes, comments, shares, watchTime, completionRate) is already being fetched from Ayrshare /history endpoint but is discarded after Content DNA style extraction. Phase 2.3b scope is small: persist the data that's already being fetched, add a Performance DNA type, compute baselines. No new Ayrshare endpoint integration needed for v1.
 
 ---
 
