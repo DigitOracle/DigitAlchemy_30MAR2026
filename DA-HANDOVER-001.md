@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 2.3 — create lib/gazette/concept-cards.ts (the classifier and concept-card generator)
+**The immediate next step:** Phase 2.3 — create lib/gazette/concept-cards.ts (the classifier and concept-card generator). Phase 2.3.5 DNA recon is complete at docs/DA-TEC-2026-005-content-dna-recon.md — DNA type already exists and is sufficient, no new Phase 2.4 needed.
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -400,6 +400,7 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 ## Document History
 
 - **v1.0 — April 7, 2026** — Initial handover document created at the end of Session 2, after the Gazette vision was clarified and Approach 2 chosen for the refactor. Phase 0 reconnaissance is the immediate next step.
+- **v1.1 — April 7, 2026 (Session 5)** — Phase 0 reconnaissance was incomplete. Phase 2.3.5 supplemented it with a deep recon of Content DNA, Linked Accounts, and Identity/Auth. Key finding: Content DNA is already shipped with real user data; the existing `ContentProfile` type is sufficient; no new Phase 2.4 type is needed. Three unauthenticated API routes flagged for security hardening in Phase 4. Report at `docs/DA-TEC-2026-005-content-dna-recon.md`.
 
 ---
 
