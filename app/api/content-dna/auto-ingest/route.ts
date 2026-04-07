@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server"
 import { fetchAllPostHistory } from "@/lib/ayrshare"
+import type { AyrsharePost } from "@/lib/ayrshare"
 import { getAyrshareConfig } from "@/lib/firestore/integrations"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
 import { saveDNASample, loadContentProfile, saveContentProfile, mergeProfileWithSample } from "@/lib/firestore/contentProfile"
+import { savePerformancePosts, enforceRollingWindow, rebuildPerformanceDNA } from "@/lib/firestore/performanceDNA"
+import type { PerformancePost, Platform } from "@/types/gazette"
 import { getAuth } from "firebase-admin/auth"
 import { getDb } from "@/lib/jobStore"
 
@@ -94,6 +97,50 @@ export async function POST(req: Request): Promise<NextResponse> {
     await saveContentProfile(uid, updated)
 
     console.log("[AUTO-INGEST] Profile updated. Posts:", posts.length, "Confidence:", updated.confidence)
+
+    // ── Performance DNA: persist engagement data (additive, non-blocking) ──
+    try {
+      const perfPosts: PerformancePost[] = posts
+        .filter((p: AyrsharePost) => p.publishedAt)
+        .map((p: AyrsharePost) => {
+          const views = p.views || 0;
+          const likes = p.likes || 0;
+          const comments = p.comments || 0;
+          const shares = p.shares || 0;
+          const engagementRate = views > 0 ? (likes + comments + shares) / views : 0;
+          const caption = p.text || "";
+
+          return {
+            postId: p.postUrl || `${p.platform}-${p.publishedAt}-${caption.slice(0, 20)}`,
+            platform: (["tiktok", "instagram", "youtube", "linkedin"].includes(p.platform)
+              ? p.platform : "all") as Platform,
+            publishedAt: p.publishedAt,
+            caption,
+            hashtags: p.hashtags || [],
+            audioType: (p.musicTitle ? "trending" : "original") as "trending" | "original",
+            format: "video" as const,
+            views,
+            likes,
+            comments,
+            shares,
+            watchTime: p.watchTime || undefined,
+            completionRate: p.completionRate || undefined,
+            engagementRate,
+            hookText: caption.slice(0, 60),
+            captionLength: caption.length,
+          };
+        });
+
+      if (perfPosts.length > 0) {
+        await savePerformancePosts(uid, perfPosts);
+        await enforceRollingWindow(uid);
+        const perfDna = await rebuildPerformanceDNA(uid);
+        console.log("[AUTO-INGEST] Performance DNA rebuilt. Posts:", perfPosts.length, "Fields:", Object.keys(perfDna).length);
+      }
+    } catch (perfErr) {
+      // Performance DNA is additive — don't fail the sync if it errors
+      console.error("[AUTO-INGEST] Performance DNA error (non-blocking):", perfErr);
+    }
 
     return NextResponse.json({
       success: true,

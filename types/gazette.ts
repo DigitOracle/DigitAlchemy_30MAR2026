@@ -243,6 +243,49 @@ export interface GazetteResponse {
 }
 
 // ============================================================================
+// PerformanceDNA — engagement-based user performance profile
+// ============================================================================
+
+export interface PerformanceField<T> {
+  value: T;
+  confidence: "high" | "medium" | "low" | "insufficient";
+  basedOn: number;
+}
+
+export interface PerformanceDNA {
+  optimalLength: PerformanceField<{ min: number; max: number; median: number }>;
+  hookPatterns: PerformanceField<{ pattern: string; engagementLift: number }[]>;
+  hashtagEffectiveness: PerformanceField<{ hashtag: string; effectivenessScore: number }[]>;
+  timeOfDayCurves: PerformanceField<{ hour: number; dayOfWeek: number; avgEngagement: number }[]>;
+  bestPerformingTopics: PerformanceField<{ topic: string; avgEngagement: number; postCount: number }[]>;
+  audioContentFit: PerformanceField<{ trendingAudioLift: number; originalAudioLift: number }>;
+  engagementQualityRatio: PerformanceField<{ commentToLikeRatio: number; shareToViewRatio: number }>;
+  totalPostsAnalyzed: number;
+  lastUpdated: string;
+  platformsCovered: Platform[];
+  rawPostsRetained: number;
+}
+
+export interface PerformancePost {
+  postId: string;
+  platform: Platform;
+  publishedAt: string;
+  caption: string;
+  hashtags: string[];
+  audioType: "trending" | "original" | "none" | "unknown";
+  format: "video" | "image" | "carousel" | "text";
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  watchTime?: number;
+  completionRate?: number;
+  engagementRate: number;
+  hookText: string;
+  captionLength: number;
+}
+
+// ============================================================================
 // Examples — one of each type, for copy-paste into tests
 // ============================================================================
 
