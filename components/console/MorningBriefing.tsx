@@ -226,9 +226,9 @@ export function MorningBriefing() {
       fetch(`/api/concept-cards?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-        .then(r => r.json())
-        .then(d => { if (d.ok && d.cards) setConceptCards(d.cards); setConceptCardsLoading(false) })
-        .catch(() => setConceptCardsLoading(false))
+        .then(r => { console.log("[grid] fetch status", r.status); return r.json() })
+        .then(d => { console.log("[grid] fetch result", { ok: d.ok, cardCount: d.cards?.length ?? 0, platform: f.platform }); if (d.ok && d.cards) setConceptCards(d.cards); setConceptCardsLoading(false) })
+        .catch((e) => { console.log("[grid] fetch error", String(e)); setConceptCardsLoading(false) })
     }).catch(() => setConceptCardsLoading(false))
   }, [gazetteFilters, user])
 

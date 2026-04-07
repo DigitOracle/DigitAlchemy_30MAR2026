@@ -26,6 +26,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const uid = req.nextUrl.searchParams.get("uid") || null
   const regionLabel = REGION_LABELS[region] || "UAE"
 
+  console.log("[post-recs] request", { region, platform, uid: uid ?? "none", hasAuth: !!req.headers.get("authorization"), calledBy: req.headers.get("x-internal-caller") ?? "external" });
+
   // If uid is provided, require Firebase Auth and uid match
   if (uid) {
     getDb()
@@ -149,9 +151,10 @@ RULES:
       return fields as unknown as PostRec
     }).filter(p => p.topic && p.caption)
 
+    console.log("[post-recs] response", { postsCount: posts.slice(0, 3).length, platform, region });
     return NextResponse.json({ posts: posts.slice(0, 3), platform, region, regionLabel })
   } catch (err) {
-    console.log("[POST-RECS] Error:", err)
+    console.log("[post-recs] error", { error: String(err), platform, region });
     return NextResponse.json({ posts: [], platform, region, regionLabel })
   }
 }

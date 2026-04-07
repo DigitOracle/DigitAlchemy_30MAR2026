@@ -37,10 +37,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const platform = (req.nextUrl.searchParams.get("platform") || "tiktok") as Platform;
   const industry = req.nextUrl.searchParams.get("industry") as Industry | undefined;
 
+  console.log("[concept-cards] request", { region, platform, callerUid, hasAuth: !!authHeader });
+
   try {
     // ── Fetch all data sources in parallel ──
     const base = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
-    const fwdHeaders: Record<string, string> = { Authorization: authHeader };
+    const fwdHeaders: Record<string, string> = { Authorization: authHeader, "x-internal-caller": "concept-cards" };
 
     const [contentDNA, performanceDNA, recentPosts, regionalSamples, scoredTrends, genericRecsRes, personalRecsRes] = await Promise.all([
       loadContentProfile(callerUid),
@@ -50,10 +52,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       fetchTrendsForContext({ region, platform, horizon: "24h" }).catch((): ScoredTrend[] => []),
       // Fetch Follow the Trend (generic) and Stay in Your Lane (personalised) recs
       fetch(`${base}/api/post-recommendations?region=${region}&platform=${platform}`, { headers: fwdHeaders, signal: AbortSignal.timeout(15000) })
-        .then(r => r.json()).catch(() => ({ posts: [] })),
+        .then(r => r.json()).catch((e) => ({ posts: [], _error: String(e) })),
       fetch(`${base}/api/post-recommendations?region=${region}&platform=${platform}&uid=${callerUid}`, { headers: fwdHeaders, signal: AbortSignal.timeout(15000) })
-        .then(r => r.json()).catch(() => ({ posts: [] })),
+        .then(r => r.json()).catch((e) => ({ posts: [], _error: String(e) })),
     ]);
+
+    console.log("[concept-cards] recPosts fetched", { genericRecsCount: Array.isArray(genericRecsRes?.posts) ? genericRecsRes.posts.length : "not-array", genericError: genericRecsRes?._error ?? null, personalRecsCount: Array.isArray(personalRecsRes?.posts) ? personalRecsRes.posts.length : "not-array", personalError: personalRecsRes?._error ?? null, scoredTrendsCount: scoredTrends?.length ?? 0 });
 
     const baselinePosts = samplesToBaselinePosts(regionalSamples);
     const genericRecs = (genericRecsRes.posts || []) as { topic: string; caption: string; hashtags: string; audio: string; best_time: string; format: string }[];
@@ -103,6 +107,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         stayInLane: personalRecs,
       },
     }, deps);
+
+    console.log("[concept-cards] generator returned", { cardCount: cards?.length ?? 0, firstCardSource: cards?.[0]?.source ?? "no-cards" });
 
     return NextResponse.json({
       ok: true,

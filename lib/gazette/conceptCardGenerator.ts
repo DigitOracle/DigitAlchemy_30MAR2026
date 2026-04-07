@@ -96,6 +96,8 @@ export async function generateConceptCards(
   input: GenerateConceptCardsInput,
   deps: CardGeneratorDeps,
 ): Promise<ConceptCard[]> {
+  console.log("[generator] inputs", { scoredTrendsCount: input.scoredTrends?.length ?? 0, followTrendCount: input.recPosts?.followTrend?.length ?? "missing", stayInLaneCount: input.recPosts?.stayInLane?.length ?? "missing", platform: input.platform, region: input.region });
+
   const cards: ConceptCard[] = [];
   const ctx = {
     region: input.region,
@@ -129,6 +131,8 @@ export async function generateConceptCards(
       if (!card.hook && !card.body) skeletonCards.push(card);
     }
   }
+
+  console.log("[generator] adapter results", { totalCards: cards.length, skeletonCount: skeletonCards.length, sources: cards.map(c => c.source) });
 
   // ── 4. Populate likelyRange via prediction module ──
   for (const card of cards) {
