@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getStorageBucket } from "@/lib/jobStore"
+import { getAuth } from "firebase-admin/auth"
+import { getStorageBucket, getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 
@@ -11,6 +12,18 @@ const ALLOWED_TYPES = new Set([
 ])
 
 export async function POST(req: NextRequest) {
+  // Require Firebase Auth before issuing signed upload URLs
+  getDb()
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+  try {
+    await getAuth().verifyIdToken(authHeader.slice(7))
+  } catch {
+    return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+  }
+
   try {
     const { filename, contentType, jobId } = await req.json()
 

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
-import { createJob, updateJobStatus, updateSection, setSectionStreaming } from "@/lib/jobStore"
+import { getAuth } from "firebase-admin/auth"
+import { createJob, updateJobStatus, updateSection, setSectionStreaming, getDb } from "@/lib/jobStore"
 import { createJobV2, updateJobStatusV2, updateJobV2 } from "@/lib/firestore/jobs"
 import { attemptMediaAccess } from "@/lib/media/access"
 import { transcribeFromUrl } from "@/lib/transcription/whisper"
@@ -43,8 +44,28 @@ async function callClaude(prompt: string, maxTokens = 1500): Promise<Record<stri
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
+  // Require Firebase Auth — uid derived from token, not request body
+  getDb()
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Authentication required" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    })
+  }
+  let authenticatedUid: string
+  try {
+    const token = await getAuth().verifyIdToken(authHeader.slice(7))
+    authenticatedUid = token.uid
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid auth token" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    })
+  }
+
   const body = await req.json()
-  const { task, workflowId, workflowLabel, intakeContext, storagePath: uploadedStoragePath, uid: requestUid } = body
+  const { task, workflowId, workflowLabel, intakeContext, storagePath: uploadedStoragePath } = body
+  // Ignore caller-supplied uid — use the verified token uid for all user-scoped writes
+  const requestUid = authenticatedUid
 
   if (!task || task.trim().length < 5) {
     return new Response(JSON.stringify({ success: false, error: "Task required" }), {

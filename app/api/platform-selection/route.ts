@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getAuth } from "firebase-admin/auth"
 import { getJobV2, updateJobV2 } from "@/lib/firestore/jobs"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 
 export async function POST(req: NextRequest) {
+  // Require Firebase Auth before modifying job state
+  getDb()
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+  try {
+    await getAuth().verifyIdToken(authHeader.slice(7))
+  } catch {
+    return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+  }
+
   try {
     const { jobId, platforms, confirmedFocus } = await req.json()
 

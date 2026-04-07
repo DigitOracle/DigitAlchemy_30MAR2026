@@ -1,5 +1,6 @@
 "use client"
 import { useState, useRef } from "react"
+import { auth } from "@/lib/firebase"
 
 type Props = {
   mode: "link" | "upload"
@@ -51,9 +52,10 @@ export function SourceInputStage({ mode, onSubmitUrl, onUploadComplete, onBack }
 
     try {
       setUploadState("presigning")
+      const uploadToken = await auth?.currentUser?.getIdToken() ?? ""
       const presignRes = await fetch("/api/upload/presign", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(uploadToken ? { Authorization: `Bearer ${uploadToken}` } : {}) },
         body: JSON.stringify({ filename: selectedFile.name, contentType: selectedFile.type || "video/mp4", jobId: createJobId }),
       })
       if (!presignRes.ok) throw new Error((await presignRes.json()).error ?? "Presign failed")
