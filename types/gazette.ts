@@ -286,6 +286,26 @@ export interface PerformancePost {
 }
 
 // ============================================================================
+// Predictions — expected engagement ranges for concept cards
+// ============================================================================
+
+export type PredictionBasis = "baseline" | "user_history" | "blended" | "insufficient_data";
+
+export type PredictionMetric = "views" | "engagement" | "reach";
+
+export interface ExpectedRange {
+  min: number;
+  max: number;
+  median: number;
+  metric: PredictionMetric;
+  confidence: "high" | "medium" | "low";
+  basis: PredictionBasis;
+  reasoning: string;
+  basedOnPosts: number;
+  baselineSampleSize: number;
+}
+
+// ============================================================================
 // Examples — one of each type, for copy-paste into tests
 // ============================================================================
 
