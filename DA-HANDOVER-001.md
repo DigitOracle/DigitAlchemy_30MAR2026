@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 2.1 — create lib/gazette/context.ts with UserContext validation helpers
+**The immediate next step:** Phase 2.2 — create lib/gazette/trends.ts as a thin adapter over lib/trendRadar/score.ts
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -156,7 +156,7 @@ This is the concrete path from where we are now to the Gazette being the live Co
 
 - [x] **2.0** Extract duplicated ScrapeCreators fetch logic from trend-ticker/route.ts, reverse-engineer/route.ts, and lib/trendRadar/capture.ts into `lib/providers/scrapeCreators.ts`
 - [x] **2.0.5** Add Vitest test runner and backfill ScrapeCreators unit tests (18 tests, all passing)
-- [ ] **2.1** Create `lib/gazette/context.ts` — helpers for validating and defaulting `UserContext` objects
+- [x] **2.1** Create `lib/gazette/context.ts` — helpers for validating and defaulting `UserContext` objects
 - [ ] **2.2** Create `lib/gazette/trends.ts` — fetches relevant `trend_snapshots` from Firestore based on `UserContext` (platform, region filtering)
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
 - [ ] **2.4** Define the initial classification logic in `concept-cards.ts` — keyword rules matching the 7 categories, with the Post 7 and Post 18 fixes from the baseline failure analysis built in from day 1
@@ -412,3 +412,4 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - Phase 1 complete — types/gazette.ts committed with UserContext, ConceptCard, ConceptCardCategory, GazetteResponse, and example values. tsc --noEmit passes clean.
 - Phase 2.0 complete — ScrapeCreators canonical module extracted to lib/providers/scrapeCreators.ts. Four original callers remain unchanged until Phase 4. Diff analysis at docs/DA-TEC-2026-004-scrapecreators-diff.md.
 - Phase 2.0.5 complete — Vitest added as test runner. ScrapeCreators tests backfilled (18 tests, all passing).
+- Phase 2.1 complete — lib/gazette/context.ts created with validation, defaulting, and type guards. Tests passing (35 context tests + 18 scrapeCreators = 53 total).
