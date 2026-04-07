@@ -68,7 +68,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       predict: (input) => {
         try {
           return predictForCard(input);
-        } catch {
+        } catch (e) {
+          console.error("[concept-cards] predict error", { message: e instanceof Error ? e.message : String(e) });
           return null;
         }
       },
@@ -85,7 +86,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           const text = response.content[0].type === "text" ? response.content[0].text : "";
           const cleaned = text.replace(/```json|```/g, "").trim();
           return JSON.parse(cleaned) as { hook: string; body: string };
-        } catch {
+        } catch (e) {
+          console.error("[concept-cards] claude enrich error", { message: e instanceof Error ? e.message : String(e) });
           return null;
         }
       },
@@ -119,7 +121,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       generatedAt: new Date().toISOString(),
     });
   } catch (err) {
-    console.error("[concept-cards] Generation failed:", err);
+    console.error("[concept-cards] EXCEPTION", { message: err instanceof Error ? err.message : String(err), stack: err instanceof Error ? err.stack : undefined, name: err instanceof Error ? err.name : typeof err });
     return NextResponse.json({ error: "Card generation failed" }, { status: 500 });
   }
 }
