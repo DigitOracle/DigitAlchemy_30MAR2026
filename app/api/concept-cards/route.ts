@@ -39,15 +39,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   try {
     // ── Fetch all data sources in parallel ──
-    const [contentDNA, performanceDNA, recentPosts, regionalSamples, scoredTrends] = await Promise.all([
+    const base = `${req.nextUrl.protocol}//${req.nextUrl.host}`;
+    const fwdHeaders: Record<string, string> = { Authorization: authHeader };
+
+    const [contentDNA, performanceDNA, recentPosts, regionalSamples, scoredTrends, genericRecsRes, personalRecsRes] = await Promise.all([
       loadContentProfile(callerUid),
       getPerformanceDNA(callerUid),
       getPerformancePosts(callerUid),
       getRegionalEngagementSamples({ platform, region, industry }),
       fetchTrendsForContext({ region, platform, horizon: "24h" }).catch((): ScoredTrend[] => []),
+      // Fetch Follow the Trend (generic) and Stay in Your Lane (personalised) recs
+      fetch(`${base}/api/post-recommendations?region=${region}&platform=${platform}`, { headers: fwdHeaders, signal: AbortSignal.timeout(15000) })
+        .then(r => r.json()).catch(() => ({ posts: [] })),
+      fetch(`${base}/api/post-recommendations?region=${region}&platform=${platform}&uid=${callerUid}`, { headers: fwdHeaders, signal: AbortSignal.timeout(15000) })
+        .then(r => r.json()).catch(() => ({ posts: [] })),
     ]);
 
     const baselinePosts = samplesToBaselinePosts(regionalSamples);
+    const genericRecs = (genericRecsRes.posts || []) as { topic: string; caption: string; hashtags: string; audio: string; best_time: string; format: string }[];
+    const personalRecs = (personalRecsRes.posts || []) as { topic: string; caption: string; hashtags: string; audio: string; best_time: string; format: string }[];
 
     // ── Wire up dependencies ──
     const deps: CardGeneratorDeps = {
@@ -88,6 +98,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       recentPosts,
       baselinePosts,
       scoredTrends,
+      recPosts: {
+        followTrend: genericRecs,
+        stayInLane: personalRecs,
+      },
     }, deps);
 
     return NextResponse.json({

@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 3 — New Gazette API route (/api/gazette) that uses the shared pipeline. Phase 2.3 is complete. for users/{uid}/**
+**The immediate next step:** Phase 3 — New Gazette API route (/api/gazette) that consolidates all pipeline output. Legacy app/page.tsx Spot Trends form deletion deferred to Phase 3. for users/{uid}/**
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -175,7 +175,8 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **2.3d** Canonical ConceptCard type — types/conceptCard.ts with discriminated union over platform-format, lib/gazette/conceptCard.ts with type guards and helpers, 12 vitest tests. Stories excluded. LikelyRange integrated from Phase 2.3c.
 - [x] **2.3e** Adapters — lib/gazette/adapters.ts with 3 adapter functions. 14 tests. Excluded: TrendingSound, WikiItem/GdeltItem/YoutubeItem.
 - [x] **2.3f** Card generator integration — lib/gazette/conceptCardGenerator.ts orchestrates adapters + predictions + Claude enrichment. New route /api/concept-cards with Bearer auth. Dependency injection for testability. 9 tests.
-- [x] **2.3g** UI rendering — ConceptCardGrid component replaces TwoRowRecommends on platform tabs. Added to Front Page as "Your Content Plays". Fetches /api/concept-cards with Bearer auth. Falls back to old TwoRowRecommends when no concept cards available. Phase 2.3 COMPLETE.
+- [x] **2.3g** UI rendering — ConceptCardGrid component replaces TwoRowRecommends on platform tabs. Added to Front Page.
+- [x] **2.3h** Masthead filter shell + bug fixes. Bug 1: wired recPosts into /api/concept-cards (DA-DIAG-2026-001 closed). Bug 2: legacy TwoRowRecommends fallback removed. GazetteFilters component with mode/horizon/industry/audience/actorType. dnaToFilterDefaults helper. GazetteFilterState type. 170 tests.
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
 - [ ] **2.4** Define the initial classification logic in `concept-cards.ts` — keyword rules matching the 7 categories, with the Post 7 and Post 18 fixes from the baseline failure analysis built in from day 1
 - [ ] **2.5** Unit test the concept card generator against the existing synthetic ground truth (`autoagent/tasks/concept-card-classification/files/ground_truth.json`) to confirm it hits the 0.9020+ baseline

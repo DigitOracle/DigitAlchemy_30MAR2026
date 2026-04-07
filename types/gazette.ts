@@ -172,6 +172,20 @@ export interface UserContext {
 }
 
 // ============================================================================
+// GazetteFilterState — URL-driven filter bar state
+// ============================================================================
+
+export interface GazetteFilterState {
+  region: Region;
+  platform: Platform;
+  mode: Branch;
+  horizon: Horizon;
+  industry?: Industry;
+  audience?: Audience;
+  actorType: "b2b" | "b2c";
+}
+
+// ============================================================================
 // ConceptCardCategory — the seven categories from DA-UC-001
 // ============================================================================
 
