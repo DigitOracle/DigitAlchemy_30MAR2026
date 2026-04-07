@@ -337,6 +337,71 @@ export function predictForCard(input: PredictionInput): LikelyRange {
 }
 
 // ============================================================================
+// Async wrapper — bridges pure prediction functions to live Firestore data
+// ============================================================================
+
+import { getPerformanceDNA, getPerformancePosts } from "@/lib/firestore/performanceDNA";
+import { getRegionalEngagementSamples } from "@/lib/firestore/regionalEngagement";
+import type { RegionalEngagementSample } from "@/types/gazette";
+
+/** Convert RegionalEngagementSample[] to PerformancePost[] for the prediction module. */
+export function samplesToBaselinePosts(samples: RegionalEngagementSample[]): PerformancePost[] {
+  return samples.map((s) => ({
+    postId: s.postId,
+    platform: s.platform,
+    publishedAt: s.publishedAt,
+    caption: s.caption,
+    hashtags: s.hashtags,
+    audioType: s.audioType ?? "unknown",
+    format: s.format,
+    views: s.views,
+    likes: s.likes,
+    comments: s.comments,
+    shares: s.shares,
+    watchTime: s.watchTime,
+    completionRate: s.completionRate,
+    engagementRate: s.engagementRate,
+    hookText: s.caption.slice(0, 60),
+    captionLength: s.caption.length,
+  }));
+}
+
+/**
+ * Convenience async wrapper that fetches all data and returns a LikelyRange.
+ * This function does I/O (Firestore reads) — the pure functions above do not.
+ */
+export async function predictForCardWithFreshData(input: {
+  uid: string;
+  platform: Platform;
+  region: Region;
+  industry?: Industry;
+  niche?: string[];
+  metric?: PredictionMetric;
+}): Promise<LikelyRange> {
+  const [dna, userPosts, regionalSamples] = await Promise.all([
+    getPerformanceDNA(input.uid),
+    getPerformancePosts(input.uid),
+    getRegionalEngagementSamples({
+      platform: input.platform,
+      region: input.region,
+      industry: input.industry,
+      niche: input.niche,
+    }),
+  ]);
+
+  return predictForCard({
+    platform: input.platform,
+    region: input.region,
+    industry: input.industry,
+    niche: input.niche?.join(" "),
+    performanceDNA: dna,
+    recentPosts: userPosts,
+    baselinePosts: samplesToBaselinePosts(regionalSamples),
+    metric: input.metric,
+  });
+}
+
+// ============================================================================
 // Exported for testing only
 // ============================================================================
 

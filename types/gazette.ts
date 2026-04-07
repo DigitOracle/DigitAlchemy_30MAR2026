@@ -286,6 +286,32 @@ export interface PerformancePost {
 }
 
 // ============================================================================
+// RegionalEngagementSample — cross-user public post data for prediction baselines
+// ============================================================================
+
+export interface RegionalEngagementSample {
+  sampleId: string;
+  postId: string;
+  platform: Platform;
+  region: Region;
+  industry?: Industry;
+  caption: string;
+  hashtags: string[];
+  audioType?: "trending" | "original" | "none" | "unknown";
+  format: "video" | "image" | "carousel" | "text";
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  watchTime?: number;
+  completionRate?: number;
+  engagementRate: number;
+  capturedAt: string;
+  publishedAt: string;
+  source: "scrape_creators" | "apify" | "manual";
+}
+
+// ============================================================================
 // Predictions — likely engagement ranges for concept cards
 // See docs/DA-TEC-2026-008-prediction-math-decisions.md for rationale.
 // ============================================================================

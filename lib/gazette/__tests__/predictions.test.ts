@@ -5,8 +5,10 @@ import {
   computeUserRange,
   blendPredictions,
   predictForCard,
+  samplesToBaselinePosts,
   _testing,
 } from "../predictions";
+import type { RegionalEngagementSample } from "@/types/gazette";
 
 const { logTransform, inverseLogTransform, pctile, sampleVariance, computeShrinkageUserWeight } = _testing;
 
@@ -265,5 +267,97 @@ describe("order-of-magnitude accuracy", () => {
 
     const accuracy = hits / syntheticViews.length;
     expect(accuracy).toBeGreaterThanOrEqual(0.8);
+  });
+});
+
+// ── samplesToBaselinePosts conversion ────────────────────────────────────
+
+describe("samplesToBaselinePosts", () => {
+  function makeSample(overrides: Partial<RegionalEngagementSample> = {}): RegionalEngagementSample {
+    return {
+      sampleId: "sc_tiktok_123_1000", postId: "123", platform: "tiktok", region: "AE",
+      caption: "Test #construction", hashtags: ["#construction"], format: "video",
+      views: 5000, likes: 500, comments: 50, shares: 20, engagementRate: 0.114,
+      capturedAt: "2026-04-07T10:00:00Z", publishedAt: "2026-04-06T12:00:00Z",
+      source: "scrape_creators", ...overrides,
+    };
+  }
+
+  it("converts samples to PerformancePost with correct fields", () => {
+    const samples = [makeSample(), makeSample({ sampleId: "sc_tiktok_456_1000", postId: "456", views: 8000 })];
+    const posts = samplesToBaselinePosts(samples);
+    expect(posts).toHaveLength(2);
+    expect(posts[0].postId).toBe("123");
+    expect(posts[0].views).toBe(5000);
+    expect(posts[0].engagementRate).toBe(0.114);
+    expect(posts[0].hookText).toBe("Test #construction");
+  });
+
+  it("preserves engagement fields through conversion", () => {
+    const sample = makeSample({ likes: 999, comments: 88, shares: 33 });
+    const [post] = samplesToBaselinePosts([sample]);
+    expect(post.likes).toBe(999);
+    expect(post.comments).toBe(88);
+    expect(post.shares).toBe(33);
+  });
+
+  it("handles optional fields gracefully", () => {
+    const sample = makeSample({ watchTime: undefined, completionRate: undefined });
+    const [post] = samplesToBaselinePosts([sample]);
+    expect(post.watchTime).toBeUndefined();
+    expect(post.completionRate).toBeUndefined();
+  });
+
+  it("computes hookText from caption first 60 chars", () => {
+    const longCaption = "A".repeat(100);
+    const [post] = samplesToBaselinePosts([makeSample({ caption: longCaption })]);
+    expect(post.hookText).toHaveLength(60);
+  });
+});
+
+// ── Regional baseline integration with prediction ───────────────────────
+
+describe("regional baseline → prediction integration", () => {
+  function makeSample(views: number): RegionalEngagementSample {
+    return {
+      sampleId: `sc_tiktok_${views}_${Date.now()}`, postId: `${views}`, platform: "tiktok", region: "AE",
+      caption: "Test #construction", hashtags: ["#construction"], format: "video",
+      views, likes: Math.round(views * 0.1), comments: Math.round(views * 0.02), shares: Math.round(views * 0.005),
+      engagementRate: 0.125, capturedAt: "2026-04-07T10:00:00Z", publishedAt: "2026-04-06T12:00:00Z",
+      source: "scrape_creators",
+    };
+  }
+
+  it("predictForCard uses converted regional samples as baseline", () => {
+    const samples = Array.from({ length: 30 }, (_, i) => makeSample(1000 + i * 300));
+    const baselinePosts = samplesToBaselinePosts(samples);
+    const result = predictForCard({
+      platform: "tiktok", region: "AE", performanceDNA: null, recentPosts: [], baselinePosts,
+    });
+    expect(result.basis).toBe("baseline");
+    expect(result.basedOnBaselinePosts).toBe(30);
+    expect(result.median).toBeGreaterThan(0);
+  });
+
+  it("blends regional baseline with user data when both available", () => {
+    const samples = Array.from({ length: 30 }, (_, i) => makeSample(5000 + i * 500));
+    const baselinePosts = samplesToBaselinePosts(samples);
+    const userPosts = makePosts(12, "tiktok", 1000);
+    const result = predictForCard({
+      platform: "tiktok", region: "AE", performanceDNA: makeDNA(15), recentPosts: userPosts, baselinePosts,
+    });
+    expect(result.basis).toBe("blended");
+    expect(result.basedOnUserPosts).toBe(12);
+    expect(result.basedOnBaselinePosts).toBe(30);
+  });
+
+  it("falls back to user-only when no regional samples match platform", () => {
+    const instagramSamples = Array.from({ length: 30 }, (_, i) => ({ ...makeSample(3000 + i * 200), platform: "instagram" as const }));
+    const result = predictForCard({
+      platform: "tiktok", region: "AE", performanceDNA: makeDNA(20),
+      recentPosts: makePosts(10, "tiktok", 1500),
+      baselinePosts: samplesToBaselinePosts(instagramSamples),
+    });
+    expect(result.basis).toBe("user_history");
   });
 });

@@ -97,6 +97,16 @@ service cloud.firestore {
     }
 
     // ════════════════════════════════════════════════════════════════
+    // regional_engagement_samples — cross-user public post engagement data
+    // Client-side access: NONE (server-only write via Admin SDK)
+    // Admin-only read for debugging; clients never access directly.
+    // ════════════════════════════════════════════════════════════════
+    match /regional_engagement_samples/{sampleId} {
+      allow read: if request.auth != null && isAdmin();
+      allow write: if false;
+    }
+
+    // ════════════════════════════════════════════════════════════════
     // da-experiments — AutoAgent experiment logging
     // Client-side access: NONE (server-only via Firebase Admin)
     // ════════════════════════════════════════════════════════════════
