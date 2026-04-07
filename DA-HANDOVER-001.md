@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 2.3f — Card generator integration (wire adapters + predictions into a single generateConceptCards function). for users/{uid}/**
+**The immediate next step:** Phase 2.3g — Switch MorningBriefing.tsx UI to render ConceptCards from /api/concept-cards. for users/{uid}/**
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -173,7 +173,8 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **2.3c.1** Regional engagement samples — extends trend capture to persist per-post engagement data from ScrapeCreators. New collection regional_engagement_samples, CRUD module, 90-day rolling window, async predictForCardWithFreshData wrapper, firestore.rules match block.
 - [x] **2.S.1** Fix client-side Bearer auth regression — MorningBriefing.tsx race condition (missing user in useEffect deps for Gazette data and dashboard stats fetches), app/page.tsx trend-radar/capture calls missing Bearer token
 - [x] **2.3d** Canonical ConceptCard type — types/conceptCard.ts with discriminated union over platform-format, lib/gazette/conceptCard.ts with type guards and helpers, 12 vitest tests. Stories excluded. LikelyRange integrated from Phase 2.3c.
-- [x] **2.3e** Adapters — lib/gazette/adapters.ts with 3 adapter functions (FollowTheTrend, StayInYourLane, ScoredTrend → ConceptCard). 14 tests. Excluded: TrendingSound (audio metadata), WikiItem/GdeltItem/YoutubeItem (headlines/external), Trend Ticker hashtags (signals not cards).
+- [x] **2.3e** Adapters — lib/gazette/adapters.ts with 3 adapter functions. 14 tests. Excluded: TrendingSound, WikiItem/GdeltItem/YoutubeItem.
+- [x] **2.3f** Card generator integration — lib/gazette/conceptCardGenerator.ts orchestrates adapters + predictions + Claude enrichment. New route /api/concept-cards with Bearer auth. Dependency injection for testability. 9 tests (165 total).
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
 - [ ] **2.4** Define the initial classification logic in `concept-cards.ts` — keyword rules matching the 7 categories, with the Post 7 and Post 18 fixes from the baseline failure analysis built in from day 1
 - [ ] **2.5** Unit test the concept card generator against the existing synthetic ground truth (`autoagent/tasks/concept-card-classification/files/ground_truth.json`) to confirm it hits the 0.9020+ baseline
