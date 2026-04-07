@@ -410,7 +410,8 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - **v1.3 — April 7, 2026 (Session 5)** — Phase 2.3.7 complete — second security fix for /api/post-recommendations, /api/dashboard, /api/content-dna/analyze.
 - **v1.4 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1 complete — patched 9 routes. Zero remaining unauthenticated user-scoped endpoints.
 - **v1.5 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.5 complete — ownerUid plumbing finished.
-- **v1.6 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.6 complete — fail-closed ownership on five job-touching routes (legacy jobs without ownerUid now reject non-admin callers), presign endpoint now requires job existence, /api/health/providers now requires admin auth. Codex audit session 019d66b7-eef1-7373-a653-0c2591e4bd01.
+- **v1.6 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.6 complete — fail-closed ownership on five job-touching routes, presign requires job existence, /api/health/providers requires admin auth.
+- **v1.7 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.7 investigation complete. Classification: C (live function with live caller). V1 createJob in lib/jobStore.ts is called by /api/analyze (the main SSE analysis route) which dual-writes to both console_jobs (V1) and console_jobs_v2 (V2). V1 powers the real-time section-streaming during analysis — cannot be deleted. lib/jobStore.ts also exports getDb() and getStorageBucket() used by 15+ files. Recommended action: patch createJob with ownerUid (same as S.1.5 did for V2). Awaiting Doli approval before executing.
 
 ---
 
