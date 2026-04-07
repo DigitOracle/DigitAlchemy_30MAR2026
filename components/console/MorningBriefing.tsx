@@ -197,10 +197,14 @@ export function MorningBriefing() {
   const [statsPlatform, setStatsPlatform] = useState("all")
   useEffect(() => {
     if (!user?.uid) return
-    fetch(`/api/dashboard?platform=${statsPlatform}&uid=${user.uid}`)
-      .then(r => r.json())
-      .then(d => { if (d.stats) setDashStats(d.stats) })
-      .catch(() => {})
+    auth?.currentUser?.getIdToken().then(token => {
+      fetch(`/api/dashboard?platform=${statsPlatform}&uid=${user.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(d => { if (d.stats) setDashStats(d.stats) })
+        .catch(() => {})
+    }).catch(() => {})
   }, [statsPlatform])
 
   // Fetch recommendations when platform section is active (generic + personalised)
@@ -212,12 +216,17 @@ export function MorningBriefing() {
     const genericUrl = `/api/post-recommendations?region=${region}&platform=${activeSection}`
     const personalUrl = user?.uid ? `${genericUrl}&uid=${user.uid}` : null
 
-    const fetches = [fetch(genericUrl).then(r => r.json())]
-    if (personalUrl && hasContentDNA) fetches.push(fetch(personalUrl).then(r => r.json()))
+    const fetches: Promise<unknown>[] = [fetch(genericUrl).then(r => r.json())]
+    if (personalUrl && hasContentDNA) {
+      const tokenPromise = auth?.currentUser?.getIdToken().then(token =>
+        fetch(personalUrl, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+      ) ?? Promise.resolve({ posts: [] })
+      fetches.push(tokenPromise)
+    }
 
     Promise.allSettled(fetches).then(([genRes, perRes]) => {
-      setGenericRecs(genRes.status === "fulfilled" ? genRes.value.posts ?? [] : [])
-      setPersonalRecs(perRes?.status === "fulfilled" ? perRes.value.posts ?? [] : [])
+      setGenericRecs(genRes.status === "fulfilled" ? (genRes.value as Record<string, RecPost[]>)?.posts ?? [] : [])
+      setPersonalRecs(perRes?.status === "fulfilled" ? (perRes.value as Record<string, RecPost[]>)?.posts ?? [] : [])
       setRecsLoading(false)
     })
   }, [activeSection, region, user?.uid, hasContentDNA])

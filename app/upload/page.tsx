@@ -28,7 +28,8 @@ export default function UploadPage() {
       formData.append("file", file)
       formData.append("platform", "tiktok")
 
-      const res = await fetch("/api/content-dna/analyze", { method: "POST", body: formData })
+      const analyzeToken = await auth?.currentUser?.getIdToken()
+      const res = await fetch("/api/content-dna/analyze", { method: "POST", headers: analyzeToken ? { Authorization: `Bearer ${analyzeToken}` } : {}, body: formData })
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error((d as Record<string, string>).error || "Analysis failed") }
 
       const data = await res.json()

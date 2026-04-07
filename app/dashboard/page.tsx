@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/AuthContext"
+import { auth } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts"
 
@@ -27,10 +28,14 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) { router.push("/auth"); return }
     setLoading(true)
-    fetch(`/api/dashboard?platform=${platformFilter}&range=${rangeFilter}&uid=${user?.uid || ""}`)
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
+    auth?.currentUser?.getIdToken().then(token => {
+      fetch(`/api/dashboard?platform=${platformFilter}&range=${rangeFilter}&uid=${user?.uid || ""}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(d => { setData(d); setLoading(false) })
+        .catch(() => setLoading(false))
+    }).catch(() => setLoading(false))
   }, [user, router, platformFilter, rangeFilter])
 
   const chartData = data?.timeline ? (() => {

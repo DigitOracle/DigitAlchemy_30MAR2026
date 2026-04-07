@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server"
+import { getAuth } from "firebase-admin/auth"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
 
 export async function POST(req: Request): Promise<NextResponse> {
   try {
+    // Require Firebase Auth — prevents unauthenticated Groq/Claude cost abuse
+    getDb()
+    const authHeader = req.headers.get("authorization")
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    }
+    try {
+      await getAuth().verifyIdToken(authHeader.slice(7))
+    } catch {
+      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+    }
+
     const formData = await req.formData()
     const file = formData.get("file") as File | null
     const platform = (formData.get("platform") as string) || "tiktok"

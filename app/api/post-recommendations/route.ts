@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getAuth } from "firebase-admin/auth"
 import Anthropic from "@anthropic-ai/sdk"
 import { loadContentProfile } from "@/lib/firestore/contentProfile"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -23,6 +25,28 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const platform = req.nextUrl.searchParams.get("platform") || "tiktok"
   const uid = req.nextUrl.searchParams.get("uid") || null
   const regionLabel = REGION_LABELS[region] || "UAE"
+
+  // If uid is provided, require Firebase Auth and uid match
+  if (uid) {
+    getDb()
+    const authHeader = req.headers.get("authorization")
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    }
+    try {
+      const token = await getAuth().verifyIdToken(authHeader.slice(7))
+      if (token.uid !== uid) {
+        const db = getDb()
+        const callerSnap = await db.doc(`users/${token.uid}`).get()
+        const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role
+        if (callerRole !== "admin") {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        }
+      }
+    } catch {
+      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+    }
+  }
 
   // Load Content DNA profile for personalisation
   let profileContext = ""

@@ -15,17 +15,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "uid required" }, { status: 400 })
   }
 
-  // Verify Firebase auth token if provided (prevents uid spoofing when token is sent)
+  // Require Firebase Auth — mandatory, not optional
   const authHeader = req.headers.get("authorization")
-  if (authHeader?.startsWith("Bearer ")) {
-    try {
-      const token = await getAuth().verifyIdToken(authHeader.slice(7))
-      if (token.uid !== uid) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-      }
-    } catch {
-      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+  try {
+    const token = await getAuth().verifyIdToken(authHeader.slice(7))
+    if (token.uid !== uid) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
+  } catch {
+    return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
   }
 
   // Resolve Ayrshare credentials for this user

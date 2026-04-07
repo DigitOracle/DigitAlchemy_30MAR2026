@@ -157,6 +157,8 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **2.0** Extract duplicated ScrapeCreators fetch logic from trend-ticker/route.ts, reverse-engineer/route.ts, and lib/trendRadar/capture.ts into `lib/providers/scrapeCreators.ts`
 - [x] **2.0.5** Add Vitest test runner and backfill ScrapeCreators unit tests (18 tests, all passing)
 - [x] **2.0.6** Security fix: add Firebase Auth to /api/content-dna/save, /api/content-dna/profile, /api/accounts/status + update client callers
+- [x] **2.0.7** Security fix: add Firebase Auth to /api/post-recommendations (when uid present), /api/dashboard (mandatory), /api/content-dna/analyze + update client callers
+- [ ] **2.0.8** Security fix: make /api/content-dna/auto-ingest auth mandatory (currently optional). Investigate /api/jobs/[jobId]/stream and /api/reverse-engineer auth needs.
 - [x] **2.1** Create `lib/gazette/context.ts` — helpers for validating and defaulting `UserContext` objects
 - [x] **2.2** Create `lib/gazette/trends.ts` — fetches relevant `trend_snapshots` from Firestore based on `UserContext` (platform, region filtering)
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
@@ -403,6 +405,7 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - **v1.0 — April 7, 2026** — Initial handover document created at the end of Session 2, after the Gazette vision was clarified and Approach 2 chosen for the refactor. Phase 0 reconnaissance is the immediate next step.
 - **v1.1 — April 7, 2026 (Session 5)** — Phase 0 reconnaissance was incomplete. Phase 2.3.5 supplemented it with a deep recon of Content DNA, Linked Accounts, and Identity/Auth. Key finding: Content DNA is already shipped with real user data; the existing `ContentProfile` type is sufficient; no new Phase 2.4 type is needed. Three unauthenticated API routes flagged for security hardening in Phase 4. Report at `docs/DA-TEC-2026-005-content-dna-recon.md`.
 - **v1.2 — April 7, 2026 (Session 5)** — Phase 2.3.6 complete — security fix for three unauthenticated DNA and accounts endpoints. All three routes now require Firebase Auth and uid match (admins can read any uid). Client callers updated to send Bearer tokens.
+- **v1.3 — April 7, 2026 (Session 5)** — Phase 2.3.7 complete — second security fix for /api/post-recommendations, /api/dashboard, /api/content-dna/analyze. All three routes now require Firebase Auth. Sweep of remaining app/api/ routes found 1 additional gap (/api/content-dna/auto-ingest has optional auth) plus 2 routes to investigate (jobs/stream, reverse-engineer). Deferred to Phase 2.0.8.
 
 ---
 
