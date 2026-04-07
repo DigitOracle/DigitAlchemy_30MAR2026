@@ -1,0 +1,4 @@
+jobs/
+results.tsv
+run.log
+*.log
