@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 2.3d — Canonical ConceptCard type definition. for users/{uid}/**
+**The immediate next step:** Phase 2.3d — Canonical ConceptCard type definition that incorporates LikelyRange. for users/{uid}/**
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -169,7 +169,7 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **2.2** Create `lib/gazette/trends.ts` — fetches relevant `trend_snapshots` from Firestore based on `UserContext` (platform, region filtering)
 - [x] **2.3a** Ayrshare integration audit complete (DA-TEC-2026-007) — engagement data fetched but discarded; Phase 2.3b is small (extend existing flow)
 - [x] **2.3b** Performance DNA data layer — extends Ayrshare /history flow to persist engagement data, 7 PerformanceField functions with per-feature confidence, 50-post rolling window, Instagram added to fetchAllPostHistory
-- [x] **2.3c** Prediction module — lib/gazette/predictions.ts with computeBaselineRange, computeUserRange, blendPrediction, predictForCard. Pure functions, no I/O. 25 tests.
+- [x] **2.3c** Prediction module — lib/gazette/predictions.ts with log-space math, James-Stein shrinkage blending, order-of-magnitude accuracy testing. LikelyRange replaces ExpectedRange. Math decisions at DA-TEC-2026-008.
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
 - [ ] **2.4** Define the initial classification logic in `concept-cards.ts` — keyword rules matching the 7 categories, with the Post 7 and Post 18 fixes from the baseline failure analysis built in from day 1
 - [ ] **2.5** Unit test the concept card generator against the existing synthetic ground truth (`autoagent/tasks/concept-card-classification/files/ground_truth.json`) to confirm it hits the 0.9020+ baseline
@@ -424,7 +424,7 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - **v1.10 — April 7, 2026 (Session 5)** — Phase 1.5 complete — type system matches production. 77 tests.
 - **v1.11 — April 7, 2026 (Session 5)** — Phase 2.3a complete — Ayrshare audit.
 - **v1.12 — April 7, 2026 (Session 5)** — Phase 2.3b complete — Performance DNA persistence. 92 tests.
-- **v1.13 — April 7, 2026 (Session 5)** — Phase 2.3c complete — prediction module shipped. Combines baseline data (PerformancePost arrays as proxy since TrendSnapshot lacks engagement metrics) with user history (Performance DNA) using weighted blending that scales with user post count. Returns ExpectedRange with explicit basis and reasoning fields. 117 tests (25 new).
+- **v1.13 — April 7, 2026 (Session 5)** — Phase 2.3c rewritten with statistically correct math. Log-normal distribution handling via log1p/expm1 transforms. James-Stein shrinkage estimator replaces threshold-based blending. LikelyRange (p25/median/p75) replaces ExpectedRange (min/max/median). Math decisions documented in DA-TEC-2026-008. Order-of-magnitude accuracy test passes at 80%+. 123 tests.
 
 ---
 

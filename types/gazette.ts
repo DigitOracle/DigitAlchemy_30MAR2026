@@ -286,23 +286,32 @@ export interface PerformancePost {
 }
 
 // ============================================================================
-// Predictions — expected engagement ranges for concept cards
+// Predictions — likely engagement ranges for concept cards
+// See docs/DA-TEC-2026-008-prediction-math-decisions.md for rationale.
 // ============================================================================
 
 export type PredictionBasis = "baseline" | "user_history" | "blended" | "insufficient_data";
 
 export type PredictionMetric = "views" | "engagement" | "reach";
 
-export interface ExpectedRange {
-  min: number;
-  max: number;
+export interface LikelyRange {
+  /** 25th percentile — lower bound of "typical" range */
+  p25: number;
+  /** 50th percentile — most likely value */
   median: number;
+  /** 75th percentile — upper bound of "typical" range */
+  p75: number;
   metric: PredictionMetric;
   confidence: "high" | "medium" | "low";
   basis: PredictionBasis;
+  /** One sentence explaining the data source */
   reasoning: string;
-  basedOnPosts: number;
-  baselineSampleSize: number;
+  /** Number of user's own posts used (0 if pure baseline) */
+  basedOnUserPosts: number;
+  /** Number of baseline posts used (0 if pure user_history) */
+  basedOnBaselinePosts: number;
+  /** 0.0 = pure user, 1.0 = pure baseline. UI can display this. */
+  shrinkageWeight: number;
 }
 
 // ============================================================================
