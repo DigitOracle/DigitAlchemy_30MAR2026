@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/AuthContext"
 import Link from "next/link"
 import agentProfilesData from "@/data/agent_profiles.json"
 import mcpRegistryData from "@/data/mcp_registry.json"
@@ -138,6 +140,14 @@ function StatusBadge({ status }: { status: AuditStatus }) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OrchestratePage() {
+  const { user, profile, loading: authLoading } = useAuth()
+  const router = useRouter()
+
+  // Admin gate — redirect non-admins to Console home
+  useEffect(() => {
+    if (!authLoading && (!user || profile?.role !== "admin")) router.push("/")
+  }, [user, profile, authLoading, router])
+
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [selectedMcpId, setSelectedMcpId] = useState<string | null>(null)
 
@@ -170,6 +180,10 @@ export default function OrchestratePage() {
   function handleMcpChange(id: string) {
     setSelectedMcpId(id || null)
   }
+
+  // Auth guards — block render for non-admins
+  if (authLoading) return null
+  if (!user || profile?.role !== "admin") return null
 
   return (
     <div className="min-h-screen bg-white">

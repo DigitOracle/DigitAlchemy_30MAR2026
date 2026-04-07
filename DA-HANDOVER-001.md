@@ -161,7 +161,7 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **2.S.1** Comprehensive security patch: 9 routes per Codex adversarial audit + Phase 2.3.7 sweep. Zero remaining unauthenticated user-scoped endpoints.
 - [x] **2.S.1.5** Complete ownerUid plumbing: createJobV2 writes ownerUid, upload/presign + upload/complete + platform-selection enforce ownership
 - [x] **2.S.1.6** Fail-closed ownership on 5 job routes, presign requires job existence, /api/health/providers requires admin auth
-- [x] **2.S.1.7** V1 createJob patched with ownerUid (investigation approved, patch applied)
+- [x] **2.S.1.7** V1 createJob patched with ownerUid (investigation 5368e34, patch 20d10d6) + /orchestrate admin gate (P2.S-001)
 - [x] **2.1** Create `lib/gazette/context.ts` — helpers for validating and defaulting `UserContext` objects
 - [x] **2.2** Create `lib/gazette/trends.ts` — fetches relevant `trend_snapshots` from Firestore based on `UserContext` (platform, region filtering)
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
@@ -412,7 +412,7 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - **v1.4 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1 complete — patched 9 routes. Zero remaining unauthenticated user-scoped endpoints.
 - **v1.5 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.5 complete — ownerUid plumbing finished.
 - **v1.6 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.6 complete — fail-closed ownership on five job-touching routes, presign requires job existence, /api/health/providers requires admin auth.
-- **v1.7 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.7 investigation complete. Classification: C (live function with live caller). V1 createJob in lib/jobStore.ts is called by /api/analyze (the main SSE analysis route) which dual-writes to both console_jobs (V1) and console_jobs_v2 (V2). V1 powers the real-time section-streaming during analysis — cannot be deleted. lib/jobStore.ts also exports getDb() and getStorageBucket() used by 15+ files. Recommended action: patch createJob with ownerUid (same as S.1.5 did for V2). Awaiting Doli approval before executing.
+- **v1.7 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.7 investigation (5368e34) classified V1 createJob as Class C. Patch applied (20d10d6): V1 createJob now requires ownerUid. /orchestrate page now requires admin auth (P2.S-001 closed). Filed P-MAINT-003: split lib/jobStore.ts into three concerns to enable future V1 deletion.
 
 ---
 
