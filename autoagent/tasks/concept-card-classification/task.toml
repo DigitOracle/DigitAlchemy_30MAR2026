@@ -1,0 +1,19 @@
+[task]
+name = "concept-card-classification"
+description = "Classify social media posts into DigitAlchemy concept-card categories"
+version = "1.0.0"
+
+[task.scoring]
+method = "deterministic"
+metric = "f1_score"
+pass_threshold = 0.85
+weight = 0.20
+
+[task.timeouts]
+run = 120        # seconds
+setup = 60
+teardown = 30
+
+[task.resources]
+cpu = 1
+memory = "512Mi"
