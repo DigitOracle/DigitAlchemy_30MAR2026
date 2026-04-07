@@ -41,6 +41,30 @@
 
 ---
 
+### DA-Q-009 — Run AutoAgent baseline (no optimization)
+
+**Priority:** P1
+**Status:** BLOCKED
+**Reason blocked:** Depends on DA-Q-006, DA-Q-007, DA-Q-008 completing first. Auto-unblock once those are DONE.
+**Captured:** 2026-04-07
+**Source:** Phase 1 of DA-TEC-2026-001
+
+**Context:**
+First baseline run. No optimization yet. Just measure where the agents are starting from on the concept-card-classification benchmark. This number becomes the "before" score that all future hill-climbing improvements measure against.
+
+**Files to touch:**
+- Create: autoagent/results.tsv (initial header row + first baseline entry)
+- Read: autoagent/agents/agent-trend-ticker.py
+- Read: autoagent/tasks/concept-card-classification/
+
+**Acceptance criteria:**
+- Docker base image builds successfully
+- Harbor runs the concept-card-classification task against agent-trend-ticker.py
+- Result written to autoagent/results.tsv with status: keep, description: "baseline run, no modifications"
+- Baseline score reported back to me (Doli) so I know where we're starting
+
+---
+
 <!-- APPEND NEW TASKS BELOW THIS LINE -->
 
 ---
@@ -86,6 +110,36 @@
 **Captured:** 2026-04-07
 **Completed:** 2026-04-07
 **Commit:** `dd68a66`
+
+---
+
+### DA-Q-006 — Extract trending-audio route into agent harness
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `50ef6a4`
+
+---
+
+### DA-Q-007 — Extract morning-briefing route into agent harness
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `02e9164`
+
+---
+
+### DA-Q-008 — Build concept-card-classification benchmark task
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `e1e6468`
 
 ---
 
