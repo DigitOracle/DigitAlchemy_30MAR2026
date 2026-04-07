@@ -44,7 +44,8 @@ export async function createJob(
   task: string,
   workflowId: string | null,
   workflowLabel: string | null,
-  intakeContext: Record<string, string | string[]>
+  intakeContext: Record<string, string | string[]>,
+  ownerUid: string
 ): Promise<Job> {
   const db = getDb()
   const id = `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -62,6 +63,7 @@ export async function createJob(
 
   const job: Job = {
     id,
+    ownerUid,
     status: "created",
     workflowId,
     workflowLabel,

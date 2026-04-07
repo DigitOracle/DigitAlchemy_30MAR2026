@@ -74,7 +74,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     })
   }
 
-  const job = await createJob(task.trim(), workflowId ?? null, workflowLabel ?? null, intakeContext ?? {})
+  const job = await createJob(task.trim(), workflowId ?? null, workflowLabel ?? null, intakeContext ?? {}, authenticatedUid)
   const isSocial = workflowId === "social-video-optimization"
 
   // Create v2 job document with extended schema
