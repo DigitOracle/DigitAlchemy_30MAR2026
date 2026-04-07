@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 2.S Commit S.3 — run final Codex re-audit for security sign-off, then resume Gazette pipeline at Phase 2.3 for users/{uid}/**
+**The immediate next step:** Final Codex re-audit (S.3) against post-S.2.1 state. If clean, security loop is closed and we resume Gazette pipeline at Phase 2.3. for users/{uid}/**
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -163,6 +163,7 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **2.S.1.6** Fail-closed ownership on 5 job routes, presign requires job existence, /api/health/providers requires admin auth
 - [x] **2.S.1.7** V1 createJob patched with ownerUid (investigation 5368e34, patch 20d10d6) + /orchestrate admin gate (P2.S-001)
 - [x] **2.S.2** Add firestore.rules with least-privilege scoping + firebase.json reference
+- [x] **2.S.2.1** Codex re-audit fixes: /api/trend-radar/capture admin-gated, /api/trending-audio + /api/morning-briefing + /api/trend-ticker authenticated, firestore.rules contract tightened
 - [x] **2.1** Create `lib/gazette/context.ts` — helpers for validating and defaulting `UserContext` objects
 - [x] **2.2** Create `lib/gazette/trends.ts` — fetches relevant `trend_snapshots` from Firestore based on `UserContext` (platform, region filtering)
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
@@ -414,7 +415,8 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - **v1.5 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.5 complete — ownerUid plumbing finished.
 - **v1.6 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.6 complete — fail-closed ownership on five job-touching routes, presign requires job existence, /api/health/providers requires admin auth.
 - **v1.7 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.7: V1 createJob ownerUid (20d10d6) + /orchestrate admin gate (4767a9d).
-- **v1.8 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.2 complete — firestore.rules added with least-privilege scoping. 9 collection paths covered. Default deny for unlisted paths. Admin role checked via Firestore document read (no custom claims). firebase.json updated to reference rules file. Ready for Codex re-audit sign-off.
+- **v1.8 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.2 complete — firestore.rules added.
+- **v1.9 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.2.1 complete — three Codex re-audit findings closed. /api/trend-radar/capture admin-gated, three Gazette data routes (/api/trending-audio, /api/morning-briefing, /api/trend-ticker) authenticated with client callers updated, /api/post-recommendations server-to-server calls now forward auth header, firestore.rules contract tightened (infra/trend/cache all admin-only, da-experiments added, explicit terminal default-deny). Codex audit session 019d66d7.
 
 ---
 

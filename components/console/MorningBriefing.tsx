@@ -233,16 +233,19 @@ export function MorningBriefing() {
 
   useEffect(() => {
     setLoading(true)
-    Promise.allSettled([
-      fetch(`/api/morning-briefing?region=${region}`).then(r => r.json()),
-      fetch(`/api/trend-ticker?region=${region}`).then(r => r.json()),
-      fetch(`/api/trending-audio?region=${region}`).then(r => r.json()),
-    ]).then(([briefing, ticker, audio]) => {
-      if (briefing.status === "fulfilled") setData(briefing.value)
-      if (ticker.status === "fulfilled") setTickerData(ticker.value)
-      if (audio.status === "fulfilled") setAudioData(audio.value)
-      setLoading(false)
-    })
+    auth?.currentUser?.getIdToken().then(token => {
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      Promise.allSettled([
+        fetch(`/api/morning-briefing?region=${region}`, { headers }).then(r => r.json()),
+        fetch(`/api/trend-ticker?region=${region}`, { headers }).then(r => r.json()),
+        fetch(`/api/trending-audio?region=${region}`, { headers }).then(r => r.json()),
+      ]).then(([briefing, ticker, audio]) => {
+        if (briefing.status === "fulfilled") setData(briefing.value)
+        if (ticker.status === "fulfilled") setTickerData(ticker.value)
+        if (audio.status === "fulfilled") setAudioData(audio.value)
+        setLoading(false)
+      })
+    }).catch(() => setLoading(false))
   }, [region])
 
   const wiki = data ? cleanWikipedia(data.wikipedia) : []

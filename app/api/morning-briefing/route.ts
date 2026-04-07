@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getAuth } from "firebase-admin/auth"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -12,6 +14,18 @@ type GdeltItem = { title: string; domain: string; url?: string }
 type YoutubeItem = { title: string; channel: string; views: number; thumbnail: string }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  // Require Bearer auth — triggers paid YouTube Data API calls
+  getDb()
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+  try {
+    await getAuth().verifyIdToken(authHeader.slice(7))
+  } catch {
+    return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+  }
+
   const region = req.nextUrl.searchParams.get("region") || "AE"
   const regionLabel = REGION_LABELS[region] || region
 

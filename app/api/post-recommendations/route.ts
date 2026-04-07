@@ -72,11 +72,13 @@ IMPORTANT: Recommendations should feel like natural extensions of this creator's
     } catch { /* profile not available — use generic recs */ }
   }
 
-  // Fetch trending data to ground recommendations
+  // Fetch trending data to ground recommendations — forward auth header for server-to-server calls
   const base = `${req.nextUrl.protocol}//${req.nextUrl.host}`
+  const fwdAuth = req.headers.get("authorization")
+  const fwdHeaders: Record<string, string> = fwdAuth ? { Authorization: fwdAuth } : {}
   const [tickerRes, audioRes] = await Promise.allSettled([
-    fetch(`${base}/api/trend-ticker?region=${region}`, { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
-    fetch(`${base}/api/trending-audio?region=${region}`, { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
+    fetch(`${base}/api/trend-ticker?region=${region}`, { headers: fwdHeaders, signal: AbortSignal.timeout(10000) }).then(r => r.json()),
+    fetch(`${base}/api/trending-audio?region=${region}`, { headers: fwdHeaders, signal: AbortSignal.timeout(10000) }).then(r => r.json()),
   ])
 
   const ticker = tickerRes.status === "fulfilled" ? tickerRes.value : {}
