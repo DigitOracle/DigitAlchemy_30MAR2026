@@ -28,9 +28,8 @@ export async function GET(
     return NextResponse.json({ error: "Job not found" }, { status: 404 })
   }
 
-  // Ownership check: if job has ownerUid, non-admins must match
-  const jobOwner = (job as Record<string, unknown>).ownerUid as string | undefined
-  if (jobOwner && jobOwner !== callerUid) {
+  // Fail-closed ownership check: ownerUid missing = admin-only; ownerUid present = exact match or admin
+  if (job.ownerUid !== callerUid) {
     const db = getDb()
     const callerSnap = await db.doc(`users/${callerUid}`).get()
     const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role

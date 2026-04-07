@@ -110,7 +110,7 @@ All on branch `feature/autoagent-integration`, all pushed to GitHub.
 - Handover document now lives in repo at DA-HANDOVER-001.md
 - Production branch main is unchanged — current Vercel deployment reflects the pre-session state
 
-**The immediate next step:** Phase 2.S Commit S.2 — run Codex re-audit, then add firestore.rules to repo
+**The immediate next step:** Phase 2.S Commit S.1.7 — investigate lib/jobStore.ts legacy createJob path; decide whether to deprecate or patch with ownerUid
 
 **Blocked items:** DA-Q-015 (ground truth labeling from real data) and DA-Q-017 (first hybrid optimization cycle) remain blocked pending Phase 8 ground truth rebuild.
 
@@ -160,6 +160,7 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **2.0.7** Security fix: add Firebase Auth to /api/post-recommendations (when uid present), /api/dashboard (mandatory), /api/content-dna/analyze + update client callers
 - [x] **2.S.1** Comprehensive security patch: 9 routes per Codex adversarial audit + Phase 2.3.7 sweep. Zero remaining unauthenticated user-scoped endpoints.
 - [x] **2.S.1.5** Complete ownerUid plumbing: createJobV2 writes ownerUid, upload/presign + upload/complete + platform-selection enforce ownership
+- [x] **2.S.1.6** Fail-closed ownership on 5 job routes, presign requires job existence, /api/health/providers requires admin auth
 - [x] **2.1** Create `lib/gazette/context.ts` — helpers for validating and defaulting `UserContext` objects
 - [x] **2.2** Create `lib/gazette/trends.ts` — fetches relevant `trend_snapshots` from Firestore based on `UserContext` (platform, region filtering)
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
@@ -408,7 +409,8 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - **v1.2 — April 7, 2026 (Session 5)** — Phase 2.3.6 complete — security fix for three unauthenticated DNA and accounts endpoints. All three routes now require Firebase Auth and uid match (admins can read any uid). Client callers updated to send Bearer tokens.
 - **v1.3 — April 7, 2026 (Session 5)** — Phase 2.3.7 complete — second security fix for /api/post-recommendations, /api/dashboard, /api/content-dna/analyze.
 - **v1.4 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1 complete — patched 9 routes. Zero remaining unauthenticated user-scoped endpoints.
-- **v1.5 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.5 complete — ownerUid plumbing finished. createJobV2 now writes ownerUid on all new jobs. /api/upload/presign, /api/upload/complete, /api/platform-selection now enforce ownership against job.ownerUid. Existing jobs without ownerUid still return 403 to non-admins; migration script deferred to follow-up.
+- **v1.5 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.5 complete — ownerUid plumbing finished.
+- **v1.6 — April 7, 2026 (Session 5)** — Phase 2.S Commit S.1.6 complete — fail-closed ownership on five job-touching routes (legacy jobs without ownerUid now reject non-admin callers), presign endpoint now requires job existence, /api/health/providers now requires admin auth. Codex audit session 019d66b7-eef1-7373-a653-0c2591e4bd01.
 
 ---
 

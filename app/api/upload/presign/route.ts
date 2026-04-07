@@ -38,9 +38,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Unsupported file type: ${contentType}. Allowed: MP4, MOV, WebM` }, { status: 400 })
     }
 
-    // Ownership check: verify caller owns the job
+    // Require job to exist before issuing signed URL
     const job = await getJobV2(jobId)
-    if (job?.ownerUid && job.ownerUid !== callerUid) {
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 })
+    }
+
+    // Fail-closed ownership check — no admin override on write path
+    if (job.ownerUid !== callerUid) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

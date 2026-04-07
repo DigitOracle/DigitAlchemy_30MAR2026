@@ -42,8 +42,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 })
     }
 
-    // Ownership check
-    if (job.ownerUid && job.ownerUid !== callerUid) {
+    // Fail-closed ownership check — no admin override on write path
+    if (job.ownerUid !== callerUid) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

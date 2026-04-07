@@ -488,15 +488,9 @@ export async function GET(
   const job = await getJobV2(params.jobId)
   if (!job) return new Response("Job not found", { status: 404 })
 
-  // Ownership check
-  const jobOwner = (job as Record<string, unknown>).ownerUid as string | undefined
-  if (jobOwner && jobOwner !== callerUid) {
-    const db = getDb()
-    const callerSnap = await db.doc(`users/${callerUid}`).get()
-    const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role
-    if (callerRole !== "admin") {
-      return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { "Content-Type": "application/json" } })
-    }
+  // Fail-closed ownership check — no admin override on mutation path
+  if (job.ownerUid !== callerUid) {
+    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { "Content-Type": "application/json" } })
   }
 
   if (job.phase !== 2 || job.status !== "generating") {
