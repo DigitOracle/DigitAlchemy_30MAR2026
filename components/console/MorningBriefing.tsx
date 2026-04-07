@@ -205,7 +205,7 @@ export function MorningBriefing() {
         .then(d => { if (d.stats) setDashStats(d.stats) })
         .catch(() => {})
     }).catch(() => {})
-  }, [statsPlatform])
+  }, [statsPlatform, user])
 
   // Fetch recommendations when platform section is active (generic + personalised)
   useEffect(() => {
@@ -232,6 +232,7 @@ export function MorningBriefing() {
   }, [activeSection, region, user?.uid, hasContentDNA])
 
   useEffect(() => {
+    if (!user) return  // wait for auth to hydrate before fetching
     setLoading(true)
     auth?.currentUser?.getIdToken().then(token => {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
@@ -246,7 +247,7 @@ export function MorningBriefing() {
         setLoading(false)
       })
     }).catch(() => setLoading(false))
-  }, [region])
+  }, [region, user])
 
   const wiki = data ? cleanWikipedia(data.wikipedia) : []
   const gdelt = data ? deduplicateArticles(data.gdelt) : []

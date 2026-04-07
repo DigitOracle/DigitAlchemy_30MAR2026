@@ -302,15 +302,17 @@ export default function ConsolePage() {
 
       // Step 2: Trigger Trend Radar capture (fire-and-forget, non-blocking for first run)
       try {
+        const captureToken = await auth?.currentUser?.getIdToken() ?? ""
+        const captureHeaders: Record<string, string> = { "Content-Type": "application/json", ...(captureToken ? { Authorization: `Bearer ${captureToken}` } : {}) }
         await fetch("/api/trend-radar/capture", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: captureHeaders,
           body: JSON.stringify({ platform, scope: "platform_wide", region }),
         })
         if (niche) {
           await fetch("/api/trend-radar/capture", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: captureHeaders,
             body: JSON.stringify({ platform, scope: "topic_aligned", niche, region }),
           })
         }

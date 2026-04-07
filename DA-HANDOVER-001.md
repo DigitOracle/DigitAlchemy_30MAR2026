@@ -171,6 +171,7 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [x] **2.3b** Performance DNA data layer — extends Ayrshare /history flow to persist engagement data, 7 PerformanceField functions with per-feature confidence, 50-post rolling window, Instagram added to fetchAllPostHistory
 - [x] **2.3c** Prediction module — lib/gazette/predictions.ts with log-space math, James-Stein shrinkage blending, order-of-magnitude accuracy testing. LikelyRange replaces ExpectedRange. Math decisions at DA-TEC-2026-008.
 - [x] **2.3c.1** Regional engagement samples — extends trend capture to persist per-post engagement data from ScrapeCreators. New collection regional_engagement_samples, CRUD module, 90-day rolling window, async predictForCardWithFreshData wrapper, firestore.rules match block.
+- [x] **2.S.1** Fix client-side Bearer auth regression — MorningBriefing.tsx race condition (missing user in useEffect deps for Gazette data and dashboard stats fetches), app/page.tsx trend-radar/capture calls missing Bearer token
 - [ ] **2.3** Create `lib/gazette/concept-cards.ts` — the concept card generator that takes context + trends and returns `ConceptCard[]`
 - [ ] **2.4** Define the initial classification logic in `concept-cards.ts` — keyword rules matching the 7 categories, with the Post 7 and Post 18 fixes from the baseline failure analysis built in from day 1
 - [ ] **2.5** Unit test the concept card generator against the existing synthetic ground truth (`autoagent/tasks/concept-card-classification/files/ground_truth.json`) to confirm it hits the 0.9020+ baseline
@@ -426,7 +427,8 @@ Doli has not yet defined a rollback procedure for `digitalchemy-console.vercel.a
 - **v1.11 — April 7, 2026 (Session 5)** — Phase 2.3a complete — Ayrshare audit.
 - **v1.12 — April 7, 2026 (Session 5)** — Phase 2.3b complete — Performance DNA persistence. 92 tests.
 - **v1.13 — April 7, 2026 (Session 5)** — Phase 2.3c rewritten with log-space math + shrinkage. 123 tests.
-- **v1.14 — April 7, 2026 (Session 5)** — Phase 2.3c.1 complete — fixed the foundation gap. ScrapeCreators per-post engagement data (views, likes, comments, shares) was being discarded after trend signal extraction in lib/trendRadar/capture.ts. Now persisted to regional_engagement_samples collection for the prediction module to consume as baseline. 90-day time-based rolling window. predictForCardWithFreshData async wrapper bridges pure prediction to live Firestore. 130 tests.
+- **v1.14 — April 7, 2026 (Session 5)** — Phase 2.3c.1 complete — regional engagement samples. 130 tests.
+- **v1.15 — April 7, 2026 (Session 5)** — Phase 2.S.1 hotfix — Bearer auth regression. Root cause: MorningBriefing.tsx Gazette data fetch useEffect depended on [region] but not [user], so the fetch fired before auth hydrated and got 401. Dashboard stats fetch had the same issue. Fixed by adding user to dependency arrays and guarding with if (!user) return. Also fixed two trend-radar/capture calls in app/page.tsx that were missing Bearer tokens entirely.
 
 ---
 
