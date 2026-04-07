@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/AuthContext"
+import { auth } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 
 const DISPLAY = "'Playfair Display', Georgia, serif"
@@ -26,10 +27,14 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) { router.push("/auth"); return }
-    fetch(`/api/content-dna/profile?uid=${user.uid}`)
-      .then(r => r.json())
-      .then(d => { setContentProfile(d.profile); setLoading(false) })
-      .catch(() => setLoading(false))
+    auth?.currentUser?.getIdToken().then(token => {
+      fetch(`/api/content-dna/profile?uid=${user.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(d => { setContentProfile(d.profile); setLoading(false) })
+        .catch(() => setLoading(false))
+    }).catch(() => setLoading(false))
   }, [user, router])
 
   return (

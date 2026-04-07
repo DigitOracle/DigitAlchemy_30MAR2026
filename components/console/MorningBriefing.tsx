@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/AuthContext"
+import { auth } from "@/lib/firebase"
 
 type WikiItem = { name: string; views: number }
 type GdeltItem = { title: string; domain: string; url?: string }
@@ -181,10 +182,14 @@ export function MorningBriefing() {
   // Check if user has Content DNA
   useEffect(() => {
     if (!user?.uid) return
-    fetch(`/api/content-dna/profile?uid=${user.uid}`)
-      .then(r => r.json())
-      .then(d => setHasContentDNA(!!d.profile && d.profile.sampleCount > 0))
-      .catch(() => {})
+    auth?.currentUser?.getIdToken().then(token => {
+      fetch(`/api/content-dna/profile?uid=${user.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(d => setHasContentDNA(!!d.profile && d.profile.sampleCount > 0))
+        .catch(() => {})
+    }).catch(() => {})
   }, [user])
 
   // Dashboard stats with platform filter

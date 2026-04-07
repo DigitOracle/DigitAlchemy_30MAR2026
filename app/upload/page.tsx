@@ -1,6 +1,7 @@
 "use client"
 import { useState } from "react"
 import { useAuth } from "@/lib/AuthContext"
+import { auth } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 
 const DISPLAY = "'Playfair Display', Georgia, serif"
@@ -45,9 +46,10 @@ export default function UploadPage() {
     if (!dnaResult || !user) return
     setStage("saving")
     try {
+      const idToken = await auth?.currentUser?.getIdToken()
       const res = await fetch("/api/content-dna/save", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}) },
         body: JSON.stringify({ uid: user.uid, dna: dnaResult, platform: "tiktok" }),
       })
       if (!res.ok) throw new Error("Save failed")

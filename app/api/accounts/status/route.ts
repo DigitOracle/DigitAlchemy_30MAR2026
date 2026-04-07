@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getAuth } from "firebase-admin/auth"
 import { getAyrshareConfig } from "@/lib/firestore/integrations"
 import { getDb } from "@/lib/jobStore"
 
@@ -7,6 +8,29 @@ export const runtime = "nodejs"
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const uid = req.nextUrl.searchParams.get("uid")
   if (!uid) return NextResponse.json({ platforms: [] })
+
+  // Require Firebase Auth
+  const db = getDb()
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+  let callerUid: string
+  try {
+    const token = await getAuth().verifyIdToken(authHeader.slice(7))
+    callerUid = token.uid
+  } catch {
+    return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+  }
+
+  // Non-admins can only check their own accounts
+  if (callerUid !== uid) {
+    const callerSnap = await db.doc(`users/${callerUid}`).get()
+    const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role
+    if (callerRole !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+  }
 
   const config = await getAyrshareConfig(uid)
   if (!config) return NextResponse.json({ platforms: [] })
