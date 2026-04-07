@@ -273,6 +273,11 @@ This is the concrete path from where we are now to the Gazette being the live Co
 - [ ] **8.8** Merge and deploy
 - [ ] **8.9** Measure before/after impact on the concept card quality metric
 
+**Deferred fixes from Codex review (commit 27f26f6, Phase 2.0–2.1 review):**
+
+- [ ] **8.0a** — Fix lesson ID numbering gap in autoagent/scripts/extract_lessons.py:219. Lesson number is recalculated from disk on every loop iteration and then offset again by generated, causing gaps (001, 003, 006, …) when multiple lessons are created in one run. Compute the starting number once before the loop and increment by one per generated lesson.
+- [ ] **8.0b** — Replace hardcoded 2026-04-07 capture date in autoagent/scripts/extract_lessons.py:158 with runtime UTC date (datetime.utcnow().strftime("%Y-%m-%d") or equivalent). Current hardcoded value will produce incorrect metadata on every future run.
+
 **Exit criteria:** A measurable production improvement to the Gazette that was designed by AutoAgent, approved by Doli, and shipped via the hybrid workflow.
 
 ---
