@@ -186,6 +186,34 @@ export async function generateConceptCards(
     card.confidence = "low";
   }
 
-  // ── 6. Sort and return ──
-  return sortCards(cards);
+  // ── 6. Quality filter — drop noise cards ──
+  const beforeFilter = cards.length;
+  let countNoSignal = 0;
+  let countPlaceholder = 0;
+
+  const filtered = cards.filter((card) => {
+    // Drop skeleton cards with no real trend signal
+    if (card.source === "trend" && card.basedOnTrendIds && card.basedOnTrendIds.length > 0) {
+      // Check if the underlying trend had real signal (non-zero velocity or high novelty)
+      // We can't access the raw ScoredTrend anymore, but we can detect placeholder patterns
+    }
+
+    // Drop cards with generic placeholder body and low confidence
+    const isPlaceholder = card.confidence === "low" && (
+      card.body === "Content suggestion based on trending data. Tap to customise." ||
+      card.body === "Content suggestion based on trending data." ||
+      !card.body || card.body.length < 10
+    );
+    if (isPlaceholder) { countPlaceholder++; return false; }
+
+    // Drop cards with no hook and no body (enrichment returned null)
+    if (!card.hook && !card.body) { countNoSignal++; return false; }
+
+    return true;
+  });
+
+  console.log("[generator] quality filter", { beforeFilter, droppedPlaceholder: countPlaceholder, droppedNoSignal: countNoSignal, afterFilter: filtered.length });
+
+  // ── 7. Sort and return ──
+  return sortCards(filtered);
 }

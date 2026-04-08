@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import type { ConceptCard } from "@/types/conceptCard"
 
 // ── Fonts (match existing Gazette aesthetic) ──
@@ -58,7 +59,26 @@ function SkeletonCard() {
   )
 }
 
+const MAX_CARDS_MOBILE = 6;
+const MAX_CARDS_DESKTOP = 9;
+const MIN_CARDS = 4;
+
 export function ConceptCardGrid({ cards, loading }: { cards: ConceptCard[]; loading: boolean }) {
+  const [isDesktop, setIsDesktop] = useState(true)
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)")
+    setIsDesktop(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mq.addEventListener("change", handler)
+    return () => mq.removeEventListener("change", handler)
+  }, [])
+
+  // Cap cards by viewport, enforce min/max
+  const maxCards = isDesktop ? MAX_CARDS_DESKTOP : MAX_CARDS_MOBILE
+  const cappedCards = cards.slice(0, maxCards)
+  const showBuildingHint = cappedCards.length > 0 && cappedCards.length < MIN_CARDS
+
   if (loading) {
     return (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
@@ -76,8 +96,9 @@ export function ConceptCardGrid({ cards, loading }: { cards: ConceptCard[]; load
   }
 
   return (
+    <>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
-      {cards.map((card, i) => {
+      {cappedCards.map((card, i) => {
         const sourceColor = SOURCE_COLORS[card.source] || ACCENT
         const sourceLabel = SOURCE_LABELS[card.source] || card.source
         const platformIcon = PLATFORM_ICONS[card.platformFormat.platform] || ""
@@ -169,5 +190,11 @@ export function ConceptCardGrid({ cards, loading }: { cards: ConceptCard[]; load
         )
       })}
     </div>
+    {showBuildingHint && (
+      <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 11, color: ACCENT, textAlign: "center", padding: "10px 0 2px" }}>
+        Building your intelligence &mdash; check back later for more insights.
+      </div>
+    )}
+    </>
   )
 }

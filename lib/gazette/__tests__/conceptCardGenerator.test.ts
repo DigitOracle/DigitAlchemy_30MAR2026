@@ -117,14 +117,14 @@ describe("generateConceptCards", () => {
     expect(trendCard?.body).toContain("AI is changing");
   });
 
-  it("uses placeholder when Claude enrichment fails", async () => {
+  it("drops placeholder cards when Claude enrichment fails (quality filter)", async () => {
     const cards = await generateConceptCards(baseInput({
       scoredTrends: [makeTrend()],
     }), failingClaudeDeps);
 
+    // Quality filter drops low-confidence placeholder cards
     const trendCard = cards.find((c) => c.source === "trend");
-    expect(trendCard?.confidence).toBe("low");
-    expect(trendCard?.body).toContain("Content suggestion");
+    expect(trendCard).toBeUndefined();
   });
 
   it("sorts by confidence then source", async () => {
