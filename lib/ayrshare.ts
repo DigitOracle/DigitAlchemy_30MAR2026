@@ -28,7 +28,7 @@ export async function fetchPostHistory(platform: string, opts?: AyrshareOpts): P
   if (opts?.profileKey) headers["Profile-Key"] = opts.profileKey
 
   try {
-    const res = await fetch(`https://app.ayrshare.com/api/history/${platform}`, {
+    const res = await fetch(`https://app.ayrshare.com/api/history/${platform}?limit=500&lastDays=365`, {
       headers,
       signal: AbortSignal.timeout(15000),
     })
