@@ -191,6 +191,7 @@ async function transcribeWithSupadata(url: string): Promise<string | null> {
 
         const pollData = await pollRes.json()
         if (pollData.status === "completed") {
+          console.log("[CONTENT-DNA] Supadata completed raw:", JSON.stringify(pollData).slice(0, 500))
           const content = (pollData.content as string) || ""
           console.log("[CONTENT-DNA] Supadata job completed", { chars: content.length })
           return content || null
