@@ -141,23 +141,15 @@ export async function POST(req: Request): Promise<NextResponse> {
 async function transcribeWithAssemblyAI(url: string): Promise<string | null> {
   const apiKey = process.env.ASSEMBLYAI_API_KEY
   if (!apiKey) { console.log("[CONTENT-DNA] No ASSEMBLYAI_API_KEY"); return null }
-
   try {
-    console.log("[CONTENT-DNA] AssemblyAI: downloading video", url.slice(0, 100))
-    const response = await fetch(url, { signal: AbortSignal.timeout(30000) })
-    if (!response.ok) {
-      console.log("[CONTENT-DNA] AssemblyAI: download failed", response.status)
-      return null
-    }
-    const buffer = Buffer.from(await response.arrayBuffer())
-    console.log("[CONTENT-DNA] AssemblyAI: downloaded", { sizeBytes: buffer.length })
-
+    console.log("[CONTENT-DNA] Downloading bytes from:", url.slice(0, 80))
+    const dlRes = await fetch(url, { signal: AbortSignal.timeout(30000) })
+    if (!dlRes.ok) { console.log("[CONTENT-DNA] Download failed:", dlRes.status); return null }
+    const buffer = Buffer.from(await dlRes.arrayBuffer())
+    console.log("[CONTENT-DNA] Downloaded bytes:", buffer.length)
     const client = new AssemblyAI({ apiKey })
     const transcript = await client.transcripts.transcribe({ audio: buffer })
-    console.log("[CONTENT-DNA] AssemblyAI result", { status: transcript.status, chars: transcript.text?.length ?? 0 })
+    console.log("[CONTENT-DNA] AssemblyAI result:", transcript.status, "chars:", transcript.text?.length)
     return transcript.text || null
-  } catch (e) {
-    console.log("[CONTENT-DNA] AssemblyAI error:", e)
-    return null
-  }
+  } catch (e) { console.log("[CONTENT-DNA] AssemblyAI error:", e); return null }
 }
