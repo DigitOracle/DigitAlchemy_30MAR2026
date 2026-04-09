@@ -3,6 +3,7 @@ import { getAuth } from "firebase-admin/auth"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
 import { getDb, getStorageBucket } from "@/lib/jobStore"
 import { isHeyGenDashboardUrl, resolveHeyGenUrl, HeyGenResolveError } from "@/lib/heygen/resolveHeyGenUrl"
+import { AssemblyAI } from "assemblyai"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -77,7 +78,6 @@ export async function POST(req: Request): Promise<NextResponse> {
       } else if (sourceUrl.includes("drive.google.com")) {
         videoUrl = googleDriveDirectUrl(sourceUrl)
       } else if (sourceUrl.includes("youtube.com") || sourceUrl.includes("youtu.be")) {
-        // Supadata supports YouTube URLs natively
         videoUrl = sourceUrl
       } else {
         videoUrl = sourceUrl
@@ -99,7 +99,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         return NextResponse.json({ error: "File not found in storage" }, { status: 404 })
       }
 
-      // Generate a signed URL so Supadata can fetch the file directly
+      // Generate a signed URL so AssemblyAI can fetch the file directly
       const [signedUrl] = await file.getSignedUrl({
         action: "read",
         expires: Date.now() + 10 * 60 * 1000, // 10 minutes
@@ -108,7 +108,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       console.log("[analyze] generated signed URL for storage file", { path: storagePath })
       filename = storagePath.split("/").pop() ?? "upload.mp4"
 
-      // Cleanup after generating URL (Supadata will fetch before expiry)
+      // Cleanup after generating URL (AssemblyAI will fetch before expiry)
       file.delete().catch(() => {})
     } else {
       return NextResponse.json({ error: "Either sourceUrl or storagePath is required" }, { status: 400 })
@@ -118,10 +118,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "Could not determine video URL" }, { status: 400 })
     }
 
-    const transcript = await transcribeWithSupadata(videoUrl)
+    const transcript = await transcribeWithAssemblyAI(videoUrl)
 
     if (!transcript) {
-      console.log("[analyze] REJECT:supadata-null", { filename, videoUrl: videoUrl.slice(0, 100) })
+      console.log("[analyze] REJECT:assemblyai-null", { filename, videoUrl: videoUrl.slice(0, 100) })
       return NextResponse.json({ error: "Could not transcribe video audio. The file may not contain audible speech." }, { status: 400 })
     }
 
@@ -138,79 +138,18 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 }
 
-async function transcribeWithSupadata(url: string): Promise<string | null> {
-  const apiKey = process.env.SUPADATA_API_KEY
-  if (!apiKey) { console.log("[CONTENT-DNA] No SUPADATA_API_KEY"); return null }
+async function transcribeWithAssemblyAI(url: string): Promise<string | null> {
+  const apiKey = process.env.ASSEMBLYAI_API_KEY
+  if (!apiKey) { console.log("[CONTENT-DNA] No ASSEMBLYAI_API_KEY"); return null }
 
   try {
-    console.log("[CONTENT-DNA] Supadata transcribe", url.slice(0, 100))
-    const res = await fetch(
-      `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&text=true`,
-      {
-        headers: { "x-api-key": apiKey },
-        signal: AbortSignal.timeout(15000),
-      },
-    )
-
-    if (res.status === 200) {
-      const data = await res.json()
-      const content = (data.content as string) || ""
-      if (content) {
-        console.log("[CONTENT-DNA] Supadata transcript ready", { chars: content.length })
-        return content
-      }
-      return null
-    }
-
-    if (res.status === 202) {
-      // Async job — poll for completion
-      const data = await res.json()
-      const jobId = data.jobId as string
-      if (!jobId) { console.log("[CONTENT-DNA] Supadata 202 but no jobId"); return null }
-
-      console.log("[CONTENT-DNA] Supadata async job", { jobId })
-      const maxWait = 50_000
-      const pollInterval = 3_000
-      const start = Date.now()
-
-      while (Date.now() - start < maxWait) {
-        await new Promise(r => setTimeout(r, pollInterval))
-
-        const pollRes = await fetch(
-          `https://api.supadata.ai/v1/transcript/${jobId}`,
-          {
-            headers: { "x-api-key": apiKey },
-            signal: AbortSignal.timeout(10000),
-          },
-        )
-
-        if (!pollRes.ok) {
-          console.log("[CONTENT-DNA] Supadata poll failed:", pollRes.status)
-          continue
-        }
-
-        const pollData = await pollRes.json()
-        if (pollData.status === "completed") {
-          console.log("[CONTENT-DNA] Supadata completed raw:", JSON.stringify(pollData).slice(0, 500))
-          const content = (pollData.content as string) || ""
-          console.log("[CONTENT-DNA] Supadata job completed", { chars: content.length })
-          return content || null
-        }
-
-        if (pollData.status === "failed" || pollData.status === "error") {
-          console.log("[CONTENT-DNA] Supadata job failed:", pollData.error || pollData.status)
-          return null
-        }
-
-        console.log("[CONTENT-DNA] Supadata polling...", { status: pollData.status, elapsed: Date.now() - start })
-      }
-
-      console.log("[CONTENT-DNA] Supadata job timed out after", maxWait, "ms")
-      return null
-    }
-
-    const errBody = await res.text().catch(() => "")
-    console.log("[CONTENT-DNA] Supadata failed:", res.status, errBody.slice(0, 200))
+    console.log("[CONTENT-DNA] AssemblyAI transcribe", url.slice(0, 100))
+    const client = new AssemblyAI({ apiKey })
+    const transcript = await client.transcripts.transcribe({ audio: url })
+    console.log("[CONTENT-DNA] AssemblyAI result", { status: transcript.status, chars: transcript.text?.length ?? 0 })
+    return transcript.text || null
+  } catch (e) {
+    console.log("[CONTENT-DNA] AssemblyAI error:", e)
     return null
-  } catch (e) { console.log("[CONTENT-DNA] Supadata error:", e); return null }
+  }
 }
