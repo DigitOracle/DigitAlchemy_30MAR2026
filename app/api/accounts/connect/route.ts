@@ -74,21 +74,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (!createRes.ok) {
         // Handle duplicate profile (code 146) — retrieve existing profile key
         if (createData.code === 146) {
-          console.log("[ACCOUNTS] Duplicate profile — fetching existing profiles to find key")
-          const listStart = Date.now()
-          console.log("[ACCOUNTS] GET", `${AYRSHARE_API}/profiles`, "— timeout 30s")
-          const listRes = await fetch(`${AYRSHARE_API}/profiles`, {
-            headers: { Authorization: `Bearer ${apiKey}` },
-            signal: AbortSignal.timeout(30000),
-          })
-          console.log("[ACCOUNTS] Profile list response:", listRes.status, `(${Date.now() - listStart}ms)`)
-          if (listRes.ok) {
-            const profiles = await listRes.json()
-            const match = (Array.isArray(profiles) ? profiles : profiles.profiles || [])
-              .find((p: Record<string, unknown>) => p.title === title)
-            if (match?.profileKey) {
-              profileKey = match.profileKey as string
-              console.log("[ACCOUNTS] Found existing profile key:", profileKey.slice(0, 8) + "...")
+          console.log("[ACCOUNTS] Duplicate profile — checking Firestore first")
+          // Re-read Firestore in case a concurrent request stored the key
+          const freshSnap = await db.doc(`users/${uid}/integrations/ayrshare`).get()
+          if (freshSnap.exists && freshSnap.data()?.profileKey) {
+            profileKey = freshSnap.data()!.profileKey as string
+            console.log("[ACCOUNTS] Found profileKey in Firestore:", profileKey.slice(0, 8) + "...")
+          }
+
+          // Fall back to Ayrshare profile list lookup
+          if (!profileKey) {
+            console.log("[ACCOUNTS] No Firestore key — fetching existing profiles from Ayrshare")
+            const listStart = Date.now()
+            console.log("[ACCOUNTS] GET", `${AYRSHARE_API}/profiles`, "— timeout 30s")
+            const listRes = await fetch(`${AYRSHARE_API}/profiles`, {
+              headers: { Authorization: `Bearer ${apiKey}` },
+              signal: AbortSignal.timeout(30000),
+            })
+            console.log("[ACCOUNTS] Profile list response:", listRes.status, `(${Date.now() - listStart}ms)`)
+            if (listRes.ok) {
+              const profiles = await listRes.json()
+              const match = (Array.isArray(profiles) ? profiles : profiles.profiles || [])
+                .find((p: Record<string, unknown>) => p.title === title)
+              if (match?.profileKey) {
+                profileKey = match.profileKey as string
+                console.log("[ACCOUNTS] Found existing profile key:", profileKey.slice(0, 8) + "...")
+              }
             }
           }
           if (!profileKey) {
