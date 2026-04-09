@@ -1,0 +1,6 @@
+jobs/
+results.tsv
+run.log
+*.log
+.env
+*.env

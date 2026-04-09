@@ -156,7 +156,8 @@ export default function ConsolePage() {
     const jobId = params.get("jobId")
     if (!jobId) return
 
-    fetch(`/api/jobs/${jobId}`)
+    auth?.currentUser?.getIdToken().then(token => {
+    fetch(`/api/jobs/${jobId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((data) => {
         if (!data.ok || !data.job) return
@@ -192,13 +193,16 @@ export default function ConsolePage() {
         }
       })
       .catch(() => {})
+    }).catch(() => {})
   }, [])
 
   // ── Optimize: Phase 2 stream ──
   const startPhase2Stream = useCallback(async (jobId: string) => {
     setStage("generating")
+    const token = await auth?.currentUser?.getIdToken() ?? ""
+    const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
     try {
-      const res = await fetch(`/api/jobs/${jobId}`)
+      const res = await fetch(`/api/jobs/${jobId}`, { headers: authHeaders })
       const data = await res.json()
       if (data.ok) {
         const job = data.job as JobV2
@@ -210,7 +214,7 @@ export default function ConsolePage() {
     } catch { /* proceed */ }
 
     try {
-      const response = await fetch(`/api/jobs/${jobId}/stream`)
+      const response = await fetch(`/api/jobs/${jobId}/stream`, { headers: authHeaders })
       if (!response.ok || !response.body) { setStage("error"); return }
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
@@ -257,9 +261,10 @@ export default function ConsolePage() {
 
     try {
       // Step 1: SSE stream for trend scan + content ideas
+      const reToken = await auth?.currentUser?.getIdToken() ?? ""
       const response = await fetch("/api/reverse-engineer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(reToken ? { Authorization: `Bearer ${reToken}` } : {}) },
         body: JSON.stringify({ platform, niche, region, lag, industry, audience, quickPulse }),
       })
       console.log("[FRONTEND] RE response:", response.status, response.ok, !!response.body)
@@ -297,15 +302,17 @@ export default function ConsolePage() {
 
       // Step 2: Trigger Trend Radar capture (fire-and-forget, non-blocking for first run)
       try {
+        const captureToken = await auth?.currentUser?.getIdToken() ?? ""
+        const captureHeaders: Record<string, string> = { "Content-Type": "application/json", ...(captureToken ? { Authorization: `Bearer ${captureToken}` } : {}) }
         await fetch("/api/trend-radar/capture", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: captureHeaders,
           body: JSON.stringify({ platform, scope: "platform_wide", region }),
         })
         if (niche) {
           await fetch("/api/trend-radar/capture", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: captureHeaders,
             body: JSON.stringify({ platform, scope: "topic_aligned", niche, region }),
           })
         }
@@ -411,9 +418,10 @@ export default function ConsolePage() {
   const handleContentFocusConfirm = async (focus: { topic: string; summary: string; keywords: string[]; editedByUser: boolean }) => {
     setConfirmedFocus(focus)
     if (jobIdV2) {
+      const psToken = await auth?.currentUser?.getIdToken() ?? ""
       await fetch("/api/platform-selection", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(psToken ? { Authorization: `Bearer ${psToken}` } : {}) },
         body: JSON.stringify({ jobId: jobIdV2, confirmedFocus: focus }),
       })
     }
@@ -423,9 +431,10 @@ export default function ConsolePage() {
   const handlePlatformConfirm = async (platforms: string[]) => {
     if (!jobIdV2) return
     setSelectedPlatforms(platforms)
+    const ps2Token = await auth?.currentUser?.getIdToken() ?? ""
     const res = await fetch("/api/platform-selection", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(ps2Token ? { Authorization: `Bearer ${ps2Token}` } : {}) },
       body: JSON.stringify({ jobId: jobIdV2, platforms, confirmedFocus }),
     })
     if (res.ok) startPhase2Stream(jobIdV2)
@@ -438,7 +447,7 @@ export default function ConsolePage() {
   }
 
   // ── Reverse-engineer: confirm ──
-  const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null, quickPulse?: string) => {
+  const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null, quickPulse?: string): void => {
     setReRegion(region)
     setReIndustry(industry)
     setReAudience(audience)
@@ -508,7 +517,7 @@ export default function ConsolePage() {
   }
 
   if (appMode === "reverse_engineer") {
-    const regionLabels: Record<string, string> = { AE: "UAE", SA: "KSA", KW: "Kuwait", QA: "Qatar", US: "US", SG: "SG" }
+    const regionLabels: Record<string, string> = { AE: "UAE", SA: "KSA", KW: "Kuwait", QA: "Qatar", US: "US", SG: "SG", IN: "India" }
     if (selectedPlatforms.length > 0 && stage !== "re_setup") {
       chips.push({ id: "re_region", label: "Region", summary: regionLabels[reRegion] ?? reRegion, completed: true })
       chips.push({ id: "re_platform", label: "Platform", summary: selectedPlatforms[0], completed: true })
@@ -576,7 +585,7 @@ export default function ConsolePage() {
                     {[
                       { label: "My Content DNA", href: "/profile" },
                       { label: "Dashboard", href: "/dashboard" },
-                      { label: "Upload Video", href: "/upload" },
+                      { label: "Analyse Content", href: "/upload" },
                       { label: "Link Social Accounts", href: "/accounts" },
                     ].map(item => (
                       <button key={item.href} onClick={() => { setShowUserMenu(false); router.push(item.href) }}

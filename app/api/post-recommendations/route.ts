@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getAuth } from "firebase-admin/auth"
 import Anthropic from "@anthropic-ai/sdk"
 import { loadContentProfile } from "@/lib/firestore/contentProfile"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -23,6 +25,30 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const platform = req.nextUrl.searchParams.get("platform") || "tiktok"
   const uid = req.nextUrl.searchParams.get("uid") || null
   const regionLabel = REGION_LABELS[region] || "UAE"
+
+  console.log("[post-recs] request", { region, platform, uid: uid ?? "none", hasAuth: !!req.headers.get("authorization"), calledBy: req.headers.get("x-internal-caller") ?? "external" });
+
+  // If uid is provided, require Firebase Auth and uid match
+  if (uid) {
+    getDb()
+    const authHeader = req.headers.get("authorization")
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    }
+    try {
+      const token = await getAuth().verifyIdToken(authHeader.slice(7))
+      if (token.uid !== uid) {
+        const db = getDb()
+        const callerSnap = await db.doc(`users/${token.uid}`).get()
+        const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role
+        if (callerRole !== "admin") {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        }
+      }
+    } catch {
+      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+    }
+  }
 
   // Load Content DNA profile for personalisation
   let profileContext = ""
@@ -48,11 +74,13 @@ IMPORTANT: Recommendations should feel like natural extensions of this creator's
     } catch { /* profile not available — use generic recs */ }
   }
 
-  // Fetch trending data to ground recommendations
+  // Fetch trending data to ground recommendations — forward auth header for server-to-server calls
   const base = `${req.nextUrl.protocol}//${req.nextUrl.host}`
+  const fwdAuth = req.headers.get("authorization")
+  const fwdHeaders: Record<string, string> = fwdAuth ? { Authorization: fwdAuth } : {}
   const [tickerRes, audioRes] = await Promise.allSettled([
-    fetch(`${base}/api/trend-ticker?region=${region}`, { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
-    fetch(`${base}/api/trending-audio?region=${region}`, { signal: AbortSignal.timeout(10000) }).then(r => r.json()),
+    fetch(`${base}/api/trend-ticker?region=${region}`, { headers: fwdHeaders, signal: AbortSignal.timeout(10000) }).then(r => r.json()),
+    fetch(`${base}/api/trending-audio?region=${region}`, { headers: fwdHeaders, signal: AbortSignal.timeout(10000) }).then(r => r.json()),
   ])
 
   const ticker = tickerRes.status === "fulfilled" ? tickerRes.value : {}
@@ -123,9 +151,10 @@ RULES:
       return fields as unknown as PostRec
     }).filter(p => p.topic && p.caption)
 
+    console.log("[post-recs] response", { postsCount: posts.slice(0, 3).length, platform, region });
     return NextResponse.json({ posts: posts.slice(0, 3), platform, region, regionLabel })
   } catch (err) {
-    console.log("[POST-RECS] Error:", err)
+    console.log("[post-recs] error", { error: String(err), platform, region });
     return NextResponse.json({ posts: [], platform, region, regionLabel })
   }
 }

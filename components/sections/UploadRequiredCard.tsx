@@ -1,5 +1,6 @@
 "use client"
 import { useState, useRef } from "react"
+import { auth } from "@/lib/firebase"
 
 type Props = {
   jobId: string
@@ -26,11 +27,14 @@ export function UploadRequiredCard({ jobId, onUploadComplete }: Props) {
     if (!selectedFile) return
 
     try {
+      const uploadToken = await auth?.currentUser?.getIdToken() ?? ""
+      const uploadAuthHeaders: Record<string, string> = uploadToken ? { Authorization: `Bearer ${uploadToken}` } : {}
+
       // 1. Get presigned URL
       setState("presigning")
       const presignRes = await fetch("/api/upload/presign", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...uploadAuthHeaders },
         body: JSON.stringify({
           filename: selectedFile.name,
           contentType: selectedFile.type || "video/mp4",
@@ -68,7 +72,7 @@ export function UploadRequiredCard({ jobId, onUploadComplete }: Props) {
       setState("completing")
       const completeRes = await fetch("/api/upload/complete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...uploadAuthHeaders },
         body: JSON.stringify({ jobId, storagePath, filename: selectedFile.name }),
       })
 

@@ -3,6 +3,8 @@
 import { getDb } from "@/lib/jobStore"
 import { buildEntity, dedupeEntities } from "./normalize"
 import { writeSnapshotToInflux } from "./influx"
+import { saveRegionalEngagementSamples, deleteOldRegionalEngagementSamples } from "@/lib/firestore/regionalEngagement"
+import type { RegionalEngagementSample, Platform, Region } from "@/types/gazette"
 import type { TrendSnapshot, TrendEntity, TrendPlatform, TrendScope, SourceConfidence } from "./types"
 
 const SNAPSHOTS_COLLECTION = "trend_snapshots"
@@ -13,7 +15,7 @@ function snapId(platform: string, scope: string): string {
 
 // ── Provider adapters (call existing APIs, extract entities) ──
 
-async function captureScrapeCreatorsTikTok(region: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence } | null> {
+async function captureScrapeCreatorsTikTok(region: string): Promise<{ entities: TrendEntity[]; source: string; confidence: SourceConfidence; rawVideos: Record<string, unknown>[] } | null> {
   const apiKey = process.env.SCRAPECREATORS_API_KEY
   if (!apiKey) return null
   const BASE = "https://api.scrapecreators.com"
@@ -53,11 +55,13 @@ async function captureScrapeCreatorsTikTok(region: string): Promise<{ entities: 
       }
     }
 
+    const rawVideos: Record<string, unknown>[] = []
     if (videosRes.ok) {
       const data = await videosRes.json()
       const items = Array.isArray(data) ? data : (data?.data ?? data?.items ?? data?.videos ?? [])
-      // Extract hashtags from popular video descriptions
+      // Extract hashtags from popular video descriptions + keep raw items for engagement
       for (const v of (items as Record<string, unknown>[]).slice(0, 20)) {
+        rawVideos.push(v)
         const desc = (v.desc ?? v.description ?? v.text ?? "") as string
         const tags = desc.match(/#[\w\u00C0-\u024F]+/g) ?? []
         for (const t of tags) {
@@ -67,7 +71,7 @@ async function captureScrapeCreatorsTikTok(region: string): Promise<{ entities: 
     }
 
     if (entities.length === 0) return null
-    return { entities: dedupeEntities(entities), source: "scrape_creators_tiktok", confidence: "high" }
+    return { entities: dedupeEntities(entities), source: "scrape_creators_tiktok", confidence: "high", rawVideos }
   } catch (err) {
     console.log("[trend-capture] scrape_creators tiktok failed:", (err as Error).message)
     return null
@@ -275,11 +279,13 @@ export async function captureTrends(
   let source = "none"
   let confidence: SourceConfidence = "low"
 
+  let rawVideosForEngagement: Record<string, unknown>[] = []
+
   // ── Platform-wide: ScrapeCreators → Apify → xpoz → Perplexity ──
   if (scope === "platform_wide") {
     if (platform === "tiktok") {
       const sc = await captureScrapeCreatorsTikTok(region)
-      if (sc) { entities = sc.entities; source = sc.source; confidence = sc.confidence }
+      if (sc) { entities = sc.entities; source = sc.source; confidence = sc.confidence; rawVideosForEngagement = sc.rawVideos }
     }
     if (entities.length === 0) {
       const apify = await captureApify("trending", platform, region)
@@ -345,6 +351,61 @@ export async function captureTrends(
 
   // Write-through to InfluxDB Cloud (optional, non-blocking)
   writeSnapshotToInflux(snapshot).catch(() => { /* never fail the main flow */ })
+
+  // ── Persist engagement data for prediction baselines (additive, non-blocking) ──
+  if (rawVideosForEngagement.length > 0) {
+    try {
+      const now = new Date().toISOString()
+      const validRegions = ["AE", "SA", "KW", "QA", "US", "SG", "IN"]
+      const regionForSample = (validRegions.includes(region) ? region : "AE") as Region
+      const platformForSample = platform as Platform
+
+      const samples: RegionalEngagementSample[] = []
+      for (const v of rawVideosForEngagement) {
+        const postId = (v.id ?? v.video_id ?? v.aweme_id ?? "") as string
+        if (!postId) continue
+        const stats = (v.stats ?? {}) as Record<string, unknown>
+        const views = (v.play_count ?? v.videoViews ?? v.playCount ?? stats.playCount ?? 0) as number
+        if (views <= 0) continue
+        const likes = (v.digg_count ?? v.likeCount ?? v.likes ?? stats.diggCount ?? 0) as number
+        const comments = (v.comment_count ?? v.commentCount ?? v.comments ?? stats.commentCount ?? 0) as number
+        const shares = (v.share_count ?? v.shareCount ?? v.shares ?? stats.shareCount ?? 0) as number
+        const desc = (v.desc ?? v.description ?? v.text ?? "") as string
+        const hashtags: string[] = desc.match(/#[\w\u00C0-\u024F]+/g) ?? []
+        const musicObj = (v.music_info ?? v.music ?? {}) as Record<string, unknown>
+        const musicTitle = (musicObj.title ?? "") as string
+
+        samples.push({
+          sampleId: `sc_${platformForSample}_${postId}_${Date.now()}`,
+          postId,
+          platform: platformForSample,
+          region: regionForSample,
+          caption: desc.slice(0, 500),
+          hashtags,
+          audioType: musicTitle ? "trending" : "original",
+          format: "video",
+          views,
+          likes,
+          comments,
+          shares,
+          engagementRate: (likes + comments + shares) / views,
+          capturedAt: now,
+          publishedAt: v.create_time ? new Date((v.create_time as number) * 1000).toISOString() : now,
+          source: "scrape_creators",
+        })
+      }
+
+      if (samples.length > 0) {
+        await saveRegionalEngagementSamples(samples)
+        console.log(`[trend-capture] persisted ${samples.length} engagement samples for ${platform}/${region}`)
+      }
+
+      // Cleanup old samples (non-blocking)
+      deleteOldRegionalEngagementSamples(90).catch(() => {})
+    } catch (engErr) {
+      console.log("[trend-capture] engagement sample persistence failed (non-blocking):", (engErr as Error).message)
+    }
+  }
 
   return snapshot
 }

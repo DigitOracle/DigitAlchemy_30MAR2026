@@ -1,0 +1,260 @@
+# DA-QUEUE-001 — DigitAlchemy® Action Queue
+
+**Owner:** Kendall Wilson (Doli)
+**Repo:** DigitOracle/DigitAlchemy_30MAR2026
+**Purpose:** Mobile-captured tasks that Claude Code executes in batch at the desk.
+**Protocol:** Voice → Claude (mobile) → append task card here → Claude Code executes
+
+---
+
+## How This Works
+
+1. **Mobile capture:** Doli talks to Claude in the mobile app, describing what needs doing
+2. **Claude drafts:** Claude converts the voice input into a structured task card and appends it below
+3. **Desk execution:** Doli opens Claude Code, runs `/run-queue`, Claude Code executes all PENDING tasks
+4. **Status update:** Claude Code updates each task's status (PENDING → DONE / BLOCKED / SKIPPED) with a commit hash
+
+---
+
+## Priority Tiers
+
+- **P0** — Blocking, do first (broken builds, client deliverables due)
+- **P1** — Important, do today (feature work, key improvements)
+- **P2** — Should do this week (refactors, cleanups, nice-to-haves)
+- **P3** — Someday/maybe (ideas worth capturing but not urgent)
+
+## Status Values
+
+- `PENDING` — Not yet started
+- `IN_PROGRESS` — Claude Code actively working
+- `DONE` — Completed, commit hash recorded
+- `BLOCKED` — Needs human input or external dependency
+- `SKIPPED` — Doli decided not to do this
+
+---
+
+## Active Queue
+
+<!-- New tasks append here. Claude Code reads top-down. -->
+
+### DA-Q-015 — Execute the ground truth labeling
+
+**Priority:** P2
+**Status:** BLOCKED
+**Reason blocked:** Depends on DA-Q-014 completing first. DA-Q-014 is now DONE — this task is ready for manual unblock by Doli.
+**Captured:** 2026-04-07
+**Source:** Ground truth pipeline
+
+**Context:**
+The actual labeling work. Pull real posts from Firestore, propose labels via Claude Code, human reviews edge cases, produces ground_truth_real.json. This is a hybrid human+AI task.
+
+**Files to create:**
+- autoagent/tasks/concept-card-classification/files/ground_truth_real.json
+
+**Commit message:**
+`feat(autoagent): add real Console ground truth dataset for benchmark`
+
+---
+
+### DA-Q-017 — Run the first real hybrid optimization cycle
+
+**Priority:** P1
+**Status:** BLOCKED
+**Reason blocked:** Depends on DA-Q-015 completing. All other dependencies (DA-Q-012, DA-Q-013, DA-Q-014, DA-Q-016) are now DONE.
+**Captured:** 2026-04-07
+**Source:** Hybrid architecture — end-to-end validation
+
+**Context:**
+The first end-to-end hybrid cycle. Meta-agent optimizes against real ground truth data, extractor generates lessons, human reviews top lesson, Claude Code translates to TypeScript, preview deploys, human approves, merges to production.
+
+**Success criteria:**
+- At least one lesson generated with score delta >= 0.05
+- At least one lesson translated to TypeScript
+- At least one preview deployment successfully built
+- At least one production merge (with human approval)
+- Production metrics measured before and after to quantify impact
+
+**Commit message:**
+`feat(autoagent): first hybrid optimization cycle complete`
+
+---
+
+<!-- APPEND NEW TASKS BELOW THIS LINE -->
+
+---
+
+## Completed (Archive)
+
+<!-- DONE tasks move here after execution -->
+
+### DA-Q-018 — Phase 0 Gazette refactor reconnaissance report
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `d649981`
+
+---
+
+### DA-Q-002 — Bootstrap AutoAgent directory structure
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `005c18e`
+
+---
+
+### DA-Q-003 — Commit DA-UC-001 directive file
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `005c18e`
+
+---
+
+### DA-Q-004 — Extract trend-ticker route into agent harness
+
+**Priority:** P2
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `8aa2e59`
+
+---
+
+### DA-Q-005 — Add Dockerfile.base for AutoAgent
+
+**Priority:** P2
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `dd68a66`
+
+---
+
+### DA-Q-006 — Extract trending-audio route into agent harness
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `50ef6a4`
+
+---
+
+### DA-Q-007 — Extract morning-briefing route into agent harness
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `02e9164`
+
+---
+
+### DA-Q-008 — Build concept-card-classification benchmark task
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `e1e6468`
+
+---
+
+### DA-Q-010 — Fix Python module naming for AutoAgent harnesses
+
+**Priority:** P0
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `8e0471e`
+
+---
+
+### DA-Q-009 — Run AutoAgent baseline (no optimization)
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `9e4a45f`
+**Baseline F1 Score:** 0.9020 (PASS, threshold ≥ 0.85)
+
+---
+
+### DA-Q-011 — Write architectural decision document DA-TEC-2026-002
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `4e7154a`
+
+---
+
+### DA-Q-012 — Create the Lesson format template
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `3f3335e`
+
+---
+
+### DA-Q-013 — Build the Lesson Extractor script
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `68ac67a`
+
+---
+
+### DA-Q-014 — Design the ground truth labeling protocol
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `806a6dd`
+
+---
+
+### DA-Q-016 — Draft the Production Translation Workflow
+
+**Priority:** P1
+**Status:** DONE
+**Captured:** 2026-04-07
+**Completed:** 2026-04-07
+**Commit:** `b8aa9aa`
+
+---
+
+## Blocked
+
+<!-- BLOCKED tasks with reason -->
+
+### DA-Q-001 — [EXAMPLE] Fix provider order in trend-ticker route
+
+**Priority:** P1
+**Status:** BLOCKED
+**Captured:** 2026-04-07
+**Source:** Voice note via Claude mobile
+**Reason:** This was a template example task. The actual `app/api/trend-ticker/route.ts` uses ScrapeCreators for both TikTok and Instagram — Apify is not present in this route, so there is no reversed provider order to fix. Doli: remove this example card or rewrite with a real task.
+
+---
+
+## Notes
+
+- **Golden rule:** Claude Code never touches the fixed adapter boundary (SSE streaming, Firestore logging) unless the task explicitly says so
+- **Vercel git author:** Must be `k.wilsonqc@outlook.com` on all commits
+- **Branch strategy:** Small tasks commit to current branch; large features get `feature/` branches
+- **After execution:** Claude Code updates DA-OPS-001 with a new revision number

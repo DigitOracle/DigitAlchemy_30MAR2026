@@ -20,6 +20,7 @@ export async function createJobV2(input: CreateJobInput): Promise<JobV2> {
 
   const job: JobV2 = {
     id,
+    ownerUid: input.ownerUid,
     status: "created",
     phase: 1,
     sourceUrl: input.sourceUrl ?? null,

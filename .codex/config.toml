@@ -1,0 +1,15 @@
+# Codex CLI configuration for the DigitAlchemy® Console repo
+# Allows Codex review jobs to run safe verification commands without
+# permission prompts blocking the review.
+
+[approvals]
+# Auto-approve safe read-only and verification commands during reviews.
+# These commands do not modify files, do not contact the network beyond
+# package registries, and do not consume secrets.
+allow_commands = [
+  "npm test",
+  "npm run build",
+  "npx tsc --noEmit",
+  "npx tsc --noEmit -p tsconfig.json",
+  "npm run lint",
+]

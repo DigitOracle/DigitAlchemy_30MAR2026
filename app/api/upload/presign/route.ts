@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getStorageBucket } from "@/lib/jobStore"
+import { getAuth } from "firebase-admin/auth"
+import { getStorageBucket, getDb } from "@/lib/jobStore"
+import { getJobV2 } from "@/lib/firestore/jobs"
 
 export const runtime = "nodejs"
 
@@ -11,6 +13,20 @@ const ALLOWED_TYPES = new Set([
 ])
 
 export async function POST(req: NextRequest) {
+  // Require Firebase Auth before issuing signed upload URLs
+  getDb()
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+  let callerUid: string
+  try {
+    const token = await getAuth().verifyIdToken(authHeader.slice(7))
+    callerUid = token.uid
+  } catch {
+    return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+  }
+
   try {
     const { filename, contentType, jobId } = await req.json()
 
@@ -20,6 +36,17 @@ export async function POST(req: NextRequest) {
 
     if (!ALLOWED_TYPES.has(contentType)) {
       return NextResponse.json({ error: `Unsupported file type: ${contentType}. Allowed: MP4, MOV, WebM` }, { status: 400 })
+    }
+
+    // Require job to exist before issuing signed URL
+    const job = await getJobV2(jobId)
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 })
+    }
+
+    // Fail-closed ownership check — no admin override on write path
+    if (job.ownerUid !== callerUid) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const bucket = getStorageBucket()

@@ -1,0 +1,122 @@
+[
+  {
+    "id": 1,
+    "text": "This new dance challenge is taking over my FYP! Everyone's doing the #DropItLow challenge 🔥",
+    "platform": "tiktok",
+    "category": "TREND_ALERT"
+  },
+  {
+    "id": 2,
+    "text": "Just got the new Samsung Galaxy S26 Ultra and the camera is INSANE. Full review coming tomorrow #Samsung #TechReview",
+    "platform": "instagram",
+    "category": "BRAND_SIGNAL"
+  },
+  {
+    "id": 3,
+    "text": "Ramadan Kareem to everyone celebrating! Here's our family iftar spread 🌙 #Ramadan2026 #RamadanVibes",
+    "platform": "instagram",
+    "category": "CULTURAL_MOMENT"
+  },
+  {
+    "id": 4,
+    "text": "@bella.styles just hit 10M followers!! Her content evolution has been incredible to watch 👏",
+    "platform": "tiktok",
+    "category": "CREATOR_SPOTLIGHT"
+  },
+  {
+    "id": 5,
+    "text": "This sound is literally everywhere right now 😭 using it before it gets even bigger",
+    "platform": "tiktok",
+    "category": "AUDIO_VIRAL"
+  },
+  {
+    "id": 6,
+    "text": "Abu Dhabi Grand Prix weekend! The atmosphere at Yas Marina is unreal 🏎️ #AbuDhabiGP #F1",
+    "platform": "instagram",
+    "category": "REGIONAL_PULSE"
+  },
+  {
+    "id": 7,
+    "text": "Apple just announced their AR glasses and I'm shook. This changes everything for spatial computing #AppleAR #Tech",
+    "platform": "tiktok",
+    "category": "TECH_INNOVATION"
+  },
+  {
+    "id": 8,
+    "text": "POV: you try the #SilentWalk trend and actually discover you have thoughts 🧠✨",
+    "platform": "tiktok",
+    "category": "TREND_ALERT"
+  },
+  {
+    "id": 9,
+    "text": "Nike's new collab with @designer.zara is giving everything. The Dunk Low colorway is fire 🔥 #Nike #Sneakers",
+    "platform": "instagram",
+    "category": "BRAND_SIGNAL"
+  },
+  {
+    "id": 10,
+    "text": "Diwali celebrations in Dubai are on another level! The fireworks at Burj Khalifa were stunning 🎆 #Diwali #Dubai",
+    "platform": "instagram",
+    "category": "CULTURAL_MOMENT"
+  },
+  {
+    "id": 11,
+    "text": "How @chef.omar went from 500 followers to cooking for royalty — this man's grind is unmatched",
+    "platform": "tiktok",
+    "category": "CREATOR_SPOTLIGHT"
+  },
+  {
+    "id": 12,
+    "text": "The way this remix of Espresso is the soundtrack to every transition rn 🎵☕",
+    "platform": "tiktok",
+    "category": "AUDIO_VIRAL"
+  },
+  {
+    "id": 13,
+    "text": "Riyadh Season just announced the lineup and it's STACKED. Who's going? 🇸🇦 #RiyadhSeason",
+    "platform": "instagram",
+    "category": "REGIONAL_PULSE"
+  },
+  {
+    "id": 14,
+    "text": "This AI video generator is terrifying. I made a full short film in 10 minutes no cap #AIVideo #Sora",
+    "platform": "tiktok",
+    "category": "TECH_INNOVATION"
+  },
+  {
+    "id": 15,
+    "text": "The #BookTok girly rotation this month is SO good. Adding all of these to my TBR 📚",
+    "platform": "tiktok",
+    "category": "TREND_ALERT"
+  },
+  {
+    "id": 16,
+    "text": "Adidas x Bad Bunny just dropped and it sold out in 3 minutes 😤 #Adidas #BadBunny #Sneakers",
+    "platform": "instagram",
+    "category": "BRAND_SIGNAL"
+  },
+  {
+    "id": 17,
+    "text": "National Day celebrations across the UAE! 🇦🇪 The parade in Abu Dhabi was the highlight #UAENationalDay",
+    "platform": "instagram",
+    "category": "CULTURAL_MOMENT"
+  },
+  {
+    "id": 18,
+    "text": "Okay but this slowed + reverb version of the Beyoncé track is actually superior to the original",
+    "platform": "tiktok",
+    "category": "AUDIO_VIRAL"
+  },
+  {
+    "id": 19,
+    "text": "Kuwait's new metro project just broke ground! This will transform the city 🚇 #Kuwait #Infrastructure",
+    "platform": "instagram",
+    "category": "REGIONAL_PULSE"
+  },
+  {
+    "id": 20,
+    "text": "Just tried the new Claude AI coding assistant and it literally built my entire app in one conversation #AI #Claude",
+    "platform": "tiktok",
+    "category": "TECH_INNOVATION"
+  }
+]

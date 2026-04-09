@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server"
+import { getAuth } from "firebase-admin/auth"
 import { PLATFORMS } from "@/config/platforms"
 import Anthropic from "@anthropic-ai/sdk"
 import { enrichSongsWithSpotify } from "@/lib/spotify"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const maxDuration = 120
@@ -630,6 +632,22 @@ const REGION_LABELS: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
+  // Require Firebase Auth — this route calls expensive external APIs
+  getDb()
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Authentication required" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    })
+  }
+  try {
+    await getAuth().verifyIdToken(authHeader.slice(7))
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid auth token" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    })
+  }
+
   const body = await req.json()
   const { platform, niche, region = "AE", lag = "same_day", industry = null, audience = null, quickPulse = null } = body as { platform: string; niche: string; region: string; lag: string; industry: string | null; audience: string | null; quickPulse: string | null }
   const regionLabel = REGION_LABELS[region] || region

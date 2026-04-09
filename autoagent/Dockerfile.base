@@ -1,0 +1,34 @@
+# AutoAgent Base Image
+# Used for all DA experiment runs per DA-UC-001 directive
+# Build: docker build -f autoagent/Dockerfile.base -t autoagent-base ./autoagent
+
+FROM python:3.11-slim
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    ca-certificates \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js 18
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# uv (fast Python package manager)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# Harbor CLI
+RUN pip install --no-cache-dir harbor-cli
+
+# Working directory
+WORKDIR /app
+
+# Copy agent files
+COPY . /app/
+
+# Default entrypoint
+CMD ["python", "-m", "agents"]

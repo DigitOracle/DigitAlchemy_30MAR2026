@@ -101,6 +101,20 @@ function normalizePost(p: Record<string, unknown>, platform: string): AyrsharePo
     }
   }
 
+  if (platform === "instagram") {
+    const text = (p.caption || p.post || "") as string
+    return {
+      platform: "instagram",
+      text,
+      hashtags: text.match(/#[\w\u00C0-\u024F]+/g) || [],
+      likes: (p.likeCount as number) || (p.likes as number) || 0,
+      comments: (p.commentCount as number) || (p.comments as number) || 0,
+      publishedAt: (p.publishedAt || p.created || "") as string,
+      postUrl: (p.postUrl || p.permalink || "") as string,
+      thumbnailUrl: (p.thumbnailUrl || p.mediaUrl || "") as string,
+    }
+  }
+
   return {
     platform,
     text: (p.post || p.title || "") as string,
@@ -150,7 +164,7 @@ async function enrichYouTubeWithDataAPI(posts: AyrsharePost[]): Promise<Ayrshare
 }
 
 export async function fetchAllPostHistory(opts?: AyrshareOpts): Promise<AyrsharePost[]> {
-  const platforms = ["tiktok", "linkedin", "youtube"]
+  const platforms = ["tiktok", "instagram", "linkedin", "youtube"]
   const results = await Promise.allSettled(platforms.map(p => fetchPostHistory(p, opts)))
   const allPosts: AyrsharePost[] = []
   for (const r of results) {

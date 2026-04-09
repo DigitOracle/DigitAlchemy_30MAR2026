@@ -34,10 +34,14 @@ export default function AccountsPage() {
   useEffect(() => {
     if (!user) { setLoadingPlatforms(false); return }
     setLoadingPlatforms(true)
-    fetch(`/api/accounts/status?uid=${user.uid}`)
-      .then(r => r.json())
-      .then(d => { setConnectedPlatforms(d.platforms || []); setLoadingPlatforms(false) })
-      .catch(() => setLoadingPlatforms(false))
+    auth?.currentUser?.getIdToken().then(token => {
+      fetch(`/api/accounts/status?uid=${user.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(d => { setConnectedPlatforms(d.platforms || []); setLoadingPlatforms(false) })
+        .catch(() => setLoadingPlatforms(false))
+    }).catch(() => setLoadingPlatforms(false))
   }, [user, refreshKey])
 
   // Listen for window focus to refresh after returning from Ayrshare linking page

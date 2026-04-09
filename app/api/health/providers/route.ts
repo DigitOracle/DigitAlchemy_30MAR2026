@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { getAuth } from "firebase-admin/auth"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -46,7 +48,26 @@ function configOnly(provider: string, envVar: string): ProviderStatus {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Require Firebase Auth + admin role — health probes are admin-only
+  const db = getDb()
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+  let callerUid: string
+  try {
+    const token = await getAuth().verifyIdToken(authHeader.slice(7))
+    callerUid = token.uid
+  } catch {
+    return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+  }
+  const callerSnap = await db.doc(`users/${callerUid}`).get()
+  const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role
+  if (callerRole !== "admin") {
+    return NextResponse.json({ error: "Forbidden — admin only" }, { status: 403 })
+  }
+
   const results: ProviderStatus[] = []
 
   // 1. Claude — live ping (cheap messages.create with 1 token)

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getAuth } from "firebase-admin/auth"
 import { searchSpotifyTrack } from "@/lib/spotify"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -18,6 +20,18 @@ interface TrendingSound {
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  // Require Bearer auth — triggers paid ScrapeCreators + Spotify calls
+  getDb()
+  const authHeader = req.headers.get("authorization")
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+  }
+  try {
+    await getAuth().verifyIdToken(authHeader.slice(7))
+  } catch {
+    return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+  }
+
   const region = req.nextUrl.searchParams.get("region") || "AE"
 
   const sounds = await fetchTrendingSounds(region)

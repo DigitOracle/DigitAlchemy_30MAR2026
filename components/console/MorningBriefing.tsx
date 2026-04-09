@@ -1,6 +1,14 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/AuthContext"
+import { auth } from "@/lib/firebase"
+import { type Region, REGION_NARRATIVE_LABELS } from "@/types/gazette"
+import type { ConceptCard } from "@/types/conceptCard"
+import type { GazetteFilterState } from "@/types/gazette"
+import { ConceptCardGrid } from "./ConceptCardGrid"
+import { GazetteFilters } from "./GazetteFilters"
+import { dnaToFilterDefaults } from "@/lib/gazette/dnaToFilterDefaults"
+import { filtersToLabel } from "@/lib/gazette/filtersToLabel"
 
 type WikiItem = { name: string; views: number }
 type GdeltItem = { title: string; domain: string; url?: string }
@@ -16,10 +24,9 @@ const QUOTES = [
   { text: "Every viral moment is a cultural signal. The question is whether you read it in time.", by: "The Editorial Desk" },
 ]
 
-const REGIONS = [
-  { id: "AE", label: "the UAE" }, { id: "SA", label: "Saudi Arabia" }, { id: "KW", label: "Kuwait" },
-  { id: "QA", label: "Qatar" }, { id: "US", label: "the United States" }, { id: "SG", label: "Singapore" },
-]
+const REGIONS = (Object.entries(REGION_NARRATIVE_LABELS) as [Region, string][]).map(
+  ([id, label]) => ({ id, label })
+)
 
 function deduplicateArticles(articles: GdeltItem[]): GdeltItem[] {
   const result: GdeltItem[] = []
@@ -168,6 +175,9 @@ export function MorningBriefing() {
   const [genericRecs, setGenericRecs] = useState<RecPost[]>([])
   const [personalRecs, setPersonalRecs] = useState<RecPost[]>([])
   const [recsLoading, setRecsLoading] = useState(false)
+  const [conceptCards, setConceptCards] = useState<ConceptCard[]>([])
+  const [conceptCardsLoading, setConceptCardsLoading] = useState(false)
+  const [gazetteFilters, setGazetteFilters] = useState<GazetteFilterState>(() => dnaToFilterDefaults(null))
 
   const firstName = user && profile?.name ? profile.name.split(" ")[0] : ""
 
@@ -181,10 +191,14 @@ export function MorningBriefing() {
   // Check if user has Content DNA
   useEffect(() => {
     if (!user?.uid) return
-    fetch(`/api/content-dna/profile?uid=${user.uid}`)
-      .then(r => r.json())
-      .then(d => setHasContentDNA(!!d.profile && d.profile.sampleCount > 0))
-      .catch(() => {})
+    auth?.currentUser?.getIdToken().then(token => {
+      fetch(`/api/content-dna/profile?uid=${user.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(d => setHasContentDNA(!!d.profile && d.profile.sampleCount > 0))
+        .catch(() => {})
+    }).catch(() => {})
   }, [user])
 
   // Dashboard stats with platform filter
@@ -192,44 +206,56 @@ export function MorningBriefing() {
   const [statsPlatform, setStatsPlatform] = useState("all")
   useEffect(() => {
     if (!user?.uid) return
-    fetch(`/api/dashboard?platform=${statsPlatform}&uid=${user.uid}`)
-      .then(r => r.json())
-      .then(d => { if (d.stats) setDashStats(d.stats) })
-      .catch(() => {})
-  }, [statsPlatform])
+    auth?.currentUser?.getIdToken().then(token => {
+      fetch(`/api/dashboard?platform=${statsPlatform}&uid=${user.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(d => { if (d.stats) setDashStats(d.stats) })
+        .catch(() => {})
+    }).catch(() => {})
+  }, [statsPlatform, user])
 
-  // Fetch recommendations when platform section is active (generic + personalised)
+  // Fetch concept cards from unified pipeline (driven by filter state)
+  // Serialize filters to a stable string so React definitely detects changes
+  const filterKey = JSON.stringify(gazetteFilters)
   useEffect(() => {
-    const platformSections = ["tiktok", "instagram", "youtube"]
-    if (!platformSections.includes(activeSection)) { setGenericRecs([]); setPersonalRecs([]); return }
-    setRecsLoading(true)
+    if (!user) return
+    const f = gazetteFilters
+    console.log("[gazette] refetch triggered", { mode: f.mode, horizon: f.horizon, platform: f.platform, industry: f.industry, audience: f.audience })
+    setConceptCardsLoading(true)
+    const params = new URLSearchParams({ region: f.region, platform: f.platform, horizon: f.horizon, mode: f.mode })
+    if (f.industry) params.set("industry", f.industry)
+    if (f.audience.length > 0) params.set("audience", f.audience.join(","))
+    auth?.currentUser?.getIdToken().then(token => {
+      fetch(`/api/concept-cards?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => { console.log("[grid] fetch status", r.status); return r.json() })
+        .then(d => { console.log("[grid] fetch result", { ok: d.ok, cardCount: d.cards?.length ?? 0, platform: f.platform }); if (d.ok && d.cards) setConceptCards(d.cards); setConceptCardsLoading(false) })
+        .catch((e) => { console.log("[grid] fetch error", String(e)); setConceptCardsLoading(false) })
+    }).catch(() => setConceptCardsLoading(false))
+  }, [filterKey, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    const genericUrl = `/api/post-recommendations?region=${region}&platform=${activeSection}`
-    const personalUrl = user?.uid ? `${genericUrl}&uid=${user.uid}` : null
-
-    const fetches = [fetch(genericUrl).then(r => r.json())]
-    if (personalUrl && hasContentDNA) fetches.push(fetch(personalUrl).then(r => r.json()))
-
-    Promise.allSettled(fetches).then(([genRes, perRes]) => {
-      setGenericRecs(genRes.status === "fulfilled" ? genRes.value.posts ?? [] : [])
-      setPersonalRecs(perRes?.status === "fulfilled" ? perRes.value.posts ?? [] : [])
-      setRecsLoading(false)
-    })
-  }, [activeSection, region, user?.uid, hasContentDNA])
+  // Legacy post-recommendations fetch removed — concept cards pipeline (Phase 2.3f) handles this now
 
   useEffect(() => {
+    if (!user) return  // wait for auth to hydrate before fetching
     setLoading(true)
-    Promise.allSettled([
-      fetch(`/api/morning-briefing?region=${region}`).then(r => r.json()),
-      fetch(`/api/trend-ticker?region=${region}`).then(r => r.json()),
-      fetch(`/api/trending-audio?region=${region}`).then(r => r.json()),
-    ]).then(([briefing, ticker, audio]) => {
-      if (briefing.status === "fulfilled") setData(briefing.value)
-      if (ticker.status === "fulfilled") setTickerData(ticker.value)
-      if (audio.status === "fulfilled") setAudioData(audio.value)
-      setLoading(false)
-    })
-  }, [region])
+    auth?.currentUser?.getIdToken().then(token => {
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+      Promise.allSettled([
+        fetch(`/api/morning-briefing?region=${region}`, { headers }).then(r => r.json()),
+        fetch(`/api/trend-ticker?region=${region}`, { headers }).then(r => r.json()),
+        fetch(`/api/trending-audio?region=${region}`, { headers }).then(r => r.json()),
+      ]).then(([briefing, ticker, audio]) => {
+        if (briefing.status === "fulfilled") setData(briefing.value)
+        if (ticker.status === "fulfilled") setTickerData(ticker.value)
+        if (audio.status === "fulfilled") setAudioData(audio.value)
+        setLoading(false)
+      })
+    }).catch(() => setLoading(false))
+  }, [region, user])
 
   const wiki = data ? cleanWikipedia(data.wikipedia) : []
   const gdelt = data ? deduplicateArticles(data.gdelt) : []
@@ -373,6 +399,9 @@ export function MorningBriefing() {
             ))}
             <span style={{ marginLeft: "auto", fontFamily: LABEL, fontSize: 8, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.1em" }}>{edition} &middot; {editionTag}</span>
           </div>
+
+          {/* ── FILTER BAR ── */}
+          <GazetteFilters filters={gazetteFilters} onChange={setGazetteFilters} />
 
           {/* ── MASTHEAD ── */}
           <div style={{ textAlign: "center", padding: "8px 0 4px" }}>
@@ -668,6 +697,19 @@ export function MorningBriefing() {
                 </>
               )}
 
+              {/* ── CONCEPT CARDS on Front Page ── */}
+              {(conceptCards.length > 0 || conceptCardsLoading) && (
+                <div style={{ marginTop: 20, borderTop: `2.5px solid ${BROWN}`, paddingTop: 14 }}>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 2 }}>
+                    Your Content Plays
+                  </div>
+                  <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT, marginBottom: 12 }}>
+                    {filtersToLabel(gazetteFilters)}
+                  </div>
+                  <ConceptCardGrid cards={conceptCards} loading={conceptCardsLoading} />
+                </div>
+              )}
+
               </>)}
 
               {/* ── TIKTOK SECTION ── */}
@@ -710,7 +752,10 @@ export function MorningBriefing() {
                       </div>
                     </>
                   )}
-                  <TwoRowRecommends platform="TikTok" />
+                  <div style={{ marginTop: 20, borderTop: `2px solid ${BROWN}`, paddingTop: 14 }}>
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 10 }}>Your Concept Cards</div>
+                      <ConceptCardGrid cards={conceptCards.filter(c => c.platformFormat.platform === "tiktok")} loading={conceptCardsLoading} />
+                    </div>
                 </div>
               )}
 
@@ -734,7 +779,10 @@ export function MorningBriefing() {
                   ) : (
                     <p style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 13, color: ACCENT }}>No Instagram hashtag data available for this region.</p>
                   )}
-                  <TwoRowRecommends platform="Instagram" />
+                  <div style={{ marginTop: 20, borderTop: `2px solid ${BROWN}`, paddingTop: 14 }}>
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 10 }}>Your Concept Cards</div>
+                      <ConceptCardGrid cards={conceptCards.filter(c => c.platformFormat.platform === "instagram")} loading={conceptCardsLoading} />
+                    </div>
                 </div>
               )}
 
@@ -756,7 +804,10 @@ export function MorningBriefing() {
                       </div>
                     ))}
                   </div>
-                  <TwoRowRecommends platform="YouTube" />
+                  <div style={{ marginTop: 20, borderTop: `2px solid ${BROWN}`, paddingTop: 14 }}>
+                      <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: BROWN, marginBottom: 10 }}>Your Concept Cards</div>
+                      <ConceptCardGrid cards={conceptCards.filter(c => c.platformFormat.platform === "youtube")} loading={conceptCardsLoading} />
+                    </div>
                 </div>
               )}
 

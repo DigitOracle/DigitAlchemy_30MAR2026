@@ -392,6 +392,7 @@ export type JobSection = {
 
 export type Job = {
   id: string
+  ownerUid: string
   status: JobStatus
   workflowId: string | null
   workflowLabel: string | null
