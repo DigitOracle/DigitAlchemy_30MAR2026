@@ -585,7 +585,7 @@ export default function ConsolePage() {
                     {[
                       { label: "My Content DNA", href: "/profile" },
                       { label: "Dashboard", href: "/dashboard" },
-                      { label: "Upload Video", href: "/upload" },
+                      { label: "Analyse Content", href: "/upload" },
                       { label: "Link Social Accounts", href: "/accounts" },
                     ].map(item => (
                       <button key={item.href} onClick={() => { setShowUserMenu(false); router.push(item.href) }}
