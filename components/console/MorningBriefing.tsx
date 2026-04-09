@@ -220,8 +220,9 @@ export function MorningBriefing() {
     if (!user) return
     setConceptCardsLoading(true)
     const f = gazetteFilters
-    const params = new URLSearchParams({ region: f.region, platform: f.platform })
+    const params = new URLSearchParams({ region: f.region, platform: f.platform, horizon: f.horizon })
     if (f.industry) params.set("industry", f.industry)
+    if (f.audience.length > 0) params.set("audience", f.audience.join(","))
     auth?.currentUser?.getIdToken().then(token => {
       fetch(`/api/concept-cards?${params}`, {
         headers: { Authorization: `Bearer ${token}` },

@@ -1,9 +1,10 @@
 "use client"
 
+import { useState } from "react"
 import type { GazetteFilterState, Region, Platform, Horizon, Branch, Industry, Audience } from "@/types/gazette"
 import {
   REGION_SHORT_LABELS, PLATFORM_LABELS, HORIZON_LABELS,
-  INDUSTRY_LABELS, AUDIENCE_LABELS, horizonToBranch,
+  INDUSTRY_LABELS, horizonsForMode, audienceLabel,
 } from "@/types/gazette"
 
 const DISPLAY = "'Playfair Display', Georgia, serif"
@@ -11,12 +12,6 @@ const LABEL = "'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif"
 const BROWN = "#3E2723"
 const ACCENT = "#8B7355"
 const RULE = "#C4B9A0"
-
-const BRANCH_HORIZONS: Record<Branch, Horizon[]> = {
-  react_now: ["same_day", "24h", "48h", "72h"],
-  plan_ahead: ["1w", "2w", "4w"],
-  analyse_history: ["6m", "12m"],
-}
 
 const BRANCH_LABELS: Record<Branch, string> = {
   react_now: "React Now",
@@ -52,9 +47,10 @@ export function GazetteFilters({ filters, onChange }: {
   const regions = Object.keys(REGION_SHORT_LABELS) as Region[]
   const platforms = Object.keys(PLATFORM_LABELS) as Platform[]
   const branches = Object.keys(BRANCH_LABELS) as Branch[]
-  const horizonOptions = BRANCH_HORIZONS[filters.mode]
+  const horizonOptions = horizonsForMode(filters.mode)
   const industries = Object.keys(INDUSTRY_LABELS) as Industry[]
-  const audiences = Object.keys(AUDIENCE_LABELS) as Audience[]
+  const allAudiences: Audience[] = ["gen_z", "millennials", "gen_x", "boomers", "all_ages"]
+  const [audienceOpen, setAudienceOpen] = useState(false)
 
   return (
     <div style={{
@@ -71,7 +67,7 @@ export function GazetteFilters({ filters, onChange }: {
       <div style={{ display: "flex", border: `1px solid ${RULE}` }}>
         {branches.map((b) => (
           <button key={b} onClick={() => {
-            const newHorizons = BRANCH_HORIZONS[b]
+            const newHorizons = horizonsForMode(b)
             onChange({ ...filters, mode: b, horizon: newHorizons[0] })
           }}
             style={{
@@ -101,6 +97,48 @@ export function GazetteFilters({ filters, onChange }: {
         <option value="">All Industries</option>
         {industries.map((i) => <option key={i} value={i}>{INDUSTRY_LABELS[i]}</option>)}
       </select>
+
+      {/* Audience (multi-select, max 2) */}
+      <div style={{ position: "relative" }}>
+        <button onClick={() => setAudienceOpen(!audienceOpen)} style={{
+          fontFamily: LABEL, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+          letterSpacing: "0.06em", color: BROWN, backgroundColor: "transparent",
+          border: `1px solid ${RULE}`, padding: "4px 8px", cursor: "pointer",
+        }}>
+          {filters.audience.length === 0 ? "Audience"
+            : filters.audience.length === 1 ? audienceLabel(filters.audience[0]).split(" (")[0]
+            : `${audienceLabel(filters.audience[0]).split(" (")[0]} +${filters.audience.length - 1}`}
+          {" \u25BE"}
+        </button>
+        {audienceOpen && (
+          <div style={{
+            position: "absolute", top: "100%", left: 0, marginTop: 2, zIndex: 30,
+            backgroundColor: "#FDFCF8", border: `1px solid ${RULE}`, minWidth: 160, padding: "4px 0",
+          }}>
+            {allAudiences.map((a) => {
+              const selected = filters.audience.includes(a)
+              return (
+                <label key={a} style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", cursor: "pointer",
+                  fontFamily: LABEL, fontSize: 10, color: selected ? BROWN : ACCENT,
+                }} onClick={() => {
+                  let next: Audience[]
+                  if (selected) {
+                    next = filters.audience.filter((x) => x !== a)
+                  } else {
+                    next = [...filters.audience, a]
+                    if (next.length > 2) next = next.slice(-2) // FIFO: keep 2 most recent
+                  }
+                  onChange({ ...filters, audience: next })
+                }}>
+                  <input type="checkbox" checked={selected} readOnly style={{ accentColor: BROWN }} />
+                  {audienceLabel(a)}
+                </label>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Divider */}
       <div style={{ width: 1, height: 20, backgroundColor: RULE, margin: "0 4px" }} />

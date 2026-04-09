@@ -36,8 +36,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const region = (req.nextUrl.searchParams.get("region") || "AE") as Region;
   const platform = (req.nextUrl.searchParams.get("platform") || "tiktok") as Platform;
   const industry = req.nextUrl.searchParams.get("industry") as Industry | undefined;
+  const horizon = (req.nextUrl.searchParams.get("horizon") || "24h") as import("@/types/gazette").Horizon;
+  const audienceRaw = req.nextUrl.searchParams.get("audience") || "";
+  const audience = audienceRaw ? audienceRaw.split(",").filter(Boolean) : [];
 
-  console.log("[concept-cards] request", { region, platform, callerUid, hasAuth: !!authHeader });
+  console.log("[concept-cards] request", { region, platform, horizon, audience, callerUid, hasAuth: !!authHeader });
 
   try {
     // ── Fetch all data sources in parallel ──
@@ -49,7 +52,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       getPerformanceDNA(callerUid).catch(() => null),
       getPerformancePosts(callerUid).catch(() => []),
       getRegionalEngagementSamples({ platform, region, industry }).catch(() => []),
-      fetchTrendsForContext({ region, platform, horizon: "24h" }).catch((): ScoredTrend[] => []),
+      fetchTrendsForContext({ region, platform, horizon }).catch((): ScoredTrend[] => []),
       // Fetch Follow the Trend (generic) and Stay in Your Lane (personalised) recs
       fetch(`${base}/api/post-recommendations?region=${region}&platform=${platform}`, { headers: fwdHeaders, signal: AbortSignal.timeout(15000) })
         .then(r => r.json()).catch((e) => ({ posts: [], _error: String(e) })),
