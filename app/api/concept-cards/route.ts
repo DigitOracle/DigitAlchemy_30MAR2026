@@ -97,11 +97,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     };
 
     // ── Generate cards ──
+    console.log("[concept-cards] signals applied", { horizon, industry: industry || "all", audienceCount: audience.length, region, platform });
+
     const cards = await generateConceptCards({
       uid: callerUid,
       region,
       platform,
       industry: industry || undefined,
+      horizon,
+      audience: audience as import("@/types/gazette").Audience[],
       contentDNA,
       performanceDNA,
       recentPosts,

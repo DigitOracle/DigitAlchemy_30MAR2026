@@ -18,12 +18,15 @@ import type {
 } from "@/types/gazette";
 import type { ContentProfile } from "@/lib/firestore/contentProfile";
 import type { ScoredTrend } from "@/lib/gazette/trends";
+import type { Audience, Horizon } from "@/types/gazette";
 import {
   adaptFollowTheTrendToConceptCard,
   adaptStayInYourLaneToConceptCard,
   adaptScoredTrendToConceptCard,
   type RecPost,
 } from "@/lib/gazette/adapters";
+import { industryRelevance } from "@/lib/gazette/industryLexicon";
+import { audienceRelevance } from "@/lib/gazette/audienceLexicon";
 
 // ============================================================================
 // Dependencies — injected for testability
@@ -60,6 +63,8 @@ export interface GenerateConceptCardsInput {
   region: Region;
   platform: Platform;
   industry?: Industry;
+  horizon?: Horizon;
+  audience?: Audience[];
   contentDNA: ContentProfile | null;
   performanceDNA: PerformanceDNA | null;
   recentPosts: PerformancePost[];
@@ -209,6 +214,31 @@ export async function generateConceptCards(
   const droppedNoSignal = input.scoredTrends.length - signalTrends.length;
   console.log("[generator] quality filter", { beforeFilter, droppedNoSignal, droppedPlaceholderBody: countPlaceholder, droppedNoEnrichment: countNoEnrichment, afterFilter: filtered.length });
 
-  // ── 7. Sort and return ──
-  return sortCards(filtered);
+  // ── 7. Re-rank by industry + audience signals ──
+  const industry = input.industry;
+  const audiences = (input.audience ?? []) as Audience[];
+  const rankScores = new Map<string, number>();
+
+  for (const card of filtered) {
+    const cardText = `${card.title} ${card.hook} ${card.body} ${card.hashtags.join(" ")}`.toLowerCase();
+
+    const indRel = industry ? industryRelevance(cardText, industry) : 0;
+    const audRel = audienceRelevance(cardText, audiences);
+
+    const indBoost = indRel > 0.05 ? 2.0 : 1.0;
+    const audBoost = audRel > 0.05 ? 1.3 : 1.0;
+
+    const confScore = card.confidence === "high" ? 3 : card.confidence === "medium" ? 2 : 1;
+    const srcScore = card.source === "blend" ? 0.3 : card.source === "style" ? 0.2 : 0.1;
+    const rankingScore = (confScore + srcScore) * indBoost * audBoost;
+
+    rankScores.set(card.id, rankingScore);
+  }
+
+  // Sort by ranking score descending
+  filtered.sort((a, b) => (rankScores.get(b.id) ?? 0) - (rankScores.get(a.id) ?? 0));
+
+  console.log("[generator] re-ranked", { industry: industry ?? "all", audienceCount: audiences.length, topScore: rankScores.get(filtered[0]?.id) });
+
+  return filtered;
 }
