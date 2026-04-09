@@ -5,6 +5,8 @@ import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
+// TODO Phase 4 — migrate to Vercel Blob direct upload for files > 4.5 MB.
+// Vercel serverless body limit is 4.5 MB. Client enforces 4 MB in app/upload/page.tsx.
 
 export async function POST(req: Request): Promise<NextResponse> {
   try {
