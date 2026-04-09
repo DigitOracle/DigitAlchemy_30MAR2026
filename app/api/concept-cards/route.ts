@@ -83,7 +83,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             max_tokens: 300,
             messages: [{
               role: "user",
-              content: `You are a social media content strategist. Generate a hook (first line, max 80 chars) and body (2-3 sentence script outline) for a ${input.platform} ${input.trendType} about "${input.trendEntity}" in ${input.region}.${input.contentDNA ? ` Match this creator's style: tone=${input.contentDNA.tone}, visual=${input.contentDNA.visualStyle}.` : ""}\n\nReturn ONLY JSON: { "hook": "...", "body": "..." }`,
+              content: `You are a social media content strategist. Generate a hook (first line, max 80 chars) and body (2-3 sentence script outline) for a ${input.platform} ${input.trendType} about "${input.trendEntity}" in ${input.region}.${input.industry ? ` Angle this toward the ${input.industry.replace(/_/g, " ")} industry — use relevant terminology and frame the trend for that audience.` : ""}${input.contentDNA ? ` Match this creator's style: tone=${input.contentDNA.tone}, visual=${input.contentDNA.visualStyle}.` : ""}\n\nReturn ONLY JSON: { "hook": "...", "body": "..." }`,
             }],
           });
           const text = response.content[0].type === "text" ? response.content[0].text : "";

@@ -50,6 +50,7 @@ export interface CardGeneratorDeps {
     trendType: string;
     platform: string;
     region: string;
+    industry?: string;
     contentDNA: ContentProfile | null;
   }) => Promise<{ hook: string; body: string } | null>;
 }
@@ -167,6 +168,7 @@ export async function generateConceptCards(
         trendType: card.platformFormat.format,
         platform: card.platformFormat.platform,
         region: input.region,
+        industry: input.industry,
         contentDNA: input.contentDNA,
       }),
     ),
@@ -238,7 +240,9 @@ export async function generateConceptCards(
   // Sort by ranking score descending
   filtered.sort((a, b) => (rankScores.get(b.id) ?? 0) - (rankScores.get(a.id) ?? 0));
 
-  console.log("[generator] re-ranked", { industry: industry ?? "all", audienceCount: audiences.length, topScore: rankScores.get(filtered[0]?.id) });
+  const industryMatched = industry ? filtered.filter(c => industryRelevance(`${c.title} ${c.hook} ${c.body} ${c.hashtags.join(" ")}`.toLowerCase(), industry) > 0.05).length : 0;
+  const audienceMatched = audiences.length > 0 ? filtered.filter(c => audienceRelevance(`${c.title} ${c.hook} ${c.body} ${c.hashtags.join(" ")}`.toLowerCase(), audiences) > 0.05).length : 0;
+  console.log("[generator] ranking signals", { industry: industry || "none", audience: audiences, totalTrends: filtered.length, industryMatched, audienceMatched, topScore: rankScores.get(filtered[0]?.id) });
 
   return filtered;
 }
