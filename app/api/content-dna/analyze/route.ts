@@ -52,8 +52,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     const storagePath = body.storagePath as string | undefined
     const platform = (body.platform as string) || "tiktok"
 
-    let buffer: Buffer
-    let filename: string
+    let buffer: Buffer | null = null
+    let filename: string = "video.mp4"
+    let transcriptUrl: string | null = null
 
     if (sourceUrl) {
       // ── URL-based ingestion ──
@@ -71,6 +72,10 @@ export async function POST(req: Request): Promise<NextResponse> {
         try {
           fetchUrl = await resolveHeyGenUrl(sourceUrl)
           console.log("[analyze] resolved HeyGen dashboard URL to CDN", { cdnUrl: fetchUrl.slice(0, 100) })
+          // Pass CDN URL directly to Groq — skip downloading bytes through Vercel
+          transcriptUrl = fetchUrl
+          filename = new URL(sourceUrl).pathname.split("/").pop() ?? "video.mp4"
+          if (!filename.includes(".")) filename += ".mp4"
         } catch (e) {
           const msg = e instanceof HeyGenResolveError ? e.message : "Could not resolve HeyGen video URL."
           console.log("[analyze] REJECT:heygen", msg)
@@ -83,41 +88,44 @@ export async function POST(req: Request): Promise<NextResponse> {
         return NextResponse.json({ error: "YouTube URL support coming soon. For now, download the video first and use Upload File." }, { status: 400 })
       }
 
-      try {
-        const res = await fetch(fetchUrl, {
-          signal: AbortSignal.timeout(30000),
-          headers: { "User-Agent": "DigitAlchemy/1.0" },
-        })
-        if (!res.ok) {
-          console.log("[analyze] REJECT:download-fail", res.status, fetchUrl.slice(0, 100))
+      // Download bytes for non-HeyGen URLs (HeyGen passes URL directly to Groq)
+      if (!transcriptUrl) {
+        try {
+          const res = await fetch(fetchUrl, {
+            signal: AbortSignal.timeout(30000),
+            headers: { "User-Agent": "DigitAlchemy/1.0" },
+          })
+          if (!res.ok) {
+            console.log("[analyze] REJECT:download-fail", res.status, fetchUrl.slice(0, 100))
+            return NextResponse.json({ error: "Could not download video. Check the URL is accessible." }, { status: 400 })
+          }
+
+          const contentLength = parseInt(res.headers.get("content-length") ?? "0", 10)
+          if (contentLength > 100 * 1024 * 1024) {
+            console.log("[analyze] REJECT:too-large-header", contentLength)
+            return NextResponse.json({ error: "Video is too large. Maximum 100 MB." }, { status: 400 })
+          }
+
+          const arrayBuf = await res.arrayBuffer()
+          buffer = Buffer.from(arrayBuf)
+
+          if (buffer.length > 100 * 1024 * 1024) {
+            console.log("[analyze] REJECT:too-large-body", buffer.length)
+            return NextResponse.json({ error: "Video is too large. Maximum 100 MB." }, { status: 400 })
+          }
+
+          console.log("[analyze] downloaded from URL", { sizeBytes: buffer.length })
+          filename = new URL(sourceUrl).pathname.split("/").pop() ?? "video.mp4"
+          if (!filename.includes(".")) filename += ".mp4"
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          if (msg.includes("timeout") || msg.includes("TimeoutError")) {
+            console.log("[analyze] REJECT:timeout")
+            return NextResponse.json({ error: "Download timed out after 30 seconds. Try a smaller file or check the URL." }, { status: 400 })
+          }
+          console.log("[analyze] REJECT:download-err", msg.slice(0, 100))
           return NextResponse.json({ error: "Could not download video. Check the URL is accessible." }, { status: 400 })
         }
-
-        const contentLength = parseInt(res.headers.get("content-length") ?? "0", 10)
-        if (contentLength > 100 * 1024 * 1024) {
-          console.log("[analyze] REJECT:too-large-header", contentLength)
-          return NextResponse.json({ error: "Video is too large. Maximum 100 MB." }, { status: 400 })
-        }
-
-        const arrayBuf = await res.arrayBuffer()
-        buffer = Buffer.from(arrayBuf)
-
-        if (buffer.length > 100 * 1024 * 1024) {
-          console.log("[analyze] REJECT:too-large-body", buffer.length)
-          return NextResponse.json({ error: "Video is too large. Maximum 100 MB." }, { status: 400 })
-        }
-
-        console.log("[analyze] downloaded from URL", { sizeBytes: buffer.length })
-        filename = new URL(sourceUrl).pathname.split("/").pop() ?? "video.mp4"
-        if (!filename.includes(".")) filename += ".mp4"
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        if (msg.includes("timeout") || msg.includes("TimeoutError")) {
-          console.log("[analyze] REJECT:timeout")
-          return NextResponse.json({ error: "Download timed out after 30 seconds. Try a smaller file or check the URL." }, { status: 400 })
-        }
-        console.log("[analyze] REJECT:download-err", msg.slice(0, 100))
-        return NextResponse.json({ error: "Could not download video. Check the URL is accessible." }, { status: 400 })
       }
     } else if (storagePath) {
       // ── Firebase Storage path (file upload via client) ──
@@ -143,10 +151,12 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "Either sourceUrl or storagePath is required" }, { status: 400 })
     }
 
-    const transcript = await transcribeWithWhisper(buffer, filename)
+    const transcript = transcriptUrl
+      ? await transcribeWithWhisperUrl(transcriptUrl)
+      : await transcribeWithWhisper(buffer!, filename)
 
     if (!transcript) {
-      console.log("[analyze] REJECT:whisper-null", { filename, sizeBytes: buffer.length })
+      console.log("[analyze] REJECT:whisper-null", { filename, sizeBytes: buffer?.length ?? 0, viaUrl: !!transcriptUrl })
       return NextResponse.json({ error: "Could not transcribe video audio. The file may not contain audible speech." }, { status: 400 })
     }
 
@@ -178,8 +188,40 @@ async function transcribeWithWhisper(buffer: Buffer, filename: string): Promise<
       body: form,
     })
 
-    if (!res.ok) { console.log("[CONTENT-DNA] Whisper failed:", res.status); return null }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "")
+      console.log("[CONTENT-DNA] Whisper failed:", res.status, body.slice(0, 200))
+      return null
+    }
     const data = await res.json()
     return (data.text as string) || null
   } catch (e) { console.log("[CONTENT-DNA] Whisper error:", e); return null }
+}
+
+/** Transcribe by passing a public URL directly to Groq — avoids downloading bytes through Vercel. */
+async function transcribeWithWhisperUrl(url: string): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) { console.log("[CONTENT-DNA] No GROQ_API_KEY"); return null }
+
+  try {
+    console.log("[CONTENT-DNA] Whisper via URL", url.slice(0, 100))
+    const form = new FormData()
+    form.append("url", url)
+    form.append("model", "whisper-large-v3")
+
+    const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    })
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "")
+      console.log("[CONTENT-DNA] Whisper URL failed:", res.status, body.slice(0, 200))
+      // Fall back to null — caller can retry with buffer if needed
+      return null
+    }
+    const data = await res.json()
+    return (data.text as string) || null
+  } catch (e) { console.log("[CONTENT-DNA] Whisper URL error:", e); return null }
 }
