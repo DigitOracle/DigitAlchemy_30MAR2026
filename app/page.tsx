@@ -447,7 +447,7 @@ export default function ConsolePage() {
   }
 
   // ── Reverse-engineer: confirm ──
-  const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null, quickPulse?: string) => {
+  const handleReConfirm = (platform: string, niche: string, lag: string, region: string, industry: string | null, audience: string | null, quickPulse?: string): void => {
     setReRegion(region)
     setReIndustry(industry)
     setReAudience(audience)

@@ -110,6 +110,20 @@ export function horizonToBranch(h: Horizon): Branch {
   }
 }
 
+/** Return the allowed Horizon values for a given mode/branch. */
+export function horizonsForMode(mode: Branch): Horizon[] {
+  switch (mode) {
+    case "react_now": return ["same_day", "24h", "48h", "72h"];
+    case "plan_ahead": return ["1w", "2w", "4w"];
+    case "analyse_history": return ["6m", "12m"];
+  }
+}
+
+/** Human-readable label for an Audience value, with age sub-label. */
+export function audienceLabel(a: Audience): string {
+  return `${AUDIENCE_LABELS[a]} (${AUDIENCE_SUBTITLES[a]})`;
+}
+
 // ============================================================================
 // Industry — 10 constrained values
 // ============================================================================
@@ -181,7 +195,8 @@ export interface GazetteFilterState {
   mode: Branch;
   horizon: Horizon;
   industry?: Industry;
-  audience?: Audience;
+  /** Up to 2 audience segments. Empty = no filter. Max enforced in UI (Phase 3b.2). */
+  audience: Audience[];
   actorType: "b2b" | "b2c";
 }
 

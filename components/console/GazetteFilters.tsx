@@ -105,7 +105,7 @@ export function GazetteFilters({ filters, onChange }: {
       {/* Divider */}
       <div style={{ width: 1, height: 20, backgroundColor: RULE, margin: "0 4px" }} />
 
-      {/* Actor Type */}
+      {/* Actor Type — TODO Phase 3b.5: wire actor_type into /api/concept-cards as ranking signal */}
       <div style={{ display: "flex", border: `1px solid ${RULE}` }}>
         {(["b2b", "b2c"] as const).map((t) => (
           <button key={t} onClick={() => onChange({ ...filters, actorType: t })}

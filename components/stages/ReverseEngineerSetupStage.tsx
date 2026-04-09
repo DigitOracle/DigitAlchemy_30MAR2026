@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react"
 import { PLATFORMS } from "@/config/platforms"
 import {
-  type Region, type Industry, type Audience, type Horizon,
+  type Region, type Platform, type Industry, type Audience, type Horizon,
   REGION_LABELS, REGION_FLAG_URLS,
   INDUSTRY_LABELS, AUDIENCE_LABELS, AUDIENCE_SUBTITLES,
   HORIZON_LABELS, horizonToBranch,
@@ -41,7 +41,7 @@ const QUICK_PULSE_OPTIONS = [
 ]
 
 type Props = {
-  onConfirm: (platform: string, niche: string, lag: Horizon, region: string, industry: string | null, audience: string | null, quickPulse?: string) => void
+  onConfirm: (platform: Platform, niche: string, lag: Horizon, region: Region, industry: string | null, audience: string | null, quickPulse?: string) => void
 }
 
 const scanPlatforms = Object.values(PLATFORMS).filter((p) => p.id !== "heygen")
@@ -89,11 +89,11 @@ const PLATFORM_LOGOS: Record<string, string> = {
 }
 
 export function ReverseEngineerSetupStage({ onConfirm }: Props) {
-  const [platform, setPlatform] = useState<string | null>(null)
+  const [platform, setPlatform] = useState<Platform | null>(null)
   const [niche, setNiche] = useState("")
   const [lag, setLag] = useState<Horizon>("same_day")
   const [lagChosen, setLagChosen] = useState(false)
-  const [region, setRegion] = useState("AE")
+  const [region, setRegion] = useState<Region>("AE")
   const [industry, setIndustry] = useState<string | null>(null)
   const [audience, setAudience] = useState<string | null>(null)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
@@ -109,10 +109,10 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
     return () => document.removeEventListener("mousedown", handleClick)
   }, [openDropdown])
 
-  function handleQuickPulse(regionCode: string, quickType: string) {
+  function handleQuickPulse(regionCode: Region, quickType: string) {
     setOpenDropdown(null)
     const opt = QUICK_PULSE_OPTIONS.find((o) => o.id === quickType)
-    onConfirm(opt?.platform || "tiktok", "", "same_day", regionCode, null, null, quickType)
+    onConfirm((opt?.platform || "tiktok") as Platform, "", "same_day", regionCode, null, null, quickType)
   }
 
   const activeBranch = ["same_day", "24h", "48h", "72h"].includes(lag) ? "react_now"
@@ -192,7 +192,7 @@ export function ReverseEngineerSetupStage({ onConfirm }: Props) {
         {scanPlatforms.map((p) => (
           <button
             key={p.id}
-            onClick={() => setPlatform(p.id)}
+            onClick={() => setPlatform(p.id as Platform)}
             className={`flex flex-col items-center gap-1 px-3 py-3 rounded-lg border-2 text-xs font-medium transition-colors ${
               platform === p.id
                 ? "border-[#b87333] bg-[#b87333]/5 text-[#b87333]"

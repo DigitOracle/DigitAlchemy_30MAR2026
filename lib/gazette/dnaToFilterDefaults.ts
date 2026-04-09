@@ -21,6 +21,7 @@ export function dnaToFilterDefaults(
       platform: "all",
       mode: "react_now",
       horizon: "24h",
+      audience: [],
       actorType: "b2c",
     };
   }
@@ -37,6 +38,7 @@ export function dnaToFilterDefaults(
     platform: "all",
     mode: "react_now",
     horizon: "24h",
+    audience: [],
     actorType: isB2B ? "b2b" : "b2c",
   };
 }
