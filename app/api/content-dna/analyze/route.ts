@@ -1,41 +1,65 @@
 import { NextResponse } from "next/server"
 import { getAuth } from "firebase-admin/auth"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
-import { getDb } from "@/lib/jobStore"
+import { getDb, getStorageBucket } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
-// TODO Phase 4 — migrate to Vercel Blob direct upload for files > 4.5 MB.
-// Vercel serverless body limit is 4.5 MB. Client enforces 4 MB in app/upload/page.tsx.
 
 export async function POST(req: Request): Promise<NextResponse> {
   try {
-    // Require Firebase Auth — prevents unauthenticated Groq/Claude cost abuse
+    // Require Firebase Auth
     getDb()
     const authHeader = req.headers.get("authorization")
     if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Authentication required" }, { status: 401 })
     }
+    let callerUid: string
     try {
-      await getAuth().verifyIdToken(authHeader.slice(7))
+      const token = await getAuth().verifyIdToken(authHeader.slice(7))
+      callerUid = token.uid
     } catch {
       return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
     }
 
-    const formData = await req.formData()
-    const file = formData.get("file") as File | null
-    const platform = (formData.get("platform") as string) || "tiktok"
+    // Accept JSON body with storagePath (Firebase Storage direct upload pattern)
+    const body = await req.json()
+    const storagePath = body.storagePath as string | undefined
+    const platform = (body.platform as string) || "tiktok"
 
-    if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 })
+    if (!storagePath) {
+      return NextResponse.json({ error: "storagePath is required" }, { status: 400 })
+    }
 
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const transcript = await transcribeWithWhisper(buffer, file.name)
+    // Verify the path belongs to the authenticated user
+    if (!storagePath.startsWith(`dna-uploads/${callerUid}/`)) {
+      return NextResponse.json({ error: "Forbidden — path does not match authenticated user" }, { status: 403 })
+    }
+
+    // Download file from Firebase Storage (no Vercel body limit — server-to-Storage)
+    const bucket = getStorageBucket()
+    const file = bucket.file(storagePath)
+    const [exists] = await file.exists()
+    if (!exists) {
+      return NextResponse.json({ error: "File not found in storage" }, { status: 404 })
+    }
+
+    const [buffer] = await file.download()
+    console.log("[analyze] downloaded from storage", { path: storagePath, sizeBytes: buffer.length })
+
+    // Extract filename from storage path for Whisper
+    const filename = storagePath.split("/").pop() ?? "upload.mp4"
+
+    const transcript = await transcribeWithWhisper(buffer, filename)
+
+    // Cleanup: delete the uploaded file from Storage to avoid accumulating costs
+    file.delete().catch(() => { /* non-blocking cleanup */ })
 
     if (!transcript) {
       return NextResponse.json({ error: "Could not transcribe video audio" }, { status: 400 })
     }
 
-    const dna = await extractContentDNA(transcript, platform, { title: file.name })
+    const dna = await extractContentDNA(transcript, platform, { title: filename })
 
     if (!dna) {
       return NextResponse.json({ error: "Could not extract content DNA" }, { status: 500 })

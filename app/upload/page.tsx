@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { useAuth } from "@/lib/AuthContext"
 import { auth } from "@/lib/firebase"
+import { getStorage, ref, uploadBytes } from "firebase/storage"
 import { useRouter } from "next/navigation"
 
 const DISPLAY = "'Playfair Display', Georgia, serif"
@@ -17,13 +18,12 @@ export default function UploadPage() {
   const [error, setError] = useState("")
   const [stage, setStage] = useState<"upload" | "analyzing" | "review" | "saving" | "saved">("upload")
 
-  const MAX_FILE_MB = 4
+  const MAX_FILE_MB = 25
   const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024
 
   const handleUpload = async () => {
     if (!file || !user) return
 
-    // Client-side size check — Vercel serverless body limit is 4.5 MB
     if (file.size > MAX_FILE_BYTES) {
       setError(`This file is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Please upload a file under ${MAX_FILE_MB} MB.`)
       return
@@ -34,16 +34,23 @@ export default function UploadPage() {
     setStage("analyzing")
 
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("platform", "tiktok")
+      // Step 1: Upload file directly to Firebase Storage (bypasses Vercel 4.5 MB body limit)
+      const storage = getStorage()
+      const storagePath = `dna-uploads/${user.uid}/${Date.now()}_${file.name}`
+      const storageRef = ref(storage, storagePath)
+      await uploadBytes(storageRef, file)
 
+      // Step 2: Send only the storage path to the analyze route (tiny JSON body, no size limit issue)
       const analyzeToken = await auth?.currentUser?.getIdToken()
-      const res = await fetch("/api/content-dna/analyze", { method: "POST", headers: analyzeToken ? { Authorization: `Bearer ${analyzeToken}` } : {}, body: formData })
+      const res = await fetch("/api/content-dna/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(analyzeToken ? { Authorization: `Bearer ${analyzeToken}` } : {}),
+        },
+        body: JSON.stringify({ storagePath, platform: "tiktok" }),
+      })
 
-      if (res.status === 413) {
-        throw new Error(`This file is too large for the server. Please upload a file under ${MAX_FILE_MB} MB.`)
-      }
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         throw new Error((d as Record<string, string>).error || "Analysis failed. Please try again or try a different file.")
@@ -110,7 +117,7 @@ export default function UploadPage() {
                 ) : (
                   <>
                     <div style={{ fontFamily: BODY, fontSize: 14, color: "#5D4E37" }}>Drop a video here or click to browse</div>
-                    <div style={{ fontFamily: TYPEWRITER, fontSize: 10, color: "#8B7355", marginTop: 6 }}>MP4, MOV, or WebM &middot; Up to 4 MB</div>
+                    <div style={{ fontFamily: TYPEWRITER, fontSize: 10, color: "#8B7355", marginTop: 6 }}>MP4, MOV, or WebM &middot; Up to 25 MB</div>
                   </>
                 )}
               </div>
