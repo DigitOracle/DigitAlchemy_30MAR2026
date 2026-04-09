@@ -114,27 +114,16 @@ async function tryVideoListLookup(idFragment: string, apiKey: string): Promise<s
 export async function resolveHeyGenUrl(dashboardUrl: string): Promise<string> {
   const apiKey = getApiKey();
   const videoId = extractVideoId(dashboardUrl);
-  const isBioUrl = videoId.startsWith("bio-");
 
-  // Path 1: Standard video ID — try status endpoint first
-  if (!isBioUrl) {
-    const cdnUrl = await tryStatusEndpoint(videoId, apiKey);
-    if (cdnUrl) return cdnUrl;
-  }
+  // For bio- prefixed URLs, strip the prefix and use the raw ID directly.
+  // Confirmed: video_status.get works with the raw ID (e.g., cb2d34d5c79846d491e72b88dbd51e48).
+  const resolveId = videoId.startsWith("bio-") ? videoId.replace(/^bio-/, "") : videoId;
 
-  // Path 2: Bio URL or status endpoint returned 404 — try video list lookup
-  const searchFragment = isBioUrl ? videoId.replace(/^bio-/, "") : videoId;
-  const listUrl = await tryVideoListLookup(searchFragment, apiKey);
-  if (listUrl) return listUrl;
-
-  // Path 3: Standard ID, list lookup also failed — try status endpoint as last resort (for bio)
-  if (isBioUrl) {
-    const statusUrl = await tryStatusEndpoint(videoId, apiKey);
-    if (statusUrl) return statusUrl;
-  }
+  const cdnUrl = await tryStatusEndpoint(resolveId, apiKey);
+  if (cdnUrl) return cdnUrl;
 
   throw new HeyGenResolveError(
-    "Could not resolve this HeyGen video. Please share a direct video link from HeyGen (not a bio/profile page URL), or copy the direct .mp4 URL from HeyGen's share menu.",
+    "Could not resolve this HeyGen video. The video may not exist, may still be processing, or the API key may be invalid.",
     "not_found",
   );
 }

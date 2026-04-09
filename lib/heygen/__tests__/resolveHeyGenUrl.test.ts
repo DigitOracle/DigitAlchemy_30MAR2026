@@ -70,51 +70,31 @@ describe("resolveHeyGenUrl", () => {
     await expect(resolveHeyGenUrl("https://app.heygen.com/videos/abc123")).rejects.toThrow("still processing");
   });
 
-  it("bio- URL skips status endpoint, tries list lookup", async () => {
-    const mockFetch = vi.fn()
-      // First call: video.list
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({
-          data: {
-            videos: [
-              { video_id: "cb2d34d5c79846d491e72b88dbd51e48", status: "completed", video_url: "https://cdn.heygen.com/bio-video.mp4" },
-            ],
-          },
-        }),
-      });
-    vi.stubGlobal("fetch", mockFetch);
+  it("bio- URL strips prefix and resolves via status endpoint", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: { status: "completed", video_url: "https://cdn.heygen.com/bio-video.mp4" } }),
+    }));
 
     const url = await resolveHeyGenUrl("https://app.heygen.com/videos/bio-cb2d34d5c79846d491e72b88dbd51e48");
     expect(url).toBe("https://cdn.heygen.com/bio-video.mp4");
-    // Should have called video.list, not video_status.get first
-    expect(mockFetch.mock.calls[0][0]).toContain("video.list");
+    // Should call video_status.get with the raw ID (bio- prefix stripped)
+    const callUrl = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(callUrl).toContain("video_status.get");
+    expect(callUrl).toContain("cb2d34d5c79846d491e72b88dbd51e48");
+    expect(callUrl).not.toContain("bio-");
   });
 
-  it("bio- URL with no list match falls back to status endpoint", async () => {
-    const mockFetch = vi.fn()
-      // First call: video.list — no match
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: { videos: [] } }),
-      })
-      // Second call: video_status.get — also fails
-      .mockResolvedValueOnce({ ok: false, status: 404 });
-    vi.stubGlobal("fetch", mockFetch);
+  it("bio- URL with not-found status endpoint throws", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
 
     await expect(resolveHeyGenUrl("https://app.heygen.com/videos/bio-nomatch123")).rejects.toThrow("Could not resolve");
   });
 
-  it("bio- URL with processing video in list throws clear error", async () => {
+  it("bio- URL with processing status throws clear error", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        data: {
-          videos: [
-            { video_id: "cb2d34d5", status: "processing", video_url: null },
-          ],
-        },
-      }),
+      json: () => Promise.resolve({ data: { status: "processing" } }),
     }));
     await expect(resolveHeyGenUrl("https://app.heygen.com/videos/bio-cb2d34d5")).rejects.toThrow("still processing");
   });
