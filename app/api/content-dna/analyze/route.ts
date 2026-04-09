@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getAuth } from "firebase-admin/auth"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
 import { getDb, getStorageBucket } from "@/lib/jobStore"
+import { isHeyGenDashboardUrl, resolveHeyGenUrl, HeyGenResolveError } from "@/lib/heygen/resolveHeyGenUrl"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -63,11 +64,19 @@ export async function POST(req: Request): Promise<NextResponse> {
       console.log("[analyze] fetching from URL", { sourceUrl: sourceUrl.slice(0, 100) })
 
       let fetchUrl = sourceUrl
-      if (sourceUrl.includes("drive.google.com")) fetchUrl = googleDriveDirectUrl(sourceUrl)
 
-      // For YouTube, we'd need ytdl. For now, try direct fetch — works for HeyGen, GDrive, direct links.
-      // YouTube support requires @distube/ytdl-core which adds complexity; flag it clearly.
-      if (sourceUrl.includes("youtube.com") || sourceUrl.includes("youtu.be")) {
+      // Resolve HeyGen dashboard URLs to CDN video URLs via API
+      if (isHeyGenDashboardUrl(sourceUrl)) {
+        try {
+          fetchUrl = await resolveHeyGenUrl(sourceUrl)
+          console.log("[analyze] resolved HeyGen dashboard URL to CDN", { cdnUrl: fetchUrl.slice(0, 100) })
+        } catch (e) {
+          const msg = e instanceof HeyGenResolveError ? e.message : "Could not resolve HeyGen video URL."
+          return NextResponse.json({ error: msg }, { status: 400 })
+        }
+      } else if (sourceUrl.includes("drive.google.com")) {
+        fetchUrl = googleDriveDirectUrl(sourceUrl)
+      } else if (sourceUrl.includes("youtube.com") || sourceUrl.includes("youtu.be")) {
         return NextResponse.json({ error: "YouTube URL support coming soon. For now, download the video first and use Upload File." }, { status: 400 })
       }
 
