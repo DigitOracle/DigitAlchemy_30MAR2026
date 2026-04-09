@@ -109,6 +109,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
         console.log("[analyze] downloaded from URL", { sizeBytes: buffer.length })
         filename = new URL(sourceUrl).pathname.split("/").pop() ?? "video.mp4"
+        if (!filename.includes(".")) filename += ".mp4"
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         if (msg.includes("timeout") || msg.includes("TimeoutError")) {
