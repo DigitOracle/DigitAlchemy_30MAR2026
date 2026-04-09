@@ -63,9 +63,9 @@ export default function UploadPage() {
   // ── File-based analysis via Firebase Storage ──
   const handleFileUpload = async () => {
     if (!file || !user) return
-    const MAX_BYTES = 25 * 1024 * 1024
+    const MAX_BYTES = 200 * 1024 * 1024
     if (file.size > MAX_BYTES) {
-      setError(`This file is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Max 25 MB.`)
+      setError(`This file is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Max 200 MB.`)
       return
     }
     setUploading(true)
@@ -182,7 +182,7 @@ export default function UploadPage() {
                     ) : (
                       <>
                         <div style={{ fontFamily: BODY, fontSize: 13, color: "#5D4E37" }}>Drop a video here or click to browse</div>
-                        <div style={{ fontFamily: TYPEWRITER, fontSize: 9, color: ACCENT, marginTop: 5 }}>MP4, MOV, or WebM &middot; Up to 25 MB</div>
+                        <div style={{ fontFamily: TYPEWRITER, fontSize: 9, color: ACCENT, marginTop: 5 }}>MP4, MOV, or WebM &middot; Up to 200 MB</div>
                       </>
                     )}
                   </div>
