@@ -144,19 +144,16 @@ async function transcribeWithAssemblyAI(url: string): Promise<string | null> {
 
   try {
     console.log("[CONTENT-DNA] AssemblyAI: downloading video", url.slice(0, 100))
-    const dlRes = await fetch(url, { signal: AbortSignal.timeout(45000) })
-    if (!dlRes.ok) {
-      console.log("[CONTENT-DNA] AssemblyAI: download failed", dlRes.status)
+    const response = await fetch(url, { signal: AbortSignal.timeout(30000) })
+    if (!response.ok) {
+      console.log("[CONTENT-DNA] AssemblyAI: download failed", response.status)
       return null
     }
-    const buffer = Buffer.from(await dlRes.arrayBuffer())
+    const buffer = Buffer.from(await response.arrayBuffer())
     console.log("[CONTENT-DNA] AssemblyAI: downloaded", { sizeBytes: buffer.length })
 
     const client = new AssemblyAI({ apiKey })
-    const uploadUrl = await client.files.upload(buffer)
-    console.log("[CONTENT-DNA] AssemblyAI: uploaded to", uploadUrl.slice(0, 80))
-
-    const transcript = await client.transcripts.transcribe({ audio: uploadUrl })
+    const transcript = await client.transcripts.transcribe({ audio: buffer })
     console.log("[CONTENT-DNA] AssemblyAI result", { status: transcript.status, chars: transcript.text?.length ?? 0 })
     return transcript.text || null
   } catch (e) {
