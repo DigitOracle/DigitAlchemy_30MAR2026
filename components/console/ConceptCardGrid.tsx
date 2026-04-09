@@ -112,6 +112,7 @@ export function ConceptCardGrid({ cards, loading }: { cards: ConceptCard[]; load
             backgroundColor: "#FDFCF8",
             position: "relative",
             transition: "border-color 0.15s",
+            overflow: "hidden",
           }}>
             {/* Platform + Format badges */}
             <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center" }}>
@@ -124,13 +125,13 @@ export function ConceptCardGrid({ cards, loading }: { cards: ConceptCard[]; load
             </div>
 
             {/* Title */}
-            <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, lineHeight: 1.3, color: INK, marginBottom: 6 }}>
+            <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, lineHeight: 1.3, color: INK, marginBottom: 6, overflowWrap: "break-word", wordBreak: "break-word" }}>
               {card.title}
             </div>
 
             {/* Hook */}
             {card.hook && (
-              <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, lineHeight: 1.4, color: BROWN, marginBottom: 6 }}>
+              <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, lineHeight: 1.4, color: BROWN, marginBottom: 6, overflowWrap: "break-word", wordBreak: "break-word" }}>
                 {card.hook}
               </div>
             )}
@@ -140,6 +141,7 @@ export function ConceptCardGrid({ cards, loading }: { cards: ConceptCard[]; load
               <div style={{
                 fontFamily: BODY, fontSize: 11.5, lineHeight: 1.45, color: INK, marginBottom: 8,
                 overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as const,
+                overflowWrap: "break-word", wordBreak: "break-word" as const,
               }}>
                 {card.body}
               </div>
@@ -149,7 +151,7 @@ export function ConceptCardGrid({ cards, loading }: { cards: ConceptCard[]; load
             {card.hashtags.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 8 }}>
                 {card.hashtags.slice(0, 6).map((tag, j) => (
-                  <span key={j} style={{ fontFamily: BODY, fontSize: 10, color: BROWN, border: `1px dotted ${RULE}`, padding: "1px 5px" }}>
+                  <span key={j} style={{ fontFamily: BODY, fontSize: 10, color: BROWN, border: `1px dotted ${RULE}`, padding: "1px 5px", wordBreak: "break-all", maxWidth: "100%" }}>
                     {tag.startsWith("#") ? tag : `#${tag}`}
                   </span>
                 ))}
