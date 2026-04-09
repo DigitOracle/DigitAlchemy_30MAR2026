@@ -1,13 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import type { GazetteFilterState, Region, Platform, Horizon, Branch, Industry, Audience } from "@/types/gazette"
 import {
   REGION_SHORT_LABELS, PLATFORM_LABELS, HORIZON_LABELS,
   INDUSTRY_LABELS, horizonsForMode, audienceLabel,
 } from "@/types/gazette"
 
-const DISPLAY = "'Playfair Display', Georgia, serif"
 const LABEL = "'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif"
 const BROWN = "#3E2723"
 const ACCENT = "#8B7355"
@@ -16,21 +15,20 @@ const RULE = "#C4B9A0"
 const BRANCH_LABELS: Record<Branch, string> = {
   react_now: "React Now",
   plan_ahead: "Plan Ahead",
-  analyse_history: "Analyse History",
+  analyse_history: "Analyse",
 }
 
-function FilterSelect<T extends string>({ value, options, labels, onChange, width }: {
-  value: T; options: T[]; labels: Record<T, string>; onChange: (v: T) => void; width?: number
+function FilterSelect<T extends string>({ value, options, labels, onChange }: {
+  value: T; options: T[]; labels: Record<T, string>; onChange: (v: T) => void
 }) {
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value as T)}
       style={{
-        fontFamily: LABEL, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-        letterSpacing: "0.06em", color: BROWN, backgroundColor: "transparent",
-        border: `1px solid ${RULE}`, padding: "4px 8px", cursor: "pointer",
-        width: width || "auto",
+        fontFamily: LABEL, fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+        letterSpacing: "0.05em", color: BROWN, backgroundColor: "transparent",
+        border: `1px solid ${RULE}`, padding: "3px 6px", cursor: "pointer",
       }}
     >
       {options.map((o) => (
@@ -50,12 +48,26 @@ export function GazetteFilters({ filters, onChange }: {
   const horizonOptions = horizonsForMode(filters.mode)
   const industries = Object.keys(INDUSTRY_LABELS) as Industry[]
   const allAudiences: Audience[] = ["gen_z", "millennials", "gen_x", "boomers", "all_ages"]
+
+  // Audience dropdown state + click-outside handler
   const [audienceOpen, setAudienceOpen] = useState(false)
+  const audienceRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!audienceOpen) return
+    function handleClick(e: MouseEvent) {
+      if (audienceRef.current && !audienceRef.current.contains(e.target as Node)) {
+        setAudienceOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [audienceOpen])
 
   return (
     <div style={{
-      display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8,
-      padding: "8px 0", borderBottom: `1px solid ${RULE}`, marginBottom: 14,
+      display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5,
+      padding: "6px 0", borderBottom: `1px solid ${RULE}`, marginBottom: 12,
     }}>
       {/* Region */}
       <FilterSelect value={filters.region} options={regions} labels={REGION_SHORT_LABELS} onChange={(v) => onChange({ ...filters, region: v })} />
@@ -71,8 +83,8 @@ export function GazetteFilters({ filters, onChange }: {
             onChange({ ...filters, mode: b, horizon: newHorizons[0] })
           }}
             style={{
-              fontFamily: LABEL, fontSize: 9, fontWeight: 700, textTransform: "uppercase",
-              letterSpacing: "0.06em", padding: "4px 10px", cursor: "pointer",
+              fontFamily: LABEL, fontSize: 8, fontWeight: 700, textTransform: "uppercase",
+              letterSpacing: "0.04em", padding: "3px 7px", cursor: "pointer",
               border: "none", backgroundColor: filters.mode === b ? BROWN : "transparent",
               color: filters.mode === b ? "#F4F1E4" : ACCENT,
             }}>
@@ -89,21 +101,21 @@ export function GazetteFilters({ filters, onChange }: {
         value={filters.industry || ""}
         onChange={(e) => onChange({ ...filters, industry: (e.target.value || undefined) as Industry | undefined })}
         style={{
-          fontFamily: LABEL, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-          letterSpacing: "0.06em", color: BROWN, backgroundColor: "transparent",
-          border: `1px solid ${RULE}`, padding: "4px 8px", cursor: "pointer",
+          fontFamily: LABEL, fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+          letterSpacing: "0.05em", color: BROWN, backgroundColor: "transparent",
+          border: `1px solid ${RULE}`, padding: "3px 6px", cursor: "pointer",
         }}
       >
-        <option value="">All Industries</option>
+        <option value="">Industry</option>
         {industries.map((i) => <option key={i} value={i}>{INDUSTRY_LABELS[i]}</option>)}
       </select>
 
       {/* Audience (multi-select, max 2) */}
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative" }} ref={audienceRef}>
         <button onClick={() => setAudienceOpen(!audienceOpen)} style={{
-          fontFamily: LABEL, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-          letterSpacing: "0.06em", color: BROWN, backgroundColor: "transparent",
-          border: `1px solid ${RULE}`, padding: "4px 8px", cursor: "pointer",
+          fontFamily: LABEL, fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+          letterSpacing: "0.05em", color: BROWN, backgroundColor: "transparent",
+          border: `1px solid ${RULE}`, padding: "3px 6px", cursor: "pointer",
         }}>
           {filters.audience.length === 0 ? "Audience"
             : filters.audience.length === 1 ? audienceLabel(filters.audience[0]).split(" (")[0]
@@ -127,7 +139,7 @@ export function GazetteFilters({ filters, onChange }: {
                     next = filters.audience.filter((x) => x !== a)
                   } else {
                     next = [...filters.audience, a]
-                    if (next.length > 2) next = next.slice(-2) // FIFO: keep 2 most recent
+                    if (next.length > 2) next = next.slice(-2)
                   }
                   onChange({ ...filters, audience: next })
                 }}>
@@ -140,16 +152,13 @@ export function GazetteFilters({ filters, onChange }: {
         )}
       </div>
 
-      {/* Divider */}
-      <div style={{ width: 1, height: 20, backgroundColor: RULE, margin: "0 4px" }} />
-
       {/* Actor Type — TODO Phase 3b.5: wire actor_type into /api/concept-cards as ranking signal */}
-      <div style={{ display: "flex", border: `1px solid ${RULE}` }}>
+      <div style={{ display: "flex", border: `1px solid ${RULE}`, marginLeft: "auto" }}>
         {(["b2b", "b2c"] as const).map((t) => (
           <button key={t} onClick={() => onChange({ ...filters, actorType: t })}
             style={{
-              fontFamily: LABEL, fontSize: 9, fontWeight: 700, textTransform: "uppercase",
-              padding: "4px 10px", cursor: "pointer", border: "none",
+              fontFamily: LABEL, fontSize: 8, fontWeight: 700, textTransform: "uppercase",
+              padding: "3px 7px", cursor: "pointer", border: "none",
               backgroundColor: filters.actorType === t ? BROWN : "transparent",
               color: filters.actorType === t ? "#F4F1E4" : ACCENT,
             }}>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { ConceptCard } from "@/types/conceptCard"
 
 // ── Fonts (match existing Gazette aesthetic) ──
@@ -45,6 +45,25 @@ function formatRange(range: ConceptCard["likelyRange"]): string | null {
 function ConfidenceDot({ level }: { level: string }) {
   const color = level === "high" ? "#065F46" : level === "medium" ? "#92400E" : "#9CA3AF"
   return <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", backgroundColor: color, marginRight: 4 }} />
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }).catch(() => {})
+  }, [text])
+  return (
+    <button onClick={handleCopy} style={{
+      fontFamily: LABEL, fontSize: 8, fontWeight: 700, color: copied ? "#065F46" : ACCENT,
+      background: copied ? "#ECFDF5" : "none", border: copied ? "1px solid #A7F3D0" : `1px solid ${RULE}`,
+      cursor: "pointer", padding: "2px 8px", flexShrink: 0, transition: "all 0.15s",
+    }}>
+      {copied ? "\u2713 Copied" : "Copy"}
+    </button>
+  )
 }
 
 // ── Skeleton loader ──
@@ -178,15 +197,7 @@ export function ConceptCardGrid({ cards, loading }: { cards: ConceptCard[]; load
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => {
-                  const text = [card.hook, card.body, card.hashtags.join(" ")].filter(Boolean).join("\n\n")
-                  navigator.clipboard.writeText(text)
-                }}
-                style={{ fontFamily: LABEL, fontSize: 8, color: ACCENT, background: "none", border: "none", cursor: "pointer", padding: "2px 6px", flexShrink: 0 }}
-              >
-                Copy
-              </button>
+              <CopyButton text={[card.title, card.hook, card.body, card.hashtags.join(" ")].filter(Boolean).join("\n\n")} />
             </div>
           </div>
         )
