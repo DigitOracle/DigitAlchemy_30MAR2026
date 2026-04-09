@@ -8,6 +8,7 @@ import type { GazetteFilterState } from "@/types/gazette"
 import { ConceptCardGrid } from "./ConceptCardGrid"
 import { GazetteFilters } from "./GazetteFilters"
 import { dnaToFilterDefaults } from "@/lib/gazette/dnaToFilterDefaults"
+import { filtersToLabel } from "@/lib/gazette/filtersToLabel"
 
 type WikiItem = { name: string; views: number }
 type GdeltItem = { title: string; domain: string; url?: string }
@@ -216,11 +217,14 @@ export function MorningBriefing() {
   }, [statsPlatform, user])
 
   // Fetch concept cards from unified pipeline (driven by filter state)
+  // Serialize filters to a stable string so React definitely detects changes
+  const filterKey = JSON.stringify(gazetteFilters)
   useEffect(() => {
     if (!user) return
-    setConceptCardsLoading(true)
     const f = gazetteFilters
-    const params = new URLSearchParams({ region: f.region, platform: f.platform, horizon: f.horizon })
+    console.log("[gazette] refetch triggered", { mode: f.mode, horizon: f.horizon, platform: f.platform, industry: f.industry, audience: f.audience })
+    setConceptCardsLoading(true)
+    const params = new URLSearchParams({ region: f.region, platform: f.platform, horizon: f.horizon, mode: f.mode })
     if (f.industry) params.set("industry", f.industry)
     if (f.audience.length > 0) params.set("audience", f.audience.join(","))
     auth?.currentUser?.getIdToken().then(token => {
@@ -231,7 +235,7 @@ export function MorningBriefing() {
         .then(d => { console.log("[grid] fetch result", { ok: d.ok, cardCount: d.cards?.length ?? 0, platform: f.platform }); if (d.ok && d.cards) setConceptCards(d.cards); setConceptCardsLoading(false) })
         .catch((e) => { console.log("[grid] fetch error", String(e)); setConceptCardsLoading(false) })
     }).catch(() => setConceptCardsLoading(false))
-  }, [gazetteFilters, user])
+  }, [filterKey, user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Legacy post-recommendations fetch removed — concept cards pipeline (Phase 2.3f) handles this now
 
@@ -700,7 +704,7 @@ export function MorningBriefing() {
                     Your Content Plays
                   </div>
                   <div style={{ fontFamily: BODY, fontStyle: "italic", fontSize: 12, color: ACCENT, marginBottom: 12 }}>
-                    Personalised recommendations based on your style and current trends.
+                    {filtersToLabel(gazetteFilters)}
                   </div>
                   <ConceptCardGrid cards={conceptCards} loading={conceptCardsLoading} />
                 </div>
