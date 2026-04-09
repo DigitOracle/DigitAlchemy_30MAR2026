@@ -58,6 +58,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (sourceUrl) {
       // ── URL-based ingestion ──
       if (!isAllowedUrl(sourceUrl)) {
+        console.log("[analyze] REJECT:domain", sourceUrl.slice(0, 80))
         return NextResponse.json({ error: "Only YouTube, HeyGen, Google Drive, or direct video file URLs are supported." }, { status: 400 })
       }
 
@@ -72,11 +73,13 @@ export async function POST(req: Request): Promise<NextResponse> {
           console.log("[analyze] resolved HeyGen dashboard URL to CDN", { cdnUrl: fetchUrl.slice(0, 100) })
         } catch (e) {
           const msg = e instanceof HeyGenResolveError ? e.message : "Could not resolve HeyGen video URL."
+          console.log("[analyze] REJECT:heygen", msg)
           return NextResponse.json({ error: msg }, { status: 400 })
         }
       } else if (sourceUrl.includes("drive.google.com")) {
         fetchUrl = googleDriveDirectUrl(sourceUrl)
       } else if (sourceUrl.includes("youtube.com") || sourceUrl.includes("youtu.be")) {
+        console.log("[analyze] REJECT:youtube")
         return NextResponse.json({ error: "YouTube URL support coming soon. For now, download the video first and use Upload File." }, { status: 400 })
       }
 
@@ -86,11 +89,13 @@ export async function POST(req: Request): Promise<NextResponse> {
           headers: { "User-Agent": "DigitAlchemy/1.0" },
         })
         if (!res.ok) {
+          console.log("[analyze] REJECT:download-fail", res.status, fetchUrl.slice(0, 100))
           return NextResponse.json({ error: "Could not download video. Check the URL is accessible." }, { status: 400 })
         }
 
         const contentLength = parseInt(res.headers.get("content-length") ?? "0", 10)
         if (contentLength > 100 * 1024 * 1024) {
+          console.log("[analyze] REJECT:too-large-header", contentLength)
           return NextResponse.json({ error: "Video is too large. Maximum 100 MB." }, { status: 400 })
         }
 
@@ -98,6 +103,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         buffer = Buffer.from(arrayBuf)
 
         if (buffer.length > 100 * 1024 * 1024) {
+          console.log("[analyze] REJECT:too-large-body", buffer.length)
           return NextResponse.json({ error: "Video is too large. Maximum 100 MB." }, { status: 400 })
         }
 
@@ -106,8 +112,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         if (msg.includes("timeout") || msg.includes("TimeoutError")) {
+          console.log("[analyze] REJECT:timeout")
           return NextResponse.json({ error: "Download timed out after 30 seconds. Try a smaller file or check the URL." }, { status: 400 })
         }
+        console.log("[analyze] REJECT:download-err", msg.slice(0, 100))
         return NextResponse.json({ error: "Could not download video. Check the URL is accessible." }, { status: 400 })
       }
     } else if (storagePath) {
@@ -137,6 +145,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const transcript = await transcribeWithWhisper(buffer, filename)
 
     if (!transcript) {
+      console.log("[analyze] REJECT:whisper-null", { filename, sizeBytes: buffer.length })
       return NextResponse.json({ error: "Could not transcribe video audio. The file may not contain audible speech." }, { status: 400 })
     }
 
