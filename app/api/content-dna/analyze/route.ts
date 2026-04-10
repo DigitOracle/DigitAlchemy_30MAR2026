@@ -3,7 +3,6 @@ import { getAuth } from "firebase-admin/auth"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
 import { getDb, getStorageBucket } from "@/lib/jobStore"
 import { isHeyGenDashboardUrl, resolveHeyGenUrl, HeyGenResolveError } from "@/lib/heygen/resolveHeyGenUrl"
-import { AssemblyAI } from "assemblyai"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -118,10 +117,10 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "Could not determine video URL" }, { status: 400 })
     }
 
-    const transcript = await transcribeWithAssemblyAI(videoUrl)
+    const transcript = await transcribeWithDeepgram(videoUrl)
 
     if (!transcript) {
-      console.log("[analyze] REJECT:assemblyai-null", { filename, videoUrl: videoUrl.slice(0, 100) })
+      console.log("[analyze] REJECT:deepgram-null", { filename, videoUrl: videoUrl.slice(0, 100) })
       return NextResponse.json({ error: "Could not transcribe video audio. The file may not contain audible speech." }, { status: 400 })
     }
 
@@ -138,18 +137,25 @@ export async function POST(req: Request): Promise<NextResponse> {
   }
 }
 
-async function transcribeWithAssemblyAI(url: string): Promise<string | null> {
-  const apiKey = process.env.ASSEMBLYAI_API_KEY
-  if (!apiKey) { console.log("[CONTENT-DNA] No ASSEMBLYAI_API_KEY"); return null }
+async function transcribeWithDeepgram(url: string): Promise<string | null> {
+  const apiKey = process.env.DEEPGRAM_API_KEY
+  if (!apiKey) { console.log("[CONTENT-DNA] No DEEPGRAM_API_KEY"); return null }
   try {
-    console.log("[CONTENT-DNA] Downloading bytes from:", url.slice(0, 80))
-    const dlRes = await fetch(url, { signal: AbortSignal.timeout(30000) })
-    if (!dlRes.ok) { console.log("[CONTENT-DNA] Download failed:", dlRes.status); return null }
-    const buffer = Buffer.from(await dlRes.arrayBuffer())
-    console.log("[CONTENT-DNA] Downloaded bytes:", buffer.length)
-    const client = new AssemblyAI({ apiKey })
-    const transcript = await client.transcripts.transcribe({ audio: buffer })
-    console.log("[CONTENT-DNA] AssemblyAI result:", transcript.status, "chars:", transcript.text?.length)
-    return transcript.text || null
-  } catch (e) { console.log("[CONTENT-DNA] AssemblyAI error:", e); return null }
+    console.log("[CONTENT-DNA] Deepgram transcribing:", url.slice(0, 80))
+    const start = Date.now()
+    const res = await fetch("https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true", {
+      method: "POST",
+      headers: { Authorization: `Token ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    })
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "")
+      console.log("[CONTENT-DNA] Deepgram failed:", res.status, errBody.slice(0, 200))
+      return null
+    }
+    const data = await res.json()
+    const transcript = (data?.results?.channels?.[0]?.alternatives?.[0]?.transcript as string) || null
+    console.log("[CONTENT-DNA] Deepgram done in", Date.now() - start, "ms, chars:", transcript?.length)
+    return transcript
+  } catch (e) { console.log("[CONTENT-DNA] Deepgram exception:", e); return null }
 }
