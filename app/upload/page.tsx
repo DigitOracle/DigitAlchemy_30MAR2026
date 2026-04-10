@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/AuthContext"
 import { app, auth } from "@/lib/firebase"
-import { getStorage, ref, uploadBytes } from "firebase/storage"
+import { getStorage, ref, uploadBytesResumable } from "firebase/storage"
 import { useRouter } from "next/navigation"
 
 const DISPLAY = "'Playfair Display', Georgia, serif"
@@ -96,7 +96,18 @@ export default function UploadPage() {
       const token = await auth?.currentUser?.getIdToken(true)
       console.log('[upload] token exists:', !!token)
 
-      await uploadBytes(storageRef, file)
+      const uploadTask = uploadBytesResumable(storageRef, file)
+      uploadTask.on('state_changed',
+        null,
+        (error) => {
+          console.error('[upload] storage error code:', error.code)
+          console.error('[upload] storage error message:', error.message)
+          console.error('[upload] storage error serverResponse:', error.serverResponse)
+        },
+      )
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on('state_changed', null, reject, () => resolve())
+      })
 
       const idToken = await auth?.currentUser?.getIdToken()
       const res = await fetch("/api/content-dna/analyze", {
