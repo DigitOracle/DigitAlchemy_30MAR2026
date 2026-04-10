@@ -1,5 +1,7 @@
 // GET /api/trend-radar/scores — Return scored + classified trends for a platform
 import { NextRequest, NextResponse } from "next/server"
+import { getAuth } from "firebase-admin/auth"
+import { getDb } from "@/lib/jobStore"
 import { getRecentSnapshots } from "@/lib/trendRadar/capture"
 import { computeScores } from "@/lib/trendRadar/score"
 import { classifyAndSort } from "@/lib/trendRadar/classify"
@@ -13,6 +15,18 @@ const VALID_LAGS = new Set(["same_day", "24h", "48h", "72h", "1w", "2w", "4w", "
 
 export async function GET(req: NextRequest): Promise<NextResponse<ScoresResponse | { error: string }>> {
   try {
+    // Require Bearer auth
+    getDb()
+    const authHeader = req.headers.get("authorization")
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 })
+    }
+    try {
+      await getAuth().verifyIdToken(authHeader.slice(7))
+    } catch {
+      return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
+    }
+
     const { searchParams } = new URL(req.url)
     const platform = searchParams.get("platform") as TrendPlatform | null
     const niche = searchParams.get("niche") || null

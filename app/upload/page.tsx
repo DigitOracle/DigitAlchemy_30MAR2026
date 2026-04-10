@@ -90,12 +90,7 @@ export default function UploadPage() {
       const storagePath = `dna-uploads/${user.uid}/${Date.now()}_${file.name}`
       const storageRef = ref(storage, storagePath)
 
-      console.log('[upload] auth.currentUser:', auth?.currentUser?.uid)
-      console.log('[upload] user from hook:', user?.uid)
-      console.log('[upload] storagePath:', storagePath)
-
       await uploadBytes(storageRef, file)
-      console.log('[upload] uploadBytes succeeded')
 
       const idToken = await auth?.currentUser?.getIdToken()
       const res = await fetch("/api/content-dna/analyze", {
