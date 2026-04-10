@@ -89,6 +89,13 @@ export default function UploadPage() {
       const storage = getStorage(app!)
       const storagePath = `dna-uploads/${user.uid}/${Date.now()}_${file.name}`
       const storageRef = ref(storage, storagePath)
+
+      console.log('[upload] auth.currentUser:', auth?.currentUser?.uid)
+      console.log('[upload] user from hook:', user?.uid)
+      console.log('[upload] storagePath:', storagePath)
+      const token = await auth?.currentUser?.getIdToken(true)
+      console.log('[upload] token exists:', !!token)
+
       await uploadBytes(storageRef, file)
 
       const idToken = await auth?.currentUser?.getIdToken()
