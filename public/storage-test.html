@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Firebase Storage Upload Test</title>
+  <style>
+    body { font-family: monospace; max-width: 700px; margin: 40px auto; padding: 20px; background: #f5f5f5; }
+    #status { font-size: 24px; font-weight: bold; margin: 20px 0; padding: 20px; background: #fff; border: 2px solid #ccc; word-break: break-all; }
+    #token { font-size: 10px; word-break: break-all; background: #eee; padding: 10px; margin: 10px 0; max-height: 100px; overflow: auto; }
+    button { font-size: 18px; padding: 12px 24px; cursor: pointer; margin: 5px; }
+    .error { color: red; border-color: red; }
+    .success { color: green; border-color: green; }
+    .info { color: blue; border-color: blue; }
+    input[type=file] { font-size: 16px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>Firebase Storage Upload Test</h1>
+  <p>Standalone HTML - no Next.js, no bundler</p>
+
+  <div id="auth-section">
+    <button id="google-btn" onclick="doGoogleSignIn()">Sign in with Google</button>
+    <button id="email-btn" onclick="doEmailSignIn()">Sign in with Email</button>
+  </div>
+
+  <div id="upload-section" style="display:none">
+    <p><strong>Signed in as:</strong> <span id="user-info"></span></p>
+    <p><strong>UID:</strong> <span id="user-uid"></span></p>
+    <input type="file" id="file-input" accept="video/*,.mp4,.mov,.webm" />
+    <br>
+    <button onclick="doUpload()">Upload to Firebase Storage</button>
+  </div>
+
+  <div id="status">Waiting for sign-in...</div>
+  <div id="token-section" style="display:none">
+    <strong>Auth Token:</strong>
+    <div id="token"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-app.js";
+    import { getAuth, signInWithPopup, signInWithEmailAndPassword, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-auth.js";
+    import { getStorage, ref, uploadBytes, uploadBytesResumable } from "https://www.gstatic.com/firebasejs/11.7.1/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAZ_C6uPA4SYeAoy3yN6L_FjG72iNADwXs",
+      authDomain: "digitalchemy-de4b7.firebaseapp.com",
+      projectId: "digitalchemy-de4b7",
+      storageBucket: "digitalchemy-de4b7.firebasestorage.app",
+      messagingSenderId: "842400026057",
+      appId: "1:842400026057:web:746df18a631bf189e1ac18"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const storage = getStorage(app);
+
+    window.doGoogleSignIn = async function() {
+      setStatus("Signing in with Google...", "info");
+      try {
+        const provider = new GoogleAuthProvider();
+        const result = await signInWithPopup(auth, provider);
+        setStatus("Signed in: " + result.user.email, "success");
+      } catch (e) {
+        setStatus("Google sign-in error: " + e.code + " - " + e.message, "error");
+      }
+    };
+
+    window.doEmailSignIn = async function() {
+      const email = prompt("Email:");
+      const password = prompt("Password:");
+      if (!email || !password) return;
+      setStatus("Signing in with email...", "info");
+      try {
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        setStatus("Signed in: " + result.user.email, "success");
+      } catch (e) {
+        setStatus("Email sign-in error: " + e.code + " - " + e.message, "error");
+      }
+    };
+
+    window.doUpload = async function() {
+      const fileInput = document.getElementById("file-input");
+      const file = fileInput.files[0];
+      if (!file) { setStatus("No file selected", "error"); return; }
+      if (!auth.currentUser) { setStatus("Not signed in", "error"); return; }
+
+      const uid = auth.currentUser.uid;
+      const path = `dna-uploads/${uid}/test_${Date.now()}.mp4`;
+      setStatus(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) to ${path}...`, "info");
+
+      try {
+        // Force token refresh
+        const token = await auth.currentUser.getIdToken(true);
+        console.log("Token refreshed, length:", token.length);
+
+        const storageRef = ref(storage, path);
+        const task = uploadBytesResumable(storageRef, file);
+
+        task.on("state_changed",
+          (snapshot) => {
+            const pct = ((snapshot.bytesTransferred / snapshot.totalBytes) * 100).toFixed(1);
+            setStatus(`Uploading... ${pct}% (${snapshot.state})`, "info");
+          },
+          (error) => {
+            console.error("Upload error object:", error);
+            console.error("Code:", error.code);
+            console.error("Message:", error.message);
+            console.error("ServerResponse:", error.serverResponse);
+            setStatus(
+              `UPLOAD FAILED\nCode: ${error.code}\nMessage: ${error.message}\nServerResponse: ${error.serverResponse || "none"}`,
+              "error"
+            );
+          },
+          () => {
+            setStatus(`SUCCESS! Uploaded to ${path}`, "success");
+          }
+        );
+      } catch (e) {
+        setStatus(`Exception: ${e.code || ""} ${e.message}`, "error");
+        console.error("Upload exception:", e);
+      }
+    };
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        document.getElementById("auth-section").style.display = "none";
+        document.getElementById("upload-section").style.display = "block";
+        document.getElementById("user-info").textContent = user.email || user.displayName || "anonymous";
+        document.getElementById("user-uid").textContent = user.uid;
+
+        const token = await user.getIdToken();
+        document.getElementById("token-section").style.display = "block";
+        document.getElementById("token").textContent = token;
+
+        setStatus("Ready to upload. Select a file.", "success");
+      }
+    });
+
+    function setStatus(msg, type) {
+      const el = document.getElementById("status");
+      el.textContent = msg;
+      el.className = type || "";
+    }
+  </script>
+</body>
+</html>
