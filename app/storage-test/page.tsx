@@ -4,12 +4,11 @@ import { app, auth } from "@/lib/firebase"
 import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "firebase/auth"
 import { getStorage, ref, uploadBytes } from "firebase/storage"
 
-const TEST_YOUTUBE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-
 export default function StorageTest() {
   const [logs, setLogs] = useState<string[]>([])
   const [file, setFile] = useState<File | null>(null)
   const [running, setRunning] = useState(false)
+  const [youtubeUrl, setYoutubeUrl] = useState("")
   const logsEndRef = useRef<HTMLDivElement>(null)
 
   const log = (msg: string) => {
@@ -143,14 +142,18 @@ export default function StorageTest() {
 
     // Step 3: YouTube URL transcription
     log("── STEP 3: YouTube URL Transcription ──")
-    const ytOk = await postAnalyze(
-      { sourceUrl: TEST_YOUTUBE_URL, platform: "youtube" },
-      "Step 3 (YouTube)"
-    )
-    if (ytOk) {
-      log("SUCCESS Step 3 PASSED")
+    if (!youtubeUrl.trim()) {
+      log("SKIP Step 3: No YouTube URL entered")
     } else {
-      log("ERROR Step 3 FAILED — YouTube URL transcription broken")
+      const ytOk = await postAnalyze(
+        { sourceUrl: youtubeUrl.trim(), platform: "youtube" },
+        "Step 3 (YouTube)"
+      )
+      if (ytOk) {
+        log("SUCCESS Step 3 PASSED")
+      } else {
+        log("ERROR Step 3 FAILED — YouTube URL transcription broken")
+      }
     }
 
     // Step 4: File transcription via storagePath
@@ -186,11 +189,18 @@ export default function StorageTest() {
         <button onClick={signInEmail} style={{ padding: "8px 16px", cursor: "pointer" }}>Sign In (Email)</button>
       </div>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
         <input type="file" accept="video/*,.mp4,.mov,.webm" onChange={e => {
           setFile(e.target.files?.[0] ?? null)
           if (e.target.files?.[0]) log(`File selected: ${e.target.files[0].name} (${(e.target.files[0].size / 1024 / 1024).toFixed(1)} MB)`)
         }} />
+        <input
+          type="url"
+          placeholder="Paste YouTube URL for Step 3 (optional)"
+          value={youtubeUrl}
+          onChange={e => setYoutubeUrl(e.target.value)}
+          style={{ padding: "8px 12px", fontFamily: "monospace", fontSize: 13, border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }}
+        />
         <button
           onClick={runFullPipeline}
           disabled={running}
