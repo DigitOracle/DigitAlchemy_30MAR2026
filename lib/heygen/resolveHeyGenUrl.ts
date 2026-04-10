@@ -46,11 +46,15 @@ function getApiKey(): string {
 /** Try the standard video_status.get endpoint. Returns CDN URL or null. */
 async function tryStatusEndpoint(videoId: string, apiKey: string): Promise<string | null> {
   try {
-    const res = await fetch(
-      `https://api.heygen.com/v1/video_status.get?video_id=${encodeURIComponent(videoId)}`,
-      { headers: { "X-Api-Key": apiKey }, signal: AbortSignal.timeout(15000) },
-    );
-    if (!res.ok) return null;
+    const url = `https://api.heygen.com/v1/video_status.get?video_id=${encodeURIComponent(videoId)}`;
+    const res = await fetch(url, {
+      headers: { "X-Api-Key": apiKey },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      console.log("[HeyGen] video_status.get failed:", res.status, "videoId:", videoId, "keyLen:", apiKey.length);
+      return null;
+    }
 
     const json = await res.json();
     const data = json?.data as Record<string, unknown> | undefined;
