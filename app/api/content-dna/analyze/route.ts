@@ -3,6 +3,8 @@ import { getAuth } from "firebase-admin/auth"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
 import { getDb, getStorageBucket } from "@/lib/jobStore"
 import { isHeyGenDashboardUrl, resolveHeyGenUrl, HeyGenResolveError } from "@/lib/heygen/resolveHeyGenUrl"
+import { initializeApp, getApps } from "firebase/app"
+import { getStorage as getClientStorage, ref, getDownloadURL } from "firebase/storage"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -91,24 +93,26 @@ export async function POST(req: Request): Promise<NextResponse> {
         return NextResponse.json({ error: "Forbidden — path does not match authenticated user" }, { status: 403 })
       }
 
-      const bucket = getStorageBucket()
-      const file = bucket.file(storagePath)
-      const [exists] = await file.exists()
-      if (!exists) {
-        return NextResponse.json({ error: "File not found in storage" }, { status: 404 })
+      // Get a permanent download URL (token-based, does not expire)
+      const firebaseConfig = {
+        apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
+        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
+        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
+        messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
+        appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
       }
-
-      // Generate a signed URL so AssemblyAI can fetch the file directly
-      const [signedUrl] = await file.getSignedUrl({
-        action: "read",
-        expires: Date.now() + 10 * 60 * 1000, // 10 minutes
-      })
-      videoUrl = signedUrl
-      console.log("[analyze] generated signed URL for storage file", { path: storagePath })
+      const clientApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
+      const clientStorage = getClientStorage(clientApp)
+      const fileRef = ref(clientStorage, storagePath)
+      const downloadUrl = await getDownloadURL(fileRef)
+      videoUrl = downloadUrl
+      console.log("[analyze] Firebase download URL for storage file", { path: storagePath })
       filename = storagePath.split("/").pop() ?? "upload.mp4"
 
-      // Cleanup after generating URL (AssemblyAI will fetch before expiry)
-      file.delete().catch(() => {})
+      // Cleanup after Deepgram fetches (permanent URL, but clean up storage costs)
+      const bucket = getStorageBucket()
+      bucket.file(storagePath).delete().catch(() => {})
     } else {
       return NextResponse.json({ error: "Either sourceUrl or storagePath is required" }, { status: 400 })
     }
