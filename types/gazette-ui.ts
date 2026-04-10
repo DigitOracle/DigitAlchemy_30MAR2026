@@ -25,7 +25,9 @@ export interface GazetteCard {
   angles: HookAngle[];
   suggestedFormats: string[];
   body?: string;
-  hashtags?: string[];
+  hashtags: string[];
+  captions: [string, string, string];
+  trendingSoundName?: string;
 }
 
 export interface PostWindow {
