@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { T } from "./tokens"
 import type { GazetteCard, HookAngle } from "@/types/gazette-ui"
 
@@ -10,6 +10,23 @@ const DEFAULT_ANGLES: HookAngle[] = [
   { type: "Story", hookText: "A client asked me about X last week\u2026" },
   { type: "Question", hookText: "Is X still worth it? I asked 50 people." },
 ]
+
+function CopyButton({ text, label }: { text: string; label?: string }) {
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text)
+    if (btnRef.current) {
+      const original = btnRef.current.innerText
+      btnRef.current.innerText = "\u2713 Copied"
+      setTimeout(() => { if (btnRef.current) btnRef.current.innerText = original }, 1500)
+    }
+  }
+  return (
+    <button ref={btnRef} className="gazette-kit-copy" onClick={handleCopy}>
+      {label || "COPY"}
+    </button>
+  )
+}
 
 export function HookPicker({ card, onAct, onClose }: {
   card: GazetteCard
@@ -27,10 +44,12 @@ export function HookPicker({ card, onAct, onClose }: {
   ]
   const canAct = selectedAngle !== null && selectedFormat !== null
   const cat = T.categories[card.category]
+  const hashtagStr = (card.hashtags || []).map(t => `#${t}`).join(" ")
 
   return (
     <div className="gazette-hook-overlay" onClick={onClose}>
       <div className="gazette-hook-panel" onClick={e => e.stopPropagation()}>
+        {/* Header */}
         <div className="gazette-hook-header">
           <span className="gazette-hook-badge" style={{ background: cat.bg }}>
             {cat.icon} {card.category.replace(/_/g, " ")}
@@ -47,8 +66,8 @@ export function HookPicker({ card, onAct, onClose }: {
           {card.dnaMatch != null && <span className="gazette-hook-chip">DNA {card.dnaMatch}%</span>}
         </div>
 
+        {/* Section 1: Angles */}
         <div className="gazette-hook-divider" />
-
         <h3 className="gazette-hook-section-title">PICK YOUR ANGLE</h3>
         <div className="gazette-hook-options">
           {angles.map((a, i) => (
@@ -63,8 +82,8 @@ export function HookPicker({ card, onAct, onClose }: {
           ))}
         </div>
 
+        {/* Section 2: Formats */}
         <div className="gazette-hook-divider" />
-
         <h3 className="gazette-hook-section-title">CONTENT FORMAT</h3>
         <div className="gazette-hook-options">
           {formats.map((f, i) => (
@@ -79,8 +98,46 @@ export function HookPicker({ card, onAct, onClose }: {
           ))}
         </div>
 
+        {/* Section 3: Ready-to-Post Kit */}
         <div className="gazette-hook-divider" />
+        <h3 className="gazette-hook-section-title">READY TO POST</h3>
 
+        <div className="gazette-kit-captions">
+          {card.captions.map((caption, i) => (
+            <div key={i} className="gazette-kit-caption-row">
+              <span className="gazette-kit-caption-text">{caption}</span>
+              <CopyButton text={caption} />
+            </div>
+          ))}
+        </div>
+
+        {card.trendingSoundName && (
+          <div className="gazette-kit-sound-row">
+            <span className="gazette-kit-sound-label">
+              \uD83C\uDFB5 {card.trendingSoundName}
+            </span>
+            <a
+              href={`https://www.tiktok.com/music/search?q=${encodeURIComponent(card.trendingSoundName)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="gazette-kit-sound-link"
+            >
+              OPEN IN TIKTOK
+            </a>
+          </div>
+        )}
+
+        <div className="gazette-kit-hashtag-row">
+          <div className="gazette-kit-hashtag-pills">
+            {(card.hashtags || []).map((tag, i) => (
+              <span key={i} className="gazette-kit-hashtag-pill">#{tag}</span>
+            ))}
+          </div>
+          <CopyButton text={hashtagStr} label="COPY ALL" />
+        </div>
+
+        {/* Section 4: Act button */}
+        <div className="gazette-hook-divider" />
         <button
           className="gazette-hook-act-btn"
           disabled={!canAct}
@@ -112,19 +169,13 @@ export function HookPicker({ card, onAct, onClose }: {
           font-size: 10px; font-weight: 700; text-transform: uppercase;
           padding: 3px 8px; border-radius: 4px; color: #fff;
         }
-        .gazette-hook-close {
-          background: none; border: none; color: ${T.muted};
-          font-size: 18px; cursor: pointer;
-        }
+        .gazette-hook-close { background: none; border: none; color: ${T.muted}; font-size: 18px; cursor: pointer; }
         .gazette-hook-headline {
           font-family: 'Playfair Display', Georgia, serif;
           font-size: 20px; font-weight: 700; color: ${T.text};
           margin: 0 0 6px; line-height: 1.3;
         }
-        .gazette-hook-suggestion {
-          font-size: 14px; font-style: italic; color: ${T.accent};
-          margin: 0 0 12px;
-        }
+        .gazette-hook-suggestion { font-size: 14px; font-style: italic; color: ${T.accent}; margin: 0 0 12px; }
         .gazette-hook-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
         .gazette-hook-chip {
           font-size: 11px; padding: 3px 8px; border-radius: 4px;
@@ -148,6 +199,50 @@ export function HookPicker({ card, onAct, onClose }: {
         .gazette-hook-option-active { border-color: ${T.accent}; background: rgba(123,94,167,0.15); }
         .gazette-hook-radio { flex-shrink: 0; font-size: 14px; color: ${T.accent}; margin-top: 1px; }
         .gazette-hook-post-today { font-size: 11px; color: ${T.muted}; }
+
+        /* Ready-to-Post Kit */
+        .gazette-kit-captions { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+        .gazette-kit-caption-row {
+          display: flex; align-items: center; gap: 8px;
+          padding: 10px 12px; border-radius: 6px;
+          background: rgba(123,94,167,0.08);
+        }
+        .gazette-kit-caption-text {
+          flex: 1; font-size: 14px; color: ${T.text};
+          line-height: 1.5; white-space: normal;
+        }
+        .gazette-kit-copy {
+          flex-shrink: 0; font-size: 10px; font-weight: 700;
+          padding: 4px 10px; border-radius: 4px;
+          border: 1px solid ${T.border}; background: transparent;
+          color: ${T.muted}; cursor: pointer; letter-spacing: 0.05em;
+          font-family: 'IBM Plex Sans', system-ui, sans-serif;
+          min-width: 60px; text-align: center;
+        }
+        .gazette-kit-copy:hover { border-color: ${T.accent}; color: ${T.text}; }
+        .gazette-kit-sound-row {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 8px 12px; margin-bottom: 12px;
+          border-radius: 6px; background: rgba(123,94,167,0.08);
+        }
+        .gazette-kit-sound-label { font-size: 13px; color: ${T.text}; }
+        .gazette-kit-sound-link {
+          font-size: 10px; font-weight: 700; padding: 4px 10px;
+          border-radius: 4px; border: 1px solid ${T.border};
+          color: ${T.muted}; text-decoration: none; letter-spacing: 0.05em;
+        }
+        .gazette-kit-sound-link:hover { border-color: ${T.accent}; color: ${T.text}; }
+        .gazette-kit-hashtag-row {
+          display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        }
+        .gazette-kit-hashtag-pills {
+          display: flex; gap: 4px; flex-wrap: wrap; flex: 1;
+        }
+        .gazette-kit-hashtag-pill {
+          font-size: 11px; padding: 3px 8px; border-radius: 4px;
+          background: rgba(123,94,167,0.12); color: ${T.muted};
+        }
+
         .gazette-hook-act-btn {
           width: 100%; padding: 12px; border-radius: 6px;
           background: ${T.mid}; border: none; color: ${T.text};
@@ -157,6 +252,10 @@ export function HookPicker({ card, onAct, onClose }: {
         }
         .gazette-hook-act-btn:hover:not(:disabled) { background: ${T.accent}; }
         .gazette-hook-act-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        @media (max-width: 640px) {
+          .gazette-kit-hashtag-row { flex-direction: column; align-items: flex-start; }
+        }
       `}</style>
     </div>
   )
