@@ -46,7 +46,36 @@ function apiCardToGazette(card: Record<string, unknown>, index: number): Gazette
     suggestedFormats: [`${format} on ${platform}`],
     body: (card.body as string) || "",
     hashtags: (card.hashtags as string[]) || [],
+    captions: ["", "", ""],
+    trendingSoundName: undefined,
   }
+}
+
+const CATEGORY_TAGS: Record<string, string[]> = {
+  AUDIO_VIRAL:       ["AudioTrend", "TikTokSound", "ViralAudio", "SoundOn", "FYP"],
+  TREND_ALERT:       ["Trending", "TrendAlert", "BreakingTrend", "FYP", "CreatorTips"],
+  BRAND_SIGNAL:      ["BrandWatch", "MarketingTips", "BrandStrategy", "ContentCreator", "FYP"],
+  CULTURAL_MOMENT:   ["CultureWatch", "Zeitgeist", "PopCulture", "CulturalTrend", "FYP"],
+  CREATOR_SPOTLIGHT: ["CreatorEconomy", "ContentCreator", "CreatorTips", "Spotlight", "FYP"],
+  REGIONAL_PULSE:    ["RegionalTrend", "LocalContent", "AreaWatch", "RegionalNews", "FYP"],
+  TECH_INNOVATION:   ["TechNews", "Innovation", "TechTrend", "FutureTech", "FYP"],
+}
+
+function enrichCard(card: GazetteCard): GazetteCard {
+  if (!card.captions || card.captions.every(c => !c)) {
+    console.warn(`[gazette-ux] WARNING: card ${card.id} missing captions — using mock`)
+    const topic = card.headline.slice(0, 40)
+    card.captions = [
+      `The thing nobody tells you about ${topic}`,
+      `3 reasons ${topic} matters right now`,
+      `Everyone's wrong about this. Here's the actual truth.`,
+    ]
+  }
+  if (!card.hashtags || card.hashtags.length === 0) {
+    console.warn(`[gazette-ux] WARNING: card ${card.id} missing hashtags — using mock`)
+    card.hashtags = CATEGORY_TAGS[card.category] ?? ["Trending", "FYP", "Creator", "Content", "Viral"]
+  }
+  return card
 }
 
 export function GazetteTabs({ userId, mode }: { userId: string; mode: GazetteMode }) {
@@ -66,7 +95,7 @@ export function GazetteTabs({ userId, mode }: { userId: string; mode: GazetteMod
       if (!res.ok) { setLoading(false); return }
       const data = await res.json()
       const raw = (data.cards || []) as Record<string, unknown>[]
-      setCards(raw.map(apiCardToGazette))
+      setCards(raw.map(apiCardToGazette).map(enrichCard))
     } catch (e) {
       console.error("[gazette] fetch error", e)
     }
