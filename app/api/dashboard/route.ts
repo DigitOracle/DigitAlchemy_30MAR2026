@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { fetchPostHistory, fetchAllPostHistory } from "@/lib/ayrshare"
 import { getAyrshareConfig } from "@/lib/firestore/integrations"
 import { getAuth } from "firebase-admin/auth"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -15,7 +16,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "uid required" }, { status: 400 })
   }
 
-  // Require Firebase Auth — mandatory, not optional
+  // Initialize Firebase Admin + require Bearer auth
+  getDb()
   const authHeader = req.headers.get("authorization")
   if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 })
@@ -23,7 +25,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     const token = await getAuth().verifyIdToken(authHeader.slice(7))
     if (token.uid !== uid) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      // Allow admin override
+      const db = getDb()
+      const callerSnap = await db.doc(`users/${token.uid}`).get()
+      const callerRole = (callerSnap.data() as { role?: string } | undefined)?.role
+      if (callerRole !== "admin") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
     }
   } catch {
     return NextResponse.json({ error: "Invalid auth token" }, { status: 401 })
