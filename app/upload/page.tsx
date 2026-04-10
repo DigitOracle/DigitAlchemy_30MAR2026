@@ -1,7 +1,7 @@
 "use client"
 import { useState } from "react"
 import { useAuth } from "@/lib/AuthContext"
-import { auth } from "@/lib/firebase"
+import { app, auth } from "@/lib/firebase"
 import { getStorage, ref, uploadBytes } from "firebase/storage"
 import { useRouter } from "next/navigation"
 
@@ -72,7 +72,17 @@ export default function UploadPage() {
     setError("")
     setStage("analyzing")
     try {
-      const storage = getStorage()
+      // Wait for auth state to be ready
+      await auth!.authStateReady()
+
+      if (!auth!.currentUser) {
+        setError("Please sign in to upload files")
+        setStage("upload")
+        setUploading(false)
+        return
+      }
+
+      const storage = getStorage(app!)
       const storagePath = `dna-uploads/${user.uid}/${Date.now()}_${file.name}`
       const storageRef = ref(storage, storagePath)
       await uploadBytes(storageRef, file)
