@@ -3,8 +3,6 @@ import { getAuth } from "firebase-admin/auth"
 import { extractContentDNA } from "@/lib/profile/extractContentDNA"
 import { getDb, getStorageBucket } from "@/lib/jobStore"
 import { isHeyGenDashboardUrl, resolveHeyGenUrl, HeyGenResolveError } from "@/lib/heygen/resolveHeyGenUrl"
-import { initializeApp, getApps } from "firebase/app"
-import { getStorage as getClientStorage, ref, getDownloadURL } from "firebase/storage"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -79,7 +77,17 @@ export async function POST(req: Request): Promise<NextResponse> {
       } else if (sourceUrl.includes("drive.google.com")) {
         videoUrl = googleDriveDirectUrl(sourceUrl)
       } else if (sourceUrl.includes("youtube.com") || sourceUrl.includes("youtu.be")) {
-        videoUrl = sourceUrl
+        // YouTube URLs: use Supadata transcript API (Deepgram can't fetch from YouTube)
+        console.log("[analyze] YouTube URL — using Supadata transcript API")
+        const ytTranscript = await fetchSupadataTranscript(sourceUrl)
+        if (!ytTranscript) {
+          return NextResponse.json({ error: "Could not get transcript for this YouTube video. It may not have captions or speech." }, { status: 400 })
+        }
+        const dna = await extractContentDNA(ytTranscript, platform, { title: filename })
+        if (!dna) {
+          return NextResponse.json({ error: "Could not extract content DNA" }, { status: 500 })
+        }
+        return NextResponse.json({ dna, transcript: ytTranscript.slice(0, 200) })
       } else {
         videoUrl = sourceUrl
       }
@@ -93,26 +101,32 @@ export async function POST(req: Request): Promise<NextResponse> {
         return NextResponse.json({ error: "Forbidden — path does not match authenticated user" }, { status: 403 })
       }
 
-      // Get a permanent download URL (token-based, does not expire)
-      const firebaseConfig = {
-        apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
-        authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
-        storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
-        messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
-        appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
+      // Download file via Admin SDK (bypasses storage rules, no auth needed)
+      const bucket = getStorageBucket()
+      const file = bucket.file(storagePath)
+      const [exists] = await file.exists()
+      if (!exists) {
+        return NextResponse.json({ error: "File not found in storage" }, { status: 404 })
       }
-      const clientApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
-      const clientStorage = getClientStorage(clientApp)
-      const fileRef = ref(clientStorage, storagePath)
-      const downloadUrl = await getDownloadURL(fileRef)
-      videoUrl = downloadUrl
-      console.log("[analyze] Firebase download URL for storage file", { path: storagePath })
+      const [downloaded] = await file.download()
+      console.log("[analyze] downloaded from storage via Admin SDK", { path: storagePath, sizeBytes: downloaded.length })
       filename = storagePath.split("/").pop() ?? "upload.mp4"
 
-      // Cleanup after Deepgram fetches (permanent URL, but clean up storage costs)
-      const bucket = getStorageBucket()
-      bucket.file(storagePath).delete().catch(() => {})
+      // Upload buffer to Deepgram directly (no URL needed)
+      const transcript = await transcribeBufferWithDeepgram(downloaded, filename)
+      if (!transcript) {
+        console.log("[analyze] REJECT:deepgram-null-storage", { filename, sizeBytes: downloaded.length })
+        return NextResponse.json({ error: "Could not transcribe video audio. The file may not contain audible speech." }, { status: 400 })
+      }
+
+      // Cleanup storage
+      file.delete().catch(() => {})
+
+      const dna = await extractContentDNA(transcript, platform, { title: filename })
+      if (!dna) {
+        return NextResponse.json({ error: "Could not extract content DNA" }, { status: 500 })
+      }
+      return NextResponse.json({ dna, transcript: transcript.slice(0, 200) })
     } else {
       return NextResponse.json({ error: "Either sourceUrl or storagePath is required" }, { status: 400 })
     }
@@ -162,4 +176,50 @@ async function transcribeWithDeepgram(url: string): Promise<string | null> {
     console.log("[CONTENT-DNA] Deepgram done in", Date.now() - start, "ms, chars:", transcript?.length)
     return transcript
   } catch (e) { console.log("[CONTENT-DNA] Deepgram exception:", e); return null }
+}
+
+/** Deepgram: transcribe from a Buffer (for Firebase Storage uploads) */
+async function transcribeBufferWithDeepgram(buffer: Buffer, filename: string): Promise<string | null> {
+  const apiKey = process.env.DEEPGRAM_API_KEY
+  if (!apiKey) { console.log("[CONTENT-DNA] No DEEPGRAM_API_KEY"); return null }
+  try {
+    console.log("[CONTENT-DNA] Deepgram buffer transcribe:", filename, buffer.length, "bytes")
+    const start = Date.now()
+    const res = await fetch("https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true", {
+      method: "POST",
+      headers: { Authorization: `Token ${apiKey}`, "Content-Type": "application/octet-stream" },
+      body: new Uint8Array(buffer),
+    })
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "")
+      console.log("[CONTENT-DNA] Deepgram buffer failed:", res.status, errBody.slice(0, 200))
+      return null
+    }
+    const data = await res.json()
+    const transcript = (data?.results?.channels?.[0]?.alternatives?.[0]?.transcript as string) || null
+    console.log("[CONTENT-DNA] Deepgram buffer done in", Date.now() - start, "ms, chars:", transcript?.length)
+    return transcript
+  } catch (e) { console.log("[CONTENT-DNA] Deepgram buffer exception:", e); return null }
+}
+
+/** Supadata: fetch transcript for YouTube URLs */
+async function fetchSupadataTranscript(url: string): Promise<string | null> {
+  const apiKey = process.env.SUPADATA_API_KEY
+  if (!apiKey) { console.log("[CONTENT-DNA] No SUPADATA_API_KEY"); return null }
+  try {
+    console.log("[CONTENT-DNA] Supadata YouTube transcript:", url.slice(0, 80))
+    const res = await fetch(
+      `https://api.supadata.ai/v1/youtube/transcript?url=${encodeURIComponent(url)}&text=true`,
+      { headers: { "x-api-key": apiKey }, signal: AbortSignal.timeout(15000) },
+    )
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "")
+      console.log("[CONTENT-DNA] Supadata failed:", res.status, errBody.slice(0, 200))
+      return null
+    }
+    const data = await res.json()
+    const content = (data.content as string) || ""
+    console.log("[CONTENT-DNA] Supadata transcript:", content.length, "chars")
+    return content || null
+  } catch (e) { console.log("[CONTENT-DNA] Supadata exception:", e); return null }
 }
