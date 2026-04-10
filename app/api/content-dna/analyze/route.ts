@@ -207,17 +207,19 @@ async function fetchSupadataTranscript(url: string): Promise<string | null> {
   const apiKey = process.env.SUPADATA_API_KEY
   if (!apiKey) { console.log("[CONTENT-DNA] No SUPADATA_API_KEY"); return null }
   try {
-    console.log("[CONTENT-DNA] Supadata YouTube transcript:", url.slice(0, 80))
-    const res = await fetch(
-      `https://api.supadata.ai/v1/youtube/transcript?url=${encodeURIComponent(url)}&text=true`,
-      { headers: { "x-api-key": apiKey }, signal: AbortSignal.timeout(15000) },
-    )
+    const reqUrl = `https://api.supadata.ai/v1/youtube/transcript?url=${encodeURIComponent(url)}&text=true&lang=en`
+    console.log("[CONTENT-DNA] Supadata request:", reqUrl)
+    const res = await fetch(reqUrl, {
+      headers: { "x-api-key": apiKey },
+      signal: AbortSignal.timeout(15000),
+    })
+    const rawBody = await res.text()
+    console.log("[CONTENT-DNA] Supadata response:", res.status, rawBody.slice(0, 500))
     if (!res.ok) {
-      const errBody = await res.text().catch(() => "")
-      console.log("[CONTENT-DNA] Supadata failed:", res.status, errBody.slice(0, 200))
       return null
     }
-    const data = await res.json()
+    let data: Record<string, unknown>
+    try { data = JSON.parse(rawBody) } catch { return rawBody || null }
     const content = (data.content as string) || ""
     console.log("[CONTENT-DNA] Supadata transcript:", content.length, "chars")
     return content || null
