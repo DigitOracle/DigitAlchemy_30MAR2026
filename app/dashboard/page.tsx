@@ -43,7 +43,7 @@ export default function DashboardPage() {
     for (const p of data.timeline) {
       if (!byDate.has(p.date)) byDate.set(p.date, { date: p.date, tiktok: 0, linkedin: 0, youtube: 0 })
       const entry = byDate.get(p.date)!
-      entry[p.platform] = ((entry[p.platform] as number) || 0) + p.engagement
+      entry[p.platform] = ((entry[p.platform] as number) || 0) + p.views
     }
     return [...byDate.values()].sort((a, b) => (a.date as string).localeCompare(b.date as string))
   })() : []
@@ -91,7 +91,7 @@ export default function DashboardPage() {
               <div style={{ backgroundColor: "#FDFCF8", border: "1px solid #C4B9A0", padding: "22px 18px", marginBottom: 28 }}>
                 {/* Filter controls */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, color: "#1A1A1A" }}>Performance Timeline</div>
+                  <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, color: "#1A1A1A" }}>Views Timeline</div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <div style={{ display: "flex", gap: 3 }}>
                       {(["all", "tiktok", "linkedin", "youtube"] as const).map(p => (
@@ -117,7 +117,7 @@ export default function DashboardPage() {
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D0" />
                       <XAxis dataKey="date" tick={{ fontFamily: "'Special Elite', cursive", fontSize: 10, fill: "#8B7355" }} />
-                      <YAxis tick={{ fontFamily: "'Special Elite', cursive", fontSize: 10, fill: "#8B7355" }} />
+                      <YAxis tick={{ fontFamily: "'Special Elite', cursive", fontSize: 10, fill: "#8B7355" }} label={{ value: "Views", angle: -90, position: "insideLeft", style: { fontFamily: "'Special Elite', cursive", fontSize: 11, fill: "#8B7355" } }} />
                       <Tooltip contentStyle={{ backgroundColor: "#FDFCF8", border: "1px solid #C4B9A0", fontFamily: "'Libre Baskerville', serif", fontSize: 12 }} />
                       <Legend wrapperStyle={{ fontFamily: "'Special Elite', cursive", fontSize: 11 }} />
                       {(platformFilter === "all" || platformFilter === "tiktok") && <Line type="monotone" dataKey="tiktok" stroke="#1A1A1A" strokeWidth={2} name="TikTok" dot={{ r: 3 }} />}
