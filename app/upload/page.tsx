@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/AuthContext"
 import { app, auth } from "@/lib/firebase"
 import { getStorage, ref, uploadBytes } from "firebase/storage"
@@ -20,8 +20,12 @@ function isValidUrl(url: string): boolean {
 }
 
 export default function UploadPage() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
+
+  useEffect(() => {
+    if (!loading && !user) router.push("/auth")
+  }, [user, loading, router])
   const [tab, setTab] = useState<"link" | "file">("link")
   const [url, setUrl] = useState("")
   const [file, setFile] = useState<File | null>(null)
@@ -125,6 +129,12 @@ export default function UploadPage() {
       setStage("review")
     }
   }
+
+  if (loading || !user) return (
+    <div style={{ minHeight: "100vh", backgroundColor: "#F4F1E4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p style={{ fontFamily: "'Libre Baskerville', Georgia, serif", fontSize: 14, color: "#8B7355", fontStyle: "italic" }}>Loading&hellip;</p>
+    </div>
+  )
 
   return (
     <>
