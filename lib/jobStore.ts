@@ -6,7 +6,7 @@ import { cert, getApps, initializeApp } from "firebase-admin/app"
 import { getFirestore } from "firebase-admin/firestore"
 import { getStorage as getAdminStorage } from "firebase-admin/storage"
 
-const STORAGE_BUCKET = "digitalchemy-uploads"
+const DEFAULT_BUCKET = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "digitalchemy-de4b7.firebasestorage.app"
 
 function initApp() {
   if (getApps().length > 0) return
@@ -24,7 +24,7 @@ function initApp() {
       clientEmail: sa.client_email,
       privateKey: sa.private_key,
     }),
-    storageBucket: STORAGE_BUCKET,
+    storageBucket: DEFAULT_BUCKET,
   })
 }
 
