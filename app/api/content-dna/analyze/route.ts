@@ -58,7 +58,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (sourceUrl) {
       // ── URL-based ingestion ──
       if (!isAllowedUrl(sourceUrl)) {
-        console.log("[analyze] REJECT:domain", sourceUrl.slice(0, 80))
+
         return NextResponse.json({ error: "Only YouTube, HeyGen, Google Drive, or direct video file URLs are supported." }, { status: 400 })
       }
 
@@ -71,7 +71,7 @@ export async function POST(req: Request): Promise<NextResponse> {
           console.log("[analyze] resolved HeyGen URL to CDN", { cdnUrl: videoUrl.slice(0, 100) })
         } catch (e) {
           const msg = e instanceof HeyGenResolveError ? e.message : "Could not resolve HeyGen video URL."
-          console.log("[analyze] REJECT:heygen", msg)
+
           return NextResponse.json({ error: msg }, { status: 400 })
         }
       } else if (sourceUrl.includes("drive.google.com")) {
@@ -115,7 +115,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       // Upload buffer to Deepgram directly (no URL needed)
       const transcript = await transcribeBufferWithDeepgram(downloaded, filename)
       if (!transcript) {
-        console.log("[analyze] REJECT:deepgram-null-storage", { filename, sizeBytes: downloaded.length })
+
         return NextResponse.json({ error: "Could not transcribe video audio. The file may not contain audible speech." }, { status: 400 })
       }
 
@@ -138,7 +138,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const transcript = await transcribeWithDeepgram(videoUrl)
 
     if (!transcript) {
-      console.log("[analyze] REJECT:deepgram-null", { filename, videoUrl: videoUrl.slice(0, 100) })
+
       return NextResponse.json({ error: "Could not transcribe video audio. The file may not contain audible speech." }, { status: 400 })
     }
 
@@ -183,36 +183,21 @@ async function transcribeBufferWithDeepgram(buffer: Buffer, filename: string): P
   const apiKey = process.env.DEEPGRAM_API_KEY
   if (!apiKey) { console.log("[CONTENT-DNA] No DEEPGRAM_API_KEY"); return null }
 
-  // Detect mimetype from file extension
   const ext = filename.split(".").pop()?.toLowerCase() || "mp4"
   const mimeMap: Record<string, string> = { mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", m4v: "video/x-m4v", mp3: "audio/mpeg", wav: "audio/wav" }
   const mimetype = mimeMap[ext] || "application/octet-stream"
 
-  // Log buffer health
-  const magic = buffer.slice(0, 8).toString("hex")
-  console.log("[CONTENT-DNA] Deepgram buffer transcribe:", { filename, sizeBytes: buffer.length, mimetype, magicHex: magic })
-
-  if (buffer.length === 0) { console.log("[CONTENT-DNA] ERROR: buffer is empty"); return null }
+  if (buffer.length === 0) return null
 
   try {
-    const start = Date.now()
     const res = await fetch("https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true", {
       method: "POST",
       headers: { Authorization: `Token ${apiKey}`, "Content-Type": mimetype },
       body: new Uint8Array(buffer),
     })
-
-    const rawBody = await res.text()
-    console.log("[CONTENT-DNA] Deepgram raw response:", res.status, rawBody.slice(0, 500))
-
-    if (!res.ok) { return null }
-
-    let data: any
-    try { data = JSON.parse(rawBody) } catch { console.log("[CONTENT-DNA] Deepgram response not JSON"); return null }
-
+    if (!res.ok) return null
+    const data = await res.json()
     const transcript = (data?.results?.channels?.[0]?.alternatives?.[0]?.transcript as string) || null
-    const confidence = data?.results?.channels?.[0]?.alternatives?.[0]?.confidence
-    console.log("[CONTENT-DNA] Deepgram done in", Date.now() - start, "ms, chars:", transcript?.length, "confidence:", confidence)
     return transcript
   } catch (e) { console.log("[CONTENT-DNA] Deepgram buffer exception:", e); return null }
 }
@@ -223,20 +208,12 @@ async function fetchSupadataTranscript(url: string): Promise<string | null> {
   if (!apiKey) { console.log("[CONTENT-DNA] No SUPADATA_API_KEY"); return null }
   try {
     const reqUrl = `https://api.supadata.ai/v1/youtube/transcript?url=${encodeURIComponent(url)}&text=true&lang=en`
-    console.log("[CONTENT-DNA] Supadata request:", reqUrl)
     const res = await fetch(reqUrl, {
       headers: { "x-api-key": apiKey },
       signal: AbortSignal.timeout(15000),
     })
-    const rawBody = await res.text()
-    console.log("[CONTENT-DNA] Supadata response:", res.status, rawBody.slice(0, 500))
-    if (!res.ok) {
-      return null
-    }
-    let data: Record<string, unknown>
-    try { data = JSON.parse(rawBody) } catch { return rawBody || null }
-    const content = (data.content as string) || ""
-    console.log("[CONTENT-DNA] Supadata transcript:", content.length, "chars")
-    return content || null
-  } catch (e) { console.log("[CONTENT-DNA] Supadata exception:", e); return null }
+    if (!res.ok) return null
+    const data = await res.json()
+    return (data.content as string) || null
+  } catch { return null }
 }
