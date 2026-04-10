@@ -21,4 +21,4 @@ if (firebaseConfig.apiKey) {
   db = getFirestore(app)
 }
 
-export { auth, db }
+export { app, auth, db }
