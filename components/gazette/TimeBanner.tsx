@@ -71,9 +71,29 @@ export function TimeBanner({ region }: { region: string }) {
       if (e.key === "da_gazette_target_platform" && e.newValue && e.newValue in PLATFORM_DEFAULTS) {
         setTargetPlatform(e.newValue as GazettePlatform)
       }
+      if (e.key === LS_KEY && e.newValue) {
+        const match = AUDIENCE_REGIONS.find(r => r.key === e.newValue)
+        if (match) setTargetKey(e.newValue)
+      }
     }
     window.addEventListener("storage", onStorage)
     return () => window.removeEventListener("storage", onStorage)
+  }, [])
+
+  // Listen for same-tab filter changes from GazetteFilterBar
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.region) {
+        const match = AUDIENCE_REGIONS.find(r => r.key === detail.region)
+        if (match) setTargetKey(detail.region)
+      }
+      if (detail?.platform && detail.platform in PLATFORM_DEFAULTS) {
+        setTargetPlatform(detail.platform as GazettePlatform)
+      }
+    }
+    window.addEventListener("gazette:filters:changed", handler)
+    return () => window.removeEventListener("gazette:filters:changed", handler)
   }, [])
 
   const platformWindows = PLATFORM_DEFAULTS[targetPlatform].postWindows

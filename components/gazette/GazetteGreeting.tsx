@@ -4,7 +4,7 @@ import { BROADSHEET } from "./tokens"
 import { useAuth } from "@/lib/AuthContext"
 
 export function GazetteGreeting() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [cardCount, setCardCount] = useState(0)
 
   useEffect(() => {
@@ -25,8 +25,22 @@ export function GazetteGreeting() {
     "Good Night"
 
   const firstName = (() => {
-    if (user?.displayName) return user.displayName.trim().split(" ")[0]
-    if (user?.email) return user.email.split("@")[0]
+    // Prefer Firestore profile name (set by user, not derived from OAuth)
+    if (profile?.name) {
+      const first = profile.name.trim().split(" ")[0]
+      if (first && first.length > 1 && first.length < 20) return first
+    }
+    // Fall back to Firebase Auth displayName
+    if (user?.displayName) {
+      const first = user.displayName.trim().split(" ")[0]
+      if (first && first.length > 1 && first.length < 20) return first
+    }
+    // Last resort: email prefix, cleaned up
+    if (user?.email) {
+      const prefix = user.email.split("@")[0]
+      const cleaned = prefix.replace(/[._\d]/g, " ").trim().split(" ")[0]
+      if (cleaned) return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase()
+    }
     return ""
   })()
 

@@ -65,8 +65,8 @@ export function HookPicker({ card, onAct, onClose }: {
     localStorage.setItem("da_gazette_target_platform", p)
   }
 
-  const angles = card.angles.length > 0 ? card.angles : DEFAULT_ANGLES
-  const formats = card.suggestedFormats.length > 0 ? card.suggestedFormats : [
+  const angles = (card.angles ?? []).length > 0 ? card.angles : DEFAULT_ANGLES
+  const formats = (card.suggestedFormats ?? []).length > 0 ? card.suggestedFormats : [
     "30-second TikTok reaction", "90-second Reel with data",
     "LinkedIn carousel (5 slides)", "YouTube Short \u2014 talking head",
   ]
@@ -141,12 +141,12 @@ export function HookPicker({ card, onAct, onClose }: {
           {card.headline}
         </h2>
         <p style={{ fontSize: 13, fontStyle: "italic", color: B.inkFaded, margin: "0 0 8px" }}>
-          {card.hookSuggestion}
+          {card.hookSuggestion ?? ""}
         </p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4, fontSize: 10, color: B.inkFaded, fontVariant: "small-caps" }}>
-          <span>{card.timeWindow}</span>
+          <span>{card.timeWindow ?? "4\u20138 hrs"}</span>
           <span>{"\u00B7"}</span>
-          <span>{card.effort}</span>
+          <span>{card.effort ?? "Quick post"}</span>
           <span>{"\u00B7"}</span>
           <span>{config.videoLength}</span>
           {card.dnaMatch != null && <><span>{"\u00B7"}</span><span>DNA {card.dnaMatch}%</span></>}
@@ -175,7 +175,7 @@ export function HookPicker({ card, onAct, onClose }: {
 
         {/* Ready-to-Post Kit */}
         <div style={sectionTitle}>READY TO POST</div>
-        {card.captions.map((caption, i) => {
+        {(card.captions ?? ["", "", ""]).map((caption, i) => {
           const adapted = adaptCaption(caption, platform)
           return (
             <div key={i} style={{
