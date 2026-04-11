@@ -83,13 +83,19 @@ export function GazetteTabs({ userId, mode }: { userId: string; mode: GazetteMod
   const [loading, setLoading] = useState(true)
   const [pickerCard, setPickerCard] = useState<GazetteCard | null>(null)
   const [topPost, setTopPost] = useState<TopPost | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const fetchCards = useCallback(async () => {
     setLoading(true)
     try {
       const token = await auth?.currentUser?.getIdToken()
       if (!token) { setLoading(false); return }
-      const res = await fetch(`/api/concept-cards?region=AE&platform=tiktok&horizon=24h`, {
+
+      const region = localStorage.getItem("da_gazette_target_region") || "AE"
+      const platform = localStorage.getItem("da_gazette_target_platform") || "tiktok"
+      const params = new URLSearchParams({ region, platform, horizon: "24h" })
+
+      const res = await fetch(`/api/concept-cards?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) { setLoading(false); return }
@@ -100,7 +106,7 @@ export function GazetteTabs({ userId, mode }: { userId: string; mode: GazetteMod
       console.error("[gazette] fetch error", e)
     }
     setLoading(false)
-  }, [])
+  }, [refreshKey])
 
   const fetchTopPost = useCallback(async () => {
     try {
@@ -129,6 +135,13 @@ export function GazetteTabs({ userId, mode }: { userId: string; mode: GazetteMod
     fetchCards()
     fetchTopPost()
   }, [fetchCards, fetchTopPost])
+
+  // Re-fetch when filters change
+  useEffect(() => {
+    const handler = () => setRefreshKey(k => k + 1)
+    window.addEventListener("gazette:filters:changed", handler)
+    return () => window.removeEventListener("gazette:filters:changed", handler)
+  }, [])
 
   const categories = mode === "PLAN_AHEAD" ? PLAN_CATEGORIES : REACT_CATEGORIES
   const cardsByCategory = (cat: CategoryKey) => cards.filter(c => c.category === cat)
