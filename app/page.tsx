@@ -20,15 +20,15 @@ export default function GazettePage() {
   const handleModeChange = useCallback((m: GazetteMode) => setMode(m), [])
 
   if (loading || !user) return (
-    <div style={{ background: "#0B0718", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <p style={{ color: "rgba(245,240,255,0.5)", fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 14, fontStyle: "italic" }}>Loading&hellip;</p>
+    <div style={{ background: "#F5F0E8", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p style={{ color: "#4A3F35", fontFamily: "'Playfair Display', Georgia, serif", fontSize: 14, fontStyle: "italic" }}>Loading&hellip;</p>
     </div>
   )
 
   const region = profile?.defaultRegion || "AE"
 
   return (
-    <main style={{ background: "#0B0718", minHeight: "100vh" }}>
+    <main style={{ background: "#F5F0E8", minHeight: "100vh" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
       <GazetteHeader />
       <TimeBanner region={region} />

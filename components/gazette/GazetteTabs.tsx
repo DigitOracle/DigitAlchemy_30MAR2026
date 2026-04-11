@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
-import { T, type CategoryKey } from "./tokens"
+import { T, BROADSHEET, type CategoryKey } from "./tokens"
 import { CardRow } from "./CardRow"
 import { HookPicker } from "./HookPicker"
 import { RepurposePanel } from "./RepurposePanel"
@@ -230,17 +230,21 @@ export function GazetteTabs({ userId, mode }: { userId: string; mode: GazetteMod
 
       <style>{`
         .gazette-tabs-bar {
-          padding: 12px 20px; border-bottom: 1px solid ${T.border};
-          margin-bottom: 16px;
+          display: flex; padding: 0 20px;
+          border-bottom: 2px solid ${BROADSHEET.rule};
+          background: ${BROADSHEET.paperDark};
         }
         .gazette-tab-label {
-          font-family: 'IBM Plex Sans', system-ui, sans-serif;
-          font-size: 14px; font-weight: 700; color: ${T.text};
+          padding: 8px 16px;
+          border-bottom: 3px solid ${BROADSHEET.ink};
+          font-family: 'Playfair Display', Georgia, serif;
+          font-size: 12px; font-weight: 700; color: ${BROADSHEET.ink};
+          font-variant: small-caps; letter-spacing: 0.1em;
         }
         .gazette-empty {
           text-align: center; padding: 60px 20px;
-          font-family: 'IBM Plex Sans', system-ui, sans-serif;
-          font-size: 14px; color: ${T.muted};
+          font-family: 'Playfair Display', Georgia, serif;
+          font-size: 14px; color: ${BROADSHEET.inkFaded}; font-style: italic;
         }
       `}</style>
     </div>

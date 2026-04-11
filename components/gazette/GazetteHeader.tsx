@@ -91,7 +91,7 @@ export function GazetteHeader() {
       <div style={{ borderTop: `3px double ${B.rule}`, margin: "0 24px" }} />
 
       {/* Nav bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 24px", background: B.cream }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 24px", background: B.paperDark }}>
         <div style={{ display: "flex", gap: 0, alignItems: "center" }}>
           {NAV_ITEMS.slice(0, 3).map((item, i) => (
             <span key={item.href} style={{ display: "flex", alignItems: "center" }}>
@@ -108,7 +108,7 @@ export function GazetteHeader() {
                 {item.label}
               </a>
               {i < 2 && (
-                <span style={{ color: B.colDivider, fontSize: 16, lineHeight: 1 }}>|</span>
+                <span style={{ color: B.ruleLight, fontSize: 16, lineHeight: 1 }}>|</span>
               )}
             </span>
           ))}
@@ -148,7 +148,7 @@ export function GazetteHeader() {
                       fontFamily: "'Playfair Display', Georgia, serif",
                       letterSpacing: "0.06em", fontVariant: "small-caps",
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = B.cream)}
+                    onMouseEnter={e => (e.currentTarget.style.background = B.paperDark)}
                     onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                   >
                     {item.label}
