@@ -1,7 +1,9 @@
 "use client"
 import { useState } from "react"
-import { T } from "./tokens"
+import { BROADSHEET } from "./tokens"
 import type { TopPost, RepurposeOption } from "@/types/gazette-ui"
+
+const B = BROADSHEET
 
 const REPURPOSE_OPTIONS: RepurposeOption[] = [
   { icon: "\uD83C\uDFAC", label: "5 TikTok clips", description: "Extract the 5 best 30-second moments" },
@@ -23,12 +25,27 @@ export function RepurposePanel({ topPost, onSave }: {
 
   if (!topPost) {
     return (
-      <div className="gazette-repurpose" style={{ textAlign: "center", padding: "40px 20px" }}>
-        <p style={{ color: T.muted, fontSize: 14, fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}>
-          Connect your accounts first to see your top performing content.
+      <div style={{
+        maxWidth: 700, margin: "0 auto", padding: "60px 20px",
+        textAlign: "center", fontFamily: "'Playfair Display', Georgia, serif",
+      }}>
+        <div style={{
+          fontSize: 12, letterSpacing: "0.3em", color: B.inkFaded,
+          marginBottom: 16, fontVariant: "small-caps",
+        }}>
+          {"\u25C6 \u25C6 \u25C6"}
+        </div>
+        <p style={{ fontSize: 16, fontStyle: "italic", color: B.inkFaded, marginBottom: 16 }}>
+          Connect your accounts to see your top performing content.
         </p>
-        <a href="/accounts" className="gazette-repurpose-link">Go to Accounts \u2192</a>
-        <style>{repurposeStyles}</style>
+        <a href="/accounts" style={{
+          display: "inline-block", padding: "8px 20px",
+          background: B.ink, color: B.paper, textDecoration: "none",
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: 12, fontVariant: "small-caps", letterSpacing: "0.1em",
+        }}>
+          Go to Linked Accounts {"\u2192"}
+        </a>
       </div>
     )
   }
@@ -36,99 +53,96 @@ export function RepurposePanel({ topPost, onSave }: {
   const daysAgo = Math.round((Date.now() - new Date(topPost.publishedAt).getTime()) / 86400000)
 
   return (
-    <div className="gazette-repurpose">
-      <div className="gazette-repurpose-top">
-        <h3 className="gazette-repurpose-heading">YOUR BEST PERFORMER \u2014 STILL GETTING TRACTION</h3>
-        <p className="gazette-repurpose-caption">{topPost.text.slice(0, 200)}</p>
-        <div className="gazette-repurpose-stats">
-          <span>\uD83D\uDCCA {topPost.views.toLocaleString()} views</span>
+    <div style={{
+      maxWidth: 700, margin: "0 auto", padding: "20px",
+      fontFamily: "'Playfair Display', Georgia, serif",
+    }}>
+      {/* Top performer card */}
+      <div style={{
+        background: B.paperDark, border: `1px solid ${B.rule}`,
+        padding: 20, marginBottom: 20,
+      }}>
+        <h3 style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: "0.14em",
+          textTransform: "uppercase", color: B.accent, margin: "0 0 8px",
+          fontVariant: "small-caps",
+        }}>
+          Your Best Performer {"\u2014"} Still Getting Traction
+        </h3>
+        <p style={{
+          fontSize: 14, color: B.ink, margin: "0 0 10px", lineHeight: 1.5,
+        }}>
+          {topPost.text.slice(0, 200)}
+        </p>
+        <div style={{ display: "flex", gap: 16, fontSize: 12, color: B.inkFaded }}>
+          <span>{topPost.views.toLocaleString()} views</span>
           <span>Posted {daysAgo} days ago</span>
-          <span>\u2713 {topPost.platform}</span>
+          <span>{"\u2713"} {topPost.platform}</span>
         </div>
       </div>
 
-      <h4 className="gazette-repurpose-sub">REPURPOSE THIS INTO:</h4>
-      <div className="gazette-repurpose-grid">
-        {REPURPOSE_OPTIONS.map(opt => (
-          <button
-            key={opt.label}
-            className={`gazette-repurpose-option ${saved.has(opt.label) ? "gazette-repurpose-saved" : ""}`}
-            onClick={() => handleSave(opt.label)}
-            disabled={saved.has(opt.label)}
-          >
-            <span className="gazette-repurpose-opt-icon">{opt.icon}</span>
-            <span className="gazette-repurpose-opt-label">{opt.label}</span>
-            <span className="gazette-repurpose-opt-desc">{saved.has(opt.label) ? "\u2713 Added to queue" : opt.description}</span>
-          </button>
-        ))}
+      {/* Repurpose options */}
+      <h4 style={{
+        fontSize: 11, fontWeight: 700, letterSpacing: "0.14em",
+        textTransform: "uppercase", color: B.inkFaded, margin: "0 0 12px",
+        fontVariant: "small-caps",
+      }}>
+        Repurpose This Into:
+      </h4>
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
+        marginBottom: 24,
+      }}>
+        {REPURPOSE_OPTIONS.map(opt => {
+          const isSaved = saved.has(opt.label)
+          return (
+            <button
+              key={opt.label}
+              onClick={() => handleSave(opt.label)}
+              disabled={isSaved}
+              style={{
+                display: "flex", flexDirection: "column", gap: 4,
+                padding: 16, background: isSaved ? B.paperDark : B.paper,
+                border: `1px solid ${isSaved ? B.accent : B.rule}`,
+                cursor: isSaved ? "default" : "pointer", textAlign: "left",
+                fontFamily: "'Playfair Display', Georgia, serif",
+                opacity: isSaved ? 0.7 : 1,
+              }}
+            >
+              <span style={{ fontSize: 24 }}>{opt.icon}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: B.ink }}>{opt.label}</span>
+              <span style={{ fontSize: 11, color: B.inkFaded }}>
+                {isSaved ? "\u2713 Added to queue" : opt.description}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
-      <div className="gazette-repurpose-pillar">
-        <h4>\u26A1 Pillar-to-Micro strategy</h4>
-        <p>One deep piece of content (your \u201Cpillar\u201D) becomes 15+ short pieces.
-        You filmed once. The Console tells you what to extract.</p>
-        <p className="gazette-repurpose-formula">
-          1 YouTube video \u2192 5 TikToks + 5 Reels + 5 Shorts + 1 LinkedIn post + 1 Blog post
+      {/* Pillar-to-Micro */}
+      <div style={{
+        background: B.paperDark, border: `1px solid ${B.rule}`,
+        padding: 16,
+      }}>
+        <h4 style={{ fontSize: 14, color: B.ink, margin: "0 0 6px" }}>
+          {"\u26A1"} Pillar-to-Micro Strategy
+        </h4>
+        <p style={{ fontSize: 13, color: B.inkFaded, margin: "0 0 8px", lineHeight: 1.5 }}>
+          One deep piece of content (your {"\u201C"}pillar{"\u201D"}) becomes 15+ short pieces.
+          You filmed once. The Console tells you what to extract.
+        </p>
+        <p style={{ fontWeight: 700, color: B.accent, fontSize: 12, margin: 0 }}>
+          1 YouTube video {"\u2192"} 5 TikToks + 5 Reels + 5 Shorts + 1 LinkedIn post + 1 Blog post
         </p>
       </div>
 
-      <style>{repurposeStyles}</style>
+      <style>{`
+        @media (max-width: 640px) {
+          div[style*="grid-template-columns: 1fr 1fr"] {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }
-
-const repurposeStyles = `
-  .gazette-repurpose {
-    max-width: 700px; margin: 0 auto; padding: 20px;
-    font-family: 'IBM Plex Sans', system-ui, sans-serif;
-  }
-  .gazette-repurpose-top {
-    background: ${T.surface}; border: 1px solid ${T.border};
-    border-radius: 10px; padding: 20px; margin-bottom: 20px;
-  }
-  .gazette-repurpose-heading {
-    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
-    color: ${T.accent}; margin: 0 0 8px;
-  }
-  .gazette-repurpose-caption {
-    font-size: 14px; color: ${T.text}; margin: 0 0 10px; line-height: 1.5;
-  }
-  .gazette-repurpose-stats {
-    display: flex; gap: 16px; font-size: 12px; color: ${T.muted};
-  }
-  .gazette-repurpose-sub {
-    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
-    color: ${T.muted}; margin: 0 0 12px;
-  }
-  .gazette-repurpose-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-    margin-bottom: 24px;
-  }
-  .gazette-repurpose-option {
-    display: flex; flex-direction: column; gap: 4px;
-    padding: 16px; background: ${T.surface}; border: 1px solid ${T.border};
-    border-radius: 8px; cursor: pointer; text-align: left;
-    font-family: 'IBM Plex Sans', system-ui, sans-serif;
-    transition: border-color 0.2s;
-  }
-  .gazette-repurpose-option:hover:not(:disabled) { border-color: ${T.accent}; }
-  .gazette-repurpose-saved { border-color: #22c55e; opacity: 0.7; }
-  .gazette-repurpose-opt-icon { font-size: 24px; }
-  .gazette-repurpose-opt-label { font-size: 14px; font-weight: 600; color: ${T.text}; }
-  .gazette-repurpose-opt-desc { font-size: 11px; color: ${T.muted}; }
-  .gazette-repurpose-pillar {
-    background: rgba(123,94,167,0.1); border: 1px solid ${T.border};
-    border-radius: 8px; padding: 16px;
-  }
-  .gazette-repurpose-pillar h4 { font-size: 14px; color: ${T.text}; margin: 0 0 6px; }
-  .gazette-repurpose-pillar p { font-size: 13px; color: ${T.muted}; margin: 0 0 8px; line-height: 1.5; }
-  .gazette-repurpose-formula { font-weight: 600; color: ${T.accent}; font-size: 12px; }
-  .gazette-repurpose-link {
-    display: inline-block; margin-top: 12px; padding: 8px 16px;
-    background: ${T.mid}; color: ${T.text}; border-radius: 6px;
-    text-decoration: none; font-size: 13px;
-  }
-  @media (max-width: 640px) {
-    .gazette-repurpose-grid { grid-template-columns: 1fr; }
-  }
-`

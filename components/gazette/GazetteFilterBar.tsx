@@ -8,6 +8,13 @@ import {
   REGION_LABELS, PLATFORM_LABELS, INDUSTRY_LABELS, AUDIENCE_LABELS, AUDIENCE_SUBTITLES,
   type Region, type Platform, type Industry, type Audience,
 } from "@/types/gazette"
+import type { GazettePlatform } from "@/types/gazette-ui"
+
+// Map API-style platform to UI-style GazettePlatform for TimeBanner/HookPicker
+const PLATFORM_TO_UI: Record<string, GazettePlatform> = {
+  tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube Shorts",
+  linkedin: "LinkedIn", facebook: "Facebook", x: "TikTok",
+}
 
 const REGIONS = Object.entries(REGION_LABELS) as [Region, string][]
 const PLATFORMS = (Object.entries(PLATFORM_LABELS) as [Platform, string][]).filter(([k]) => k !== "all")
@@ -47,8 +54,6 @@ export function GazetteFilterBar() {
   const handleChange = (field: keyof Filters, value: string) => {
     setFilters(prev => ({ ...prev, [field]: value }))
     setDirty(true)
-    if (field === "region") localStorage.setItem("da_gazette_target_region", value)
-    if (field === "platform") localStorage.setItem("da_gazette_target_platform", value)
   }
 
   const handleApply = async () => {
@@ -61,9 +66,17 @@ export function GazetteFilterBar() {
         defaultAudience: filters.audience || null,
       })
       localStorage.setItem("da_gazette_target_region", filters.region)
-      localStorage.setItem("da_gazette_target_platform", filters.platform)
+      const uiPlatform = PLATFORM_TO_UI[filters.platform] ?? "TikTok"
+      localStorage.setItem("da_gazette_target_platform", uiPlatform)
       setDirty(false)
-      window.dispatchEvent(new CustomEvent("gazette:filters:changed", { detail: filters }))
+      window.dispatchEvent(new CustomEvent("gazette:filters:changed", {
+        detail: {
+          region: filters.region,
+          platform: uiPlatform,
+          industry: filters.industry,
+          audience: filters.audience,
+        },
+      }))
     } catch (e) {
       console.error("[GazetteFilterBar] save error:", e)
     } finally {
