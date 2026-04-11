@@ -13,8 +13,9 @@ const CAT_COLORS: Record<string, string> = {
   TECH_INNOVATION: "#1A3A4A",
 }
 
-export function ConceptCard({ card, onTap, onDismiss, onSave }: {
+export function ConceptCard({ card, cardIndex = 0, onTap, onDismiss, onSave }: {
   card: GazetteCard
+  cardIndex?: number
   onTap: () => void
   onDismiss: () => void
   onSave: () => void
@@ -35,17 +36,55 @@ export function ConceptCard({ card, onTap, onDismiss, onSave }: {
 
   const badgeColor = CAT_COLORS[card.category] || BROADSHEET.accent
 
+  const hook = card.hookSuggestion ?? ""
+  const firstLetter = hook.charAt(0)
+  const restOfHook = hook.slice(1)
+
   return (
     <div
       onClick={onTap}
       style={{
-        minWidth: 240, maxWidth: 240, flexShrink: 0,
+        width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
         borderRight: `1px solid ${BROADSHEET.ruleLight}`,
+        borderBottom: `1px solid ${BROADSHEET.ruleLight}`,
         padding: "14px 14px 10px",
         background: actedOn ? "#E8F0E0" : isWeak ? BROADSHEET.paperDark : BROADSHEET.paper,
         cursor: "pointer", opacity: isWeak ? 0.75 : 1, position: "relative",
       }}
     >
+      {/* Decorative top rule */}
+      <div style={{
+        height: 3,
+        background: badgeColor,
+        marginBottom: 10,
+        width: "40%",
+      }} />
+
+      {/* Dispatch number + effort badge row */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        {/* Effort badge */}
+        <div style={{
+          display: "inline-block",
+          fontSize: 8, letterSpacing: "0.16em", textTransform: "uppercase",
+          color: BROADSHEET.paper, background: BROADSHEET.inkFaded,
+          padding: "2px 6px",
+          fontFamily: "'Playfair Display', Georgia, serif",
+        }}>
+          {card.effort ?? "Quick Post"}
+        </div>
+
+        {/* Dispatch number */}
+        <div style={{
+          fontSize: 9, fontVariant: "small-caps", letterSpacing: "0.12em",
+          color: BROADSHEET.inkLight,
+          fontFamily: "'Playfair Display', Georgia, serif",
+        }}>
+          Dispatch No. {String(cardIndex + 1).padStart(3, "0")}
+        </div>
+      </div>
+
       {/* Category badge + time window */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
         <span style={{
@@ -85,26 +124,44 @@ export function ConceptCard({ card, onTap, onDismiss, onSave }: {
         {actedOn ? "\u2713 Making this" : card.headline}
       </div>
 
-      {/* Hook — italic byline */}
-      {!actedOn && card.hookSuggestion && (
+      {/* Hook — drop cap style */}
+      {!actedOn && hook && (
         <div style={{
           fontSize: 11, fontStyle: "italic", color: BROADSHEET.inkFaded,
-          lineHeight: 1.4, marginBottom: 10, paddingLeft: 8,
+          lineHeight: 1.5, marginBottom: 10, paddingLeft: 8,
           borderLeft: `2px solid ${BROADSHEET.ruleLight}`,
           fontFamily: "'Playfair Display', Georgia, serif",
         }}>
-          {card.hookSuggestion}
+          <span style={{
+            float: "left", fontSize: 28, lineHeight: 0.8,
+            fontWeight: 900, color: BROADSHEET.ink,
+            marginRight: 3, marginTop: 4, fontStyle: "normal",
+          }}>
+            {firstLetter}
+          </span>
+          {restOfHook}
         </div>
       )}
 
       {/* Platform fit */}
       <div style={{
         fontSize: 9, letterSpacing: "0.08em", color: BROADSHEET.inkFaded,
-        marginBottom: 10, fontFamily: "'Playfair Display', Georgia, serif",
+        marginBottom: 4, fontFamily: "'Playfair Display', Georgia, serif",
         fontVariant: "small-caps",
       }}>
         {card.platformFit.join(" \u00B7 ")}
       </div>
+
+      {/* Source attribution */}
+      {card.sourceSignal && (
+        <div style={{
+          fontSize: 9, fontStyle: "italic", color: BROADSHEET.inkLight,
+          marginBottom: 8, fontFamily: "'Playfair Display', Georgia, serif",
+          letterSpacing: "0.04em",
+        }}>
+          {"\u2014"} via {card.sourceSignal}
+        </div>
+      )}
 
       {/* Weak signal */}
       {isWeak && (
@@ -113,7 +170,7 @@ export function ConceptCard({ card, onTap, onDismiss, onSave }: {
           fontVariant: "small-caps", fontStyle: "italic", marginBottom: 6,
           fontFamily: "'Playfair Display', Georgia, serif",
         }}>
-          {"— Weak signal —"}
+          {"\u2014 Weak signal \u2014"}
         </div>
       )}
 

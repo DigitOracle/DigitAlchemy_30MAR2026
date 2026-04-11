@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/AuthContext"
 import { BROADSHEET } from "./tokens"
+import { GazetteFilterBar } from "./GazetteFilterBar"
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard" },
@@ -162,6 +163,9 @@ export function GazetteHeader() {
           )}
         </div>
       </div>
+
+      {/* Filter bar */}
+      <GazetteFilterBar />
 
       {/* Heavy bottom rule */}
       <div style={{ height: 3, background: B.rule }} />

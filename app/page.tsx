@@ -6,6 +6,7 @@ import { GazetteHeader } from "@/components/gazette/GazetteHeader"
 import { TimeBanner } from "@/components/gazette/TimeBanner"
 import { ModeSelector } from "@/components/gazette/ModeSelector"
 import { GazetteTabs } from "@/components/gazette/GazetteTabs"
+import { GazetteGreeting } from "@/components/gazette/GazetteGreeting"
 import type { GazetteMode } from "@/types/gazette-ui"
 
 export default function GazettePage() {
@@ -28,10 +29,11 @@ export default function GazettePage() {
   const region = profile?.defaultRegion || "AE"
 
   return (
-    <main style={{ background: "#F5F0E8", minHeight: "100vh" }}>
+    <main style={{ background: "#F5F0E8", minHeight: "100vh", overflowX: "hidden", width: "100%" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
       <GazetteHeader />
       <TimeBanner region={region} />
+      <GazetteGreeting />
       <ModeSelector onChange={handleModeChange} />
       <GazetteTabs userId={user.uid} mode={mode} />
     </main>
