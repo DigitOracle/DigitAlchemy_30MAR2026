@@ -87,19 +87,19 @@ export function TimeBanner({ region }: { region: string }) {
   return (
     <div ref={pickerRef}>
       <div className="gazette-time-banner">
-        <span className="gazette-time-banner-clock">{time} \u00B7 {region}</span>
-        <span className="gazette-time-banner-sep">\u2192</span>
+        <span className="gazette-time-banner-clock">{time} {"·"} {region}</span>
+        <span className="gazette-time-banner-sep">{"→"}</span>
         <span>
           Audience: <strong>{target.label}</strong>{" "}
-          <button className="gazette-time-banner-edit" onClick={() => setPickerOpen(p => !p)}>\u270E</button>
+          <button className="gazette-time-banner-edit" onClick={() => setPickerOpen(p => !p)}>{"✎"}</button>
         </span>
         <span className="gazette-time-banner-sep">|</span>
         <span>{targetPlatform}: <strong>{platformWindows}</strong></span>
         {target.windows !== platformWindows && (
-          <><span className="gazette-time-banner-sep">\u00B7</span><span>Region: <strong>{target.windows}</strong></span></>
+          <><span className="gazette-time-banner-sep">{"·"}</span><span>Region: <strong>{target.windows}</strong></span></>
         )}
         <span className="gazette-time-banner-sep">|</span>
-        <span>\u26A1 Stay online 60 min after posting</span>
+        <span>{"⚡"} Stay online 60 min after posting</span>
       </div>
 
       {pickerOpen && (
