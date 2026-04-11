@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { T, type CategoryKey } from "./tokens"
 import type { GazetteCard } from "@/types/gazette-ui"
 
@@ -29,10 +29,18 @@ export function ConceptCard({ card, onTap, onDismiss, onSave }: {
   onSave: () => void
 }) {
   const [dismissed, setDismissed] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const isLow = card.confidence < 50
   const isExpired = card.timeWindow === "Expired"
 
-  if (card.dismissed || dismissed) return null
+  useEffect(() => {
+    if (card.actedOn) {
+      const timer = setTimeout(() => setRemoving(true), 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [card.actedOn])
+
+  if (card.dismissed || dismissed || removing) return null
 
   return (
     <div
