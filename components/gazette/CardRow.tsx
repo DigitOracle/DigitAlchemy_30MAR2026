@@ -1,17 +1,12 @@
 "use client"
-import { T, type CategoryKey } from "./tokens"
+import { BROADSHEET, type CategoryKey } from "./tokens"
 import { ConceptCard } from "./ConceptCard"
 import type { GazetteCard } from "@/types/gazette-ui"
 
-function SkeletonCard() {
-  return (
-    <div className="gazette-skeleton-card">
-      <div className="gazette-skeleton-bar gazette-skeleton-short" />
-      <div className="gazette-skeleton-bar gazette-skeleton-full" />
-      <div className="gazette-skeleton-bar gazette-skeleton-mid" />
-      <div className="gazette-skeleton-bar gazette-skeleton-short" />
-    </div>
-  )
+const CATEGORY_ICONS: Record<string, string> = {
+  AUDIO_VIRAL: "\u266A", TREND_ALERT: "\u2191", BRAND_SIGNAL: "\u25C6",
+  CULTURAL_MOMENT: "\u25C9", CREATOR_SPOTLIGHT: "\u2605",
+  REGIONAL_PULSE: "\u25CF", TECH_INNOVATION: "\u2699",
 }
 
 export function CardRow({ category, cards, loading, onTap, onDismiss, onSave }: {
@@ -25,28 +20,72 @@ export function CardRow({ category, cards, loading, onTap, onDismiss, onSave }: 
   const visibleCards = cards.filter(c => !c.dismissed)
   if (!loading && visibleCards.length === 0) return null
 
-  const cat = T.categories[category]
-  const ago = cards.length > 0
-    ? Math.round((Date.now() - new Date(cards[0].generatedAt).getTime()) / 60000)
-    : 0
+  const icon = CATEGORY_ICONS[category] || "\u25C6"
+  const label = category.replace(/_/g, " ")
+
+  const burntEdge: React.CSSProperties = {
+    height: 5,
+    background: `repeating-linear-gradient(90deg, ${BROADSHEET.paperDark} 0px, ${BROADSHEET.burnEdge} 3px, ${BROADSHEET.paperDark} 6px, #B8A898 9px, ${BROADSHEET.paperDark} 12px)`,
+    opacity: 0.8,
+  }
 
   return (
-    <div className="gazette-row">
-      <div className="gazette-row-header">
-        <span className="gazette-row-title">
-          <span style={{ color: cat.bg }}>{cat.icon}</span> {category.replace(/_/g, " ")}
-          <span className="gazette-row-count">{visibleCards.length}</span>
+    <div style={{ marginBottom: 0 }}>
+      {/* Section header */}
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "baseline",
+        padding: "7px 20px 6px",
+        borderTop: `2px solid ${BROADSHEET.rule}`, borderBottom: `1px solid ${BROADSHEET.rule}`,
+        background: BROADSHEET.paperDark,
+      }}>
+        <div style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: 12, fontWeight: 900, letterSpacing: "0.14em",
+          textTransform: "uppercase", color: BROADSHEET.ink,
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span>{icon}</span>
+          <span>{label}</span>
+          {!loading && (
+            <span style={{
+              fontSize: 10, fontWeight: 400, fontVariant: "small-caps",
+              color: BROADSHEET.inkFaded, marginLeft: 4,
+            }}>
+              {"—"} {visibleCards.length} {visibleCards.length === 1 ? "dispatch" : "dispatches"}
+            </span>
+          )}
+        </div>
+        <span style={{
+          fontSize: 10, fontStyle: "italic", color: BROADSHEET.inkFaded,
+          fontFamily: "'Playfair Display', Georgia, serif",
+        }}>
+          Updated just now
         </span>
-        {ago > 0 && <span className="gazette-row-ago">Updated {ago} min ago</span>}
       </div>
 
-      <div className="gazette-row-scroll">
+      {/* Burnt edge top */}
+      <div style={burntEdge} />
+
+      {/* Cards */}
+      <div style={{
+        display: "flex", overflowX: "auto", background: BROADSHEET.paper,
+        scrollbarWidth: "thin", scrollbarColor: `${BROADSHEET.rule} ${BROADSHEET.paperDark}`,
+      }}>
         {loading ? (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
+          [0, 1, 2].map(i => (
+            <div key={i} style={{
+              minWidth: 240, maxWidth: 240, height: 200,
+              borderRight: `1px solid ${BROADSHEET.ruleLight}`,
+              padding: 14, background: BROADSHEET.paper, flexShrink: 0,
+            }}>
+              {[80, 60, 100, 40].map((w, j) => (
+                <div key={j} style={{
+                  height: 10, width: `${w}%`, background: BROADSHEET.paperDark,
+                  marginBottom: 10, animation: "pulse 1.5s infinite",
+                }} />
+              ))}
+            </div>
+          ))
         ) : (
           visibleCards.map(card => (
             <ConceptCard
@@ -60,50 +99,8 @@ export function CardRow({ category, cards, loading, onTap, onDismiss, onSave }: 
         )}
       </div>
 
-      <style>{`
-        .gazette-row { margin-bottom: 24px; }
-        .gazette-row-header {
-          display: flex; justify-content: space-between; align-items: center;
-          padding: 0 20px 10px;
-          position: sticky; top: 44px; z-index: 10;
-          background: ${T.bg};
-        }
-        .gazette-row-title {
-          font-family: 'IBM Plex Sans', system-ui, sans-serif;
-          font-size: 14px; font-weight: 700; color: ${T.text};
-          text-transform: uppercase; letter-spacing: 0.05em;
-          display: flex; align-items: center; gap: 6px;
-        }
-        .gazette-row-count {
-          font-size: 11px; background: ${T.border}; padding: 1px 6px;
-          border-radius: 10px; color: ${T.muted};
-        }
-        .gazette-row-ago { font-size: 11px; color: ${T.muted}; }
-        .gazette-row-scroll {
-          display: flex; gap: 12px; overflow-x: auto;
-          padding: 0 20px 8px; scroll-snap-type: x mandatory;
-          -webkit-overflow-scrolling: touch;
-        }
-        .gazette-row-scroll > * { scroll-snap-align: start; }
-        .gazette-row-scroll::-webkit-scrollbar { height: 4px; }
-        .gazette-row-scroll::-webkit-scrollbar-track { background: transparent; }
-        .gazette-row-scroll::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 2px; }
-        .gazette-skeleton-card {
-          flex: 0 0 300px; min-width: 280px; max-width: 320px;
-          background: ${T.surface}; border: 1px solid ${T.border};
-          border-radius: 10px; padding: 16px;
-          display: flex; flex-direction: column; gap: 10px;
-        }
-        .gazette-skeleton-bar {
-          height: 14px; border-radius: 4px;
-          background: rgba(123,94,167,0.15);
-          animation: gazette-pulse 1.5s ease-in-out infinite;
-        }
-        .gazette-skeleton-short { width: 40%; }
-        .gazette-skeleton-full { width: 100%; height: 20px; }
-        .gazette-skeleton-mid { width: 70%; }
-        @keyframes gazette-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
-      `}</style>
+      {/* Burnt edge bottom */}
+      <div style={burntEdge} />
     </div>
   )
 }

@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 * { box-sizing: border-box; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
 html { -webkit-font-smoothing: antialiased; }
 
 @keyframes fade-in {
