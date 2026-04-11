@@ -174,6 +174,9 @@ export function GazetteTabs({ userId, mode }: { userId: string; mode: GazetteMod
   const handleRepurposeSave = async (option: string) => {
     if (!db) return
     try {
+      // Permitted write: repurpose queue
+      // users/{uid}/repurpose_queue/{timestamp}
+      // Logs repurpose actions from RepurposePanel to user's content queue.
       await setDoc(doc(db, `users/${userId}/repurpose_queue/${Date.now()}`), {
         option,
         savedAt: serverTimestamp(),
