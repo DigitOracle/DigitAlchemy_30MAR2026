@@ -9,13 +9,14 @@ const CATEGORY_ICONS: Record<string, string> = {
   REGIONAL_PULSE: "\u25CF", TECH_INNOVATION: "\u2699",
 }
 
-export function CardRow({ category, cards, loading, onTap, onDismiss, onSave }: {
+export function CardRow({ category, cards, loading, onTap, onDismiss, onSave, indexOffset = 0 }: {
   category: CategoryKey
   cards: GazetteCard[]
   loading: boolean
   onTap: (card: GazetteCard) => void
   onDismiss: (card: GazetteCard) => void
   onSave: (card: GazetteCard) => void
+  indexOffset?: number
 }) {
   const visibleCards = cards.filter(c => !c.dismissed)
   if (!loading && visibleCards.length === 0) return null
@@ -66,17 +67,19 @@ export function CardRow({ category, cards, loading, onTap, onDismiss, onSave }: 
       {/* Burnt edge top */}
       <div style={burntEdge} />
 
-      {/* Cards */}
+      {/* Cards — newspaper grid */}
       <div style={{
-        display: "flex", overflowX: "auto", background: BROADSHEET.paper,
-        scrollbarWidth: "thin", scrollbarColor: `${BROADSHEET.rule} ${BROADSHEET.paperDark}`,
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        background: BROADSHEET.paper,
       }}>
         {loading ? (
           [0, 1, 2].map(i => (
             <div key={i} style={{
-              minWidth: 240, maxWidth: 240, height: 200,
+              height: 200,
               borderRight: `1px solid ${BROADSHEET.ruleLight}`,
-              padding: 14, background: BROADSHEET.paper, flexShrink: 0,
+              borderBottom: `1px solid ${BROADSHEET.ruleLight}`,
+              padding: 14, background: BROADSHEET.paper,
             }}>
               {[80, 60, 100, 40].map((w, j) => (
                 <div key={j} style={{
@@ -87,10 +90,11 @@ export function CardRow({ category, cards, loading, onTap, onDismiss, onSave }: 
             </div>
           ))
         ) : (
-          visibleCards.map(card => (
+          visibleCards.map((card, i) => (
             <ConceptCard
               key={card.id}
               card={card}
+              cardIndex={indexOffset + i}
               onTap={() => onTap(card)}
               onDismiss={() => onDismiss(card)}
               onSave={() => onSave(card)}

@@ -187,6 +187,11 @@ export function GazetteTabs({ userId, mode }: { userId: string; mode: GazetteMod
 
   const reactCount = REACT_CATEGORIES.reduce((n, c) => n + cards.filter(x => x.category === c && !x.dismissed).length, 0)
   const planCount = PLAN_CATEGORIES.reduce((n, c) => n + cards.filter(x => x.category === c && !x.dismissed).length, 0)
+  const totalVisible = cards.filter(c => !c.dismissed).length
+
+  useEffect(() => {
+    localStorage.setItem("da_gazette_card_count", String(totalVisible))
+  }, [totalVisible])
 
   return (
     <div id="gazette-cards">
@@ -200,17 +205,26 @@ export function GazetteTabs({ userId, mode }: { userId: string; mode: GazetteMod
             </span>
           </div>
 
-          {categories.map(cat => (
-            <CardRow
-              key={cat}
-              category={cat}
-              cards={cardsByCategory(cat)}
-              loading={loading}
-              onTap={(card) => setPickerCard(card)}
-              onDismiss={handleDismiss}
-              onSave={handleSave}
-            />
-          ))}
+          {(() => {
+            let offset = 0
+            return categories.map(cat => {
+              const catCards = cardsByCategory(cat)
+              const row = (
+                <CardRow
+                  key={cat}
+                  category={cat}
+                  cards={catCards}
+                  loading={loading}
+                  indexOffset={offset}
+                  onTap={(card) => setPickerCard(card)}
+                  onDismiss={handleDismiss}
+                  onSave={handleSave}
+                />
+              )
+              offset += catCards.filter(c => !c.dismissed).length
+              return row
+            })
+          })()}
 
           {!loading && cards.length === 0 && (
             <div className="gazette-empty">
