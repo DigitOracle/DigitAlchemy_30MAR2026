@@ -45,6 +45,8 @@ export function ConceptCard({ card, cardIndex = 0, onTap, onDismiss, onSave }: {
       onClick={onTap}
       style={{
         width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
         borderRight: `1px solid ${BROADSHEET.ruleLight}`,
         borderBottom: `1px solid ${BROADSHEET.ruleLight}`,
         padding: "14px 14px 10px",

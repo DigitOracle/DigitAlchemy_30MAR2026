@@ -70,8 +70,10 @@ export function CardRow({ category, cards, loading, onTap, onDismiss, onSave, in
       {/* Cards — newspaper grid */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
         background: BROADSHEET.paper,
+        overflowX: "hidden",
+        width: "100%",
       }}>
         {loading ? (
           [0, 1, 2].map(i => (

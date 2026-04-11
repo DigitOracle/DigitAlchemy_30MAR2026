@@ -29,7 +29,7 @@ export default function GazettePage() {
   const region = profile?.defaultRegion || "AE"
 
   return (
-    <main style={{ background: "#F5F0E8", minHeight: "100vh" }}>
+    <main style={{ background: "#F5F0E8", minHeight: "100vh", overflowX: "hidden", width: "100%" }}>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
       <GazetteHeader />
       <TimeBanner region={region} />
