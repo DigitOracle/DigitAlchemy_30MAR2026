@@ -24,3 +24,13 @@ export const T = {
 } as const;
 
 export type CategoryKey = keyof typeof T.categories;
+
+export const BROADSHEET = {
+  paper:      "#F5F0E8",
+  ink:        "#1A1008",
+  inkFaded:   "#4A3F35",
+  rule:       "#2A1F15",
+  accent:     "#8B0000",
+  cream:      "#EDE8DC",
+  colDivider: "rgba(26,16,8,0.2)",
+} as const;
