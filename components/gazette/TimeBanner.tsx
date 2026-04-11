@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef } from "react"
 import { T } from "./tokens"
+import { PLATFORM_DEFAULTS, type GazettePlatform } from "@/types/gazette-ui"
 
 const AUDIENCE_REGIONS = [
   { key: "AE", label: "UAE / Dubai", windows: "12:00\u20131:00 PM & 5:00\u20136:00 PM" },
@@ -62,6 +63,21 @@ export function TimeBanner({ region }: { region: string }) {
   }, [pickerOpen])
 
   const target = AUDIENCE_REGIONS.find(r => r.key === targetKey) || AUDIENCE_REGIONS[0]
+  const [targetPlatform, setTargetPlatform] = useState<GazettePlatform>("TikTok")
+
+  useEffect(() => {
+    const stored = localStorage.getItem("da_gazette_target_platform") as GazettePlatform | null
+    if (stored && stored in PLATFORM_DEFAULTS) setTargetPlatform(stored)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "da_gazette_target_platform" && e.newValue && e.newValue in PLATFORM_DEFAULTS) {
+        setTargetPlatform(e.newValue as GazettePlatform)
+      }
+    }
+    window.addEventListener("storage", onStorage)
+    return () => window.removeEventListener("storage", onStorage)
+  }, [])
+
+  const platformWindows = PLATFORM_DEFAULTS[targetPlatform].postWindows
 
   const selectRegion = (key: string) => {
     setTargetKey(key)
@@ -79,9 +95,12 @@ export function TimeBanner({ region }: { region: string }) {
           <button className="gazette-time-banner-edit" onClick={() => setPickerOpen(p => !p)}>\u270E</button>
         </span>
         <span className="gazette-time-banner-sep">|</span>
-        <span>Post 30 min before: <strong>{target.windows}</strong></span>
+        <span>{targetPlatform}: <strong>{platformWindows}</strong></span>
+        {target.windows !== platformWindows && (
+          <><span className="gazette-time-banner-sep">\u00B7</span><span>Region: <strong>{target.windows}</strong></span></>
+        )}
         <span className="gazette-time-banner-sep">|</span>
-        <span>\u26A1 Stay online 60 min \u2014 reply to every comment</span>
+        <span>\u26A1 Stay online 60 min after posting</span>
       </div>
 
       {pickerOpen && (
