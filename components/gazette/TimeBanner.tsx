@@ -41,16 +41,15 @@ export function TimeBanner({ region }: { region: string }) {
   const homeTz = REGION_TZ[region] || "Asia/Dubai"
   const time = useClockTime(homeTz)
 
-  const [targetKey, setTargetKey] = useState(region)
+  const [targetKey, setTargetKey] = useState<string>(
+    () => {
+      if (typeof window === "undefined") return region
+      const stored = localStorage.getItem(LS_KEY)
+      return stored && AUDIENCE_REGIONS.some(r => r.key === stored) ? stored : region
+    }
+  )
   const [pickerOpen, setPickerOpen] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const stored = localStorage.getItem(LS_KEY)
-    if (stored && AUDIENCE_REGIONS.some(r => r.key === stored)) {
-      setTargetKey(stored)
-    }
-  }, [])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
