@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/AuthContext"
-import { T } from "./tokens"
+import { BROADSHEET } from "./tokens"
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard" },
@@ -45,109 +45,126 @@ export function GazetteHeader() {
 
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
-  })
+  }).toUpperCase()
+
+  const B = BROADSHEET
 
   return (
-    <header className="gazette-header">
-      <div className="gazette-header-row">
-        <div>
-          <div className="gazette-header-masthead">The DigitAlchemy Gazette</div>
-          <div className="gazette-header-date">{today}</div>
+    <header style={{ background: B.paper, position: "sticky", top: 0, zIndex: 100, width: "100%" }}>
+
+      {/* Double rule top */}
+      <div style={{ borderTop: `2px solid ${B.rule}`, borderBottom: `1px solid ${B.rule}`, height: 4, background: B.paper }} />
+
+      {/* Dateline bar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 24px", background: B.paper }}>
+        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 11, letterSpacing: "0.15em", color: B.inkFaded, fontVariant: "small-caps" }}>
+          {today} {"·"} Abu Dhabi Edition
+        </span>
+        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 11, letterSpacing: "0.1em", color: B.inkFaded, fontVariant: "small-caps" }}>
+          Vol. I {"·"} Est. MMXXIV
+        </span>
+      </div>
+
+      {/* Double rule */}
+      <div style={{ borderTop: `2px solid ${B.rule}`, borderBottom: `1px solid ${B.rule}`, height: 4, background: B.paper }} />
+
+      {/* Masthead */}
+      <div style={{ textAlign: "center", padding: "16px 24px 12px", background: B.paper }}>
+        <div style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: "clamp(28px, 5vw, 52px)",
+          fontWeight: 900, color: B.ink,
+          letterSpacing: "0.08em", textTransform: "uppercase", lineHeight: 1,
+        }}>
+          The DigitAlchemy Gazette
         </div>
-
-        <div className="gazette-header-right">
-          {NAV_ITEMS.slice(0, 2).map(item => (
-            <a key={item.href} href={item.href} className="gazette-header-link">
-              {item.label}
-            </a>
-          ))}
-
-          <div ref={ref} style={{ position: "relative" }}>
-            <button className="gazette-header-avatar" onClick={() => setOpen(o => !o)}>
-              {initials}
-            </button>
-
-            {open && (
-              <div className="gazette-header-dropdown">
-                {NAV_ITEMS.map(item => (
-                  <button
-                    key={item.href}
-                    className="gazette-header-dropdown-item"
-                    onClick={() => { setOpen(false); router.push(item.href) }}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+        <div style={{
+          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: 13, fontStyle: "italic", color: B.inkFaded,
+          marginTop: 6, letterSpacing: "0.05em",
+        }}>
+          Intelligence for the Modern Creator
         </div>
       </div>
 
-      <div className="gazette-header-rule" />
+      {/* Double rule */}
+      <div style={{ borderTop: `3px double ${B.rule}`, margin: "0 24px" }} />
 
-      <style>{`
-        .gazette-header {
-          position: sticky; top: 0; z-index: 100;
-          background: ${T.bg};
-          border-bottom: 1px solid ${T.border};
-          padding: 0 24px;
-        }
-        .gazette-header-row {
-          display: flex; align-items: center; justify-content: space-between;
-          height: 64px;
-        }
-        .gazette-header-masthead {
-          font-family: 'Playfair Display', Georgia, serif;
-          font-size: 22px; font-weight: 700; color: ${T.text};
-          letter-spacing: 0.02em;
-        }
-        .gazette-header-date {
-          font-size: 11px; color: ${T.muted};
-          font-family: 'Playfair Display', Georgia, serif;
-          font-style: italic; margin-top: 2px;
-        }
-        .gazette-header-right {
-          display: flex; align-items: center; gap: 24px;
-        }
-        .gazette-header-link {
-          font-size: 13px; color: ${T.muted}; text-decoration: none;
-          font-family: 'IBM Plex Sans', system-ui, sans-serif;
-          transition: color 0.15s;
-        }
-        .gazette-header-link:hover { color: ${T.text}; }
-        .gazette-header-avatar {
-          width: 36px; height: 36px; border-radius: 50%;
-          background: ${T.accent}; border: none; color: #fff;
-          font-size: 13px; font-weight: 500; cursor: pointer;
-          display: flex; align-items: center; justify-content: center;
-          font-family: 'IBM Plex Sans', system-ui, sans-serif;
-        }
-        .gazette-header-dropdown {
-          position: absolute; right: 0; top: calc(100% + 8px);
-          background: ${T.surface}; border: 1px solid ${T.border};
-          border-radius: 8px; min-width: 180px; overflow: hidden;
-          z-index: 200;
-        }
-        .gazette-header-dropdown-item {
-          display: block; width: 100%; padding: 10px 20px;
-          background: transparent; border: none; color: ${T.text};
-          font-size: 14px; text-align: left; cursor: pointer;
-          font-family: 'IBM Plex Sans', system-ui, sans-serif;
-          transition: background 0.15s;
-        }
-        .gazette-header-dropdown-item:hover { background: ${T.mid}; }
-        .gazette-header-rule {
-          height: 1px;
-          background: linear-gradient(90deg, ${T.accent}, transparent);
-        }
-        @media (max-width: 640px) {
-          .gazette-header { padding: 0 12px; }
-          .gazette-header-masthead { font-size: 17px; }
-          .gazette-header-link { display: none; }
-          .gazette-header-row { height: 52px; }
-        }
-      `}</style>
+      {/* Nav bar */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 24px", background: B.cream }}>
+        <div style={{ display: "flex", gap: 0, alignItems: "center" }}>
+          {NAV_ITEMS.slice(0, 3).map((item, i) => (
+            <span key={item.href} style={{ display: "flex", alignItems: "center" }}>
+              <a
+                href={item.href}
+                style={{
+                  fontFamily: "'Playfair Display', Georgia, serif",
+                  fontSize: 12, letterSpacing: "0.08em", color: B.ink,
+                  textDecoration: "none", padding: "2px 14px", fontVariant: "small-caps",
+                }}
+                onMouseEnter={e => (e.currentTarget.style.textDecoration = "underline")}
+                onMouseLeave={e => (e.currentTarget.style.textDecoration = "none")}
+              >
+                {item.label}
+              </a>
+              {i < 2 && (
+                <span style={{ color: B.colDivider, fontSize: 16, lineHeight: 1 }}>|</span>
+              )}
+            </span>
+          ))}
+        </div>
+
+        {/* Avatar dropdown */}
+        <div ref={ref} style={{ position: "relative" }}>
+          <button
+            onClick={() => setOpen(o => !o)}
+            title={profile?.name ?? user?.email ?? "Account"}
+            style={{
+              width: 32, height: 32, borderRadius: "50%",
+              background: B.ink, border: `1px solid ${B.rule}`,
+              color: B.paper, fontSize: 12, fontWeight: 700, cursor: "pointer",
+              fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: "0.05em",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            {initials}
+          </button>
+
+          {open && (
+            <div style={{
+              position: "absolute", right: 0, top: "calc(100% + 6px)",
+              background: B.paper, border: `1px solid ${B.rule}`,
+              minWidth: 180, zIndex: 200, boxShadow: `2px 2px 0 ${B.rule}`,
+            }}>
+              <div style={{ borderTop: `2px solid ${B.rule}`, borderBottom: `1px solid ${B.rule}`, height: 3, background: B.paper }} />
+              {NAV_ITEMS.map((item, i) => (
+                <div key={item.href}>
+                  <button
+                    onClick={() => { setOpen(false); router.push(item.href) }}
+                    style={{
+                      display: "block", width: "100%", padding: "9px 16px",
+                      background: "transparent", border: "none", color: B.ink,
+                      fontSize: 12, textAlign: "left", cursor: "pointer",
+                      fontFamily: "'Playfair Display', Georgia, serif",
+                      letterSpacing: "0.06em", fontVariant: "small-caps",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = B.cream)}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                  >
+                    {item.label}
+                  </button>
+                  {i < NAV_ITEMS.length - 1 && (
+                    <div style={{ height: 1, background: B.rule, opacity: 0.4, margin: "0 12px" }} />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Heavy bottom rule */}
+      <div style={{ height: 3, background: B.rule }} />
     </header>
   )
 }
