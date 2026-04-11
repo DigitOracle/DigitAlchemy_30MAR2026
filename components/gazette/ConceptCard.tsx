@@ -64,7 +64,7 @@ export function ConceptCard({ card, onTap, onDismiss, onSave }: {
 
       <div className="gazette-card-actions" onClick={e => e.stopPropagation()}>
         <button className="gazette-card-act-btn gazette-card-act-primary" onClick={onTap}>Post this today</button>
-        <button className="gazette-card-act-btn" onClick={onSave}>{card.saved ? "\uD83D\uDD16" : "\uD83D\uDD0E"} Save</button>
+        <button className="gazette-card-act-btn" onClick={onSave} style={{ color: card.saved ? "#F59E0B" : undefined, transition: "color 0.2s ease" }}>{card.saved ? "\uD83D\uDD16" : "\uD83D\uDD0E"} Save</button>
         <button className="gazette-card-act-btn" onClick={() => { setDismissed(true); setTimeout(onDismiss, 300) }}>\u2715 Skip</button>
       </div>
 
