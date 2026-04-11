@@ -1,7 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
 import { BROADSHEET } from "./tokens"
-import { useAudio } from "@/hooks/useAudio"
 import type { GazetteCard } from "@/types/gazette-ui"
 
 const CAT_COLORS: Record<string, string> = {
@@ -24,18 +23,7 @@ export function ConceptCard({ card, cardIndex = 0, onTap, onDismiss, onSave }: {
   const [saved, setSaved] = useState(card.saved)
   const [actedOn, setActedOn] = useState(card.actedOn)
   const [removing, setRemoving] = useState(false)
-  const { speak, stop, playing, loading: audioLoading } = useAudio()
   const isWeak = card.confidence < 50
-
-  const handleListen = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (playing) {
-      stop()
-    } else {
-      const text = `${card.headline}. ${card.hookSuggestion ?? ""}`.slice(0, 300)
-      speak(text)
-    }
-  }
 
   useEffect(() => {
     if (actedOn) {
@@ -208,17 +196,6 @@ export function ConceptCard({ card, cardIndex = 0, onTap, onDismiss, onSave }: {
           fontSize: 10, fontVariant: "small-caps", cursor: "pointer",
         }}>
           {saved ? "\u2605" : "\u2606"}
-        </button>
-        <button onClick={handleListen} title={playing ? "Stop" : "Listen"} style={{
-          padding: "5px 8px",
-          background: playing ? BROADSHEET.ink : "transparent",
-          color: playing ? BROADSHEET.paper : BROADSHEET.inkFaded,
-          border: `1px solid ${BROADSHEET.ruleLight}`,
-          fontFamily: "'Playfair Display', Georgia, serif",
-          fontSize: 12, cursor: audioLoading ? "wait" : "pointer",
-          minWidth: 32, letterSpacing: "0.04em",
-        }}>
-          {audioLoading ? "\u2026" : playing ? "\u25A0" : "\u266A"}
         </button>
         <button onClick={onDismiss} style={{
           padding: "5px 8px", background: "transparent", color: BROADSHEET.inkFaded,

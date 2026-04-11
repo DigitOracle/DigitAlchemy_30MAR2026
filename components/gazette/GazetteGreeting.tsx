@@ -1,36 +1,10 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { BROADSHEET } from "./tokens"
 import { useAuth } from "@/lib/AuthContext"
-import { useAudio } from "@/hooks/useAudio"
-
-function buildGreetingScript(
-  firstName: string,
-  greeting: string,
-  cardCount: number,
-  hour: number,
-): string {
-  const timeHint =
-    hour >= 5  && hour < 12 ? "This morning" :
-    hour >= 12 && hour < 17 ? "This afternoon" :
-    "This evening"
-
-  const dispatches = cardCount > 0
-    ? `You have ${cardCount} ${cardCount === 1 ? "dispatch" : "dispatches"} waiting.`
-    : "Your intelligence is being gathered from across the wire."
-
-  return (
-    `${greeting}${firstName ? `, ${firstName}` : ""}. ` +
-    `Welcome to The DigitAlchemy Gazette. ` +
-    `${dispatches} ` +
-    `${timeHint}, the news moves fast. Let's get to work.`
-  )
-}
 
 export function GazetteGreeting() {
   const { user } = useAuth()
-  const { speak } = useAudio()
-  const hasGreeted = useRef(false)
   const [cardCount, setCardCount] = useState(0)
 
   useEffect(() => {
@@ -55,20 +29,6 @@ export function GazetteGreeting() {
     if (user?.email) return user.email.split("@")[0]
     return ""
   })()
-
-  const script = buildGreetingScript(firstName, greeting, cardCount, hour)
-
-  useEffect(() => {
-    if (hasGreeted.current) return
-    if (sessionStorage.getItem("da_gazette_greeted")) return
-
-    hasGreeted.current = true
-    sessionStorage.setItem("da_gazette_greeted", "1")
-
-    const timer = setTimeout(() => speak(script), 800)
-    return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const today = new Date().toLocaleDateString("en-GB", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
