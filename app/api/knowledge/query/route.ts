@@ -29,7 +29,7 @@
  * variant is deferred to v1.6 §A.2 + Day 8.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { getKnowledgeDb } from "@/lib/firestore-admin"
+import { getDb } from "@/lib/jobStore"
 
 export const runtime = "nodejs"
 export const maxDuration = 30
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   let db: FirebaseFirestore.Firestore
   try {
-    db = await getKnowledgeDb()
+    db = getDb()
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     return NextResponse.json(
