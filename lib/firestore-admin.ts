@@ -43,8 +43,18 @@ export async function getKnowledgeDb(): Promise<Firestore> {
         credential: admin.default.credential.cert({
           projectId,
           clientEmail: process.env.FIRESTORE_CLIENT_EMAIL,
-          // Vercel stores multi-line keys as `\n`-escaped single-line strings.
-          privateKey: process.env.FIRESTORE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+          // Mirror the Ayrshare pattern in app/api/accounts/connect/route.ts:35
+          // which is known-working in production. Three steps:
+          //   1. Convert literal `\n` escape sequences → real newlines
+          //   2. Strip wrapping quote characters (Vercel sometimes preserves
+          //      "..." / '...' as literal chars when the value is pasted with quotes)
+          //   3. Trim leading/trailing whitespace
+          // The PEM parser fails with "Invalid PEM formatted message" if any
+          // of those three are skipped — observed on the first preview deploy.
+          privateKey: process.env.FIRESTORE_PRIVATE_KEY
+            .replace(/\\n/g, "\n")
+            .replace(/^["']|["']$/g, "")
+            .trim(),
         }),
       })
     } else {
