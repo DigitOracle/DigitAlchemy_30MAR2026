@@ -38,6 +38,36 @@ export async function getKnowledgeDb(): Promise<Firestore> {
       process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
       "digitalchemy-de4b7"
 
+    // ── DIAGNOSTIC LOGGING (temporary; remove once PEM error resolved) ──
+    // Goes to Vercel runtime logs, NOT the response body. Logs metadata
+    // about each env var without ever printing the secret material:
+    // typeof + length + first/last 30 chars (typically PEM markers
+    // "-----BEGIN PRIVATE KEY-----" / "-----END PRIVATE KEY-----\n" —
+    // not secret) + structural checks (escape format, base64 hint, etc.)
+    const pk = process.env.FIRESTORE_PRIVATE_KEY
+    const ce = process.env.FIRESTORE_CLIENT_EMAIL
+    const pid = process.env.FIRESTORE_PROJECT_ID
+    const sa = process.env.FIREBASE_SERVICE_ACCOUNT
+    console.log("[firestore-admin diag] env-var snapshot:", {
+      FIRESTORE_PROJECT_ID: { type: typeof pid, length: pid?.length ?? 0, value: pid ?? null },
+      FIRESTORE_CLIENT_EMAIL: { type: typeof ce, length: ce?.length ?? 0, value: ce ?? null },
+      FIRESTORE_PRIVATE_KEY: {
+        type: typeof pk,
+        length: pk?.length ?? 0,
+        first30: pk?.slice(0, 30) ?? null,
+        last30: pk?.slice(-30) ?? null,
+        includes_literal_backslash_n: pk ? pk.includes("\\n") : null,
+        includes_real_newline: pk ? pk.includes("\n") : null,
+        includes_carriage_return: pk ? pk.includes("\r") : null,
+        starts_with_dashes: pk ? pk.startsWith("-----") : null,
+        starts_with_quote: pk ? (pk.startsWith('"') || pk.startsWith("'")) : null,
+        looks_like_base64_only: pk ? /^[A-Za-z0-9+/=]+$/.test(pk) : null,
+      },
+      FIREBASE_SERVICE_ACCOUNT: { type: typeof sa, length: sa?.length ?? 0 },
+      resolved_projectId: projectId,
+    })
+    // ── END DIAGNOSTIC LOGGING ──
+
     if (process.env.FIRESTORE_PRIVATE_KEY && process.env.FIRESTORE_CLIENT_EMAIL) {
       admin.default.initializeApp({
         credential: admin.default.credential.cert({
