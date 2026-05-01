@@ -54,6 +54,8 @@ Respond with a JSON object matching this schema:
 
 Section count is flexible — between 2 and 5 sections, whichever fits the query.
 
+Keep section bodies short and scannable — 2-4 sentences per section, single paragraph preferred. If a section needs more depth, prefer adding another section over writing a long body. The bodies render in a card grid, so uneven lengths look bad.
+
 Choose section headings appropriate to the query type:
 - Concepts/standards: What it is / What it's used for / How DigitAlchemy uses it / Status
 - Processes: What the process is / Steps / Inputs & outputs / Who's involved
