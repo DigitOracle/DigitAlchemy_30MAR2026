@@ -1,18 +1,27 @@
 /**
- * /knowledge — public-mode keyword search UI.
+ * /knowledge — public-mode search UI.
  *
- * Single-input form, results as cards with title (linked to source_ref),
- * excerpt, and source_origin badge. URL preserves ?q=... for shareable
- * links. No auth gating — backed by /api/knowledge/query which
- * pre-filters Firestore on visibility=='public'.
+ * Hits /api/knowledge/answer on submit. The endpoint returns a
+ * Claude-generated natural-language explanation grounded in the top-K
+ * cards (same cards /api/knowledge/query would return for the same q).
  *
- * v1.4 plain-language placeholder ("What would you like DigitAlchemy
- * to help with?") per IMPLEMENTATION_PLAN_AMENDMENT_v1_4.md. Mode
- * dispatcher (Cards / Flowchart / Control Room) deferred — Days 8-12.
+ * Layout:
+ *   1. Header + search input.
+ *   2. While loading: a "thinking" line (Claude takes ~3-5s).
+ *   3. Answer prose at the top, with inline [N] tokens converted to
+ *      anchor links pointing at the cards below.
+ *   4. Cards rendered below the answer with id="card-N" so the inline
+ *      links scroll-and-highlight.
+ *
+ * URL preserves ?q=<term> for shareable links — useEffect runs the
+ * fetch on every searchParams change.
+ *
+ * /api/knowledge/query stays live and unchanged — both routes coexist;
+ * this page only consumes /answer.
  */
 "use client"
 
-import { useState, useEffect, FormEvent, Suspense } from "react"
+import { useState, useEffect, FormEvent, Suspense, ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 interface KnowledgeResult {
@@ -23,12 +32,14 @@ interface KnowledgeResult {
   source_origin: string
 }
 
-interface QueryResponse {
-  results: KnowledgeResult[]
+interface AnswerResponse {
+  answer: string
+  cards: KnowledgeResult[]
   total: number
   query: string
   limit: number
   elapsed_ms: number
+  claude_ms?: number
   error?: string
   detail?: string
 }
@@ -51,15 +62,57 @@ function originBadgeLabel(origin: string): string {
   return origin || "unknown"
 }
 
+/**
+ * Split the answer text on `[N]` citation tokens and render them as
+ * anchor links to `#card-N`. Preserves all surrounding whitespace and
+ * newlines so the prose layout stays intact when wrapped in
+ * `whitespace-pre-line`.
+ */
+function renderWithCitations(answer: string, maxCardN: number): ReactNode[] {
+  const parts: ReactNode[] = []
+  const regex = /\[(\d+)\]/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  let key = 0
+  while ((match = regex.exec(answer)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(answer.slice(lastIndex, match.index))
+    }
+    const n = parseInt(match[1], 10)
+    if (n >= 1 && n <= maxCardN) {
+      parts.push(
+        <a
+          key={`cite-${key++}`}
+          href={`#card-${n}`}
+          className="inline-block text-indigo-700 hover:text-indigo-900 hover:underline font-mono text-xs align-baseline"
+          aria-label={`Jump to card ${n}`}
+        >
+          [{n}]
+        </a>,
+      )
+    } else {
+      // Citation references a card that doesn't exist — leave as plain text.
+      parts.push(match[0])
+    }
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < answer.length) {
+    parts.push(answer.slice(lastIndex))
+  }
+  return parts
+}
+
 function KnowledgeBody() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialQ = searchParams.get("q") ?? ""
 
   const [query, setQuery] = useState(initialQ)
-  const [results, setResults] = useState<KnowledgeResult[]>([])
+  const [answer, setAnswer] = useState<string>("")
+  const [cards, setCards] = useState<KnowledgeResult[]>([])
   const [total, setTotal] = useState<number>(0)
   const [elapsedMs, setElapsedMs] = useState<number | null>(null)
+  const [claudeMs, setClaudeMs] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searched, setSearched] = useState<string>("")
@@ -67,48 +120,56 @@ function KnowledgeBody() {
   async function runQuery(q: string) {
     const trimmed = q.trim()
     if (!trimmed) {
-      setResults([])
+      setAnswer("")
+      setCards([])
       setTotal(0)
       setElapsedMs(null)
+      setClaudeMs(null)
       setSearched("")
       return
     }
     setLoading(true)
     setError(null)
+    setAnswer("")
+    setCards([])
     try {
       const res = await fetch(
-        `/api/knowledge/query?q=${encodeURIComponent(trimmed)}&limit=8`,
+        `/api/knowledge/answer?q=${encodeURIComponent(trimmed)}`,
         { cache: "no-store" },
       )
-      const data: QueryResponse = await res.json()
+      const data: AnswerResponse = await res.json()
       if (!res.ok || data.error) {
         setError(data.detail ?? data.error ?? `API returned ${res.status}`)
-        setResults([])
+        setAnswer("")
+        setCards([])
         setTotal(0)
         setElapsedMs(null)
+        setClaudeMs(null)
       } else {
-        setResults(data.results)
+        setAnswer(data.answer)
+        setCards(data.cards)
         setTotal(data.total)
         setElapsedMs(data.elapsed_ms)
+        setClaudeMs(typeof data.claude_ms === "number" ? data.claude_ms : null)
       }
       setSearched(trimmed)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
-      setResults([])
+      setAnswer("")
+      setCards([])
       setTotal(0)
       setElapsedMs(null)
+      setClaudeMs(null)
     } finally {
       setLoading(false)
     }
   }
 
-  // Run the query whenever the URL ?q= changes (covers initial load
-  // with a deep link, plus subsequent submits via router.push).
   useEffect(() => {
     runQuery(initialQ)
     setQuery(initialQ)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQ])
 
   function handleSubmit(e: FormEvent) {
@@ -144,9 +205,16 @@ function KnowledgeBody() {
           disabled={loading}
           className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? "Searching…" : "Search"}
+          {loading ? "Thinking…" : "Search"}
         </button>
       </form>
+
+      {loading && (
+        <div className="mb-4 text-sm text-gray-500 flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+          Reading the corpus and composing an answer (a few seconds)…
+        </div>
+      )}
 
       {error && (
         <div
@@ -157,58 +225,83 @@ function KnowledgeBody() {
         </div>
       )}
 
-      {!loading && !error && searched && results.length === 0 && (
+      {!loading && !error && searched && cards.length === 0 && (
         <div className="text-sm text-gray-500">
           No results for &ldquo;{searched}&rdquo;.
         </div>
       )}
 
-      {results.length > 0 && (
-        <p className="text-xs text-gray-500 mb-3">
-          {total.toLocaleString()} match{total === 1 ? "" : "es"}
-          {typeof elapsedMs === "number" && (
-            <span> · {elapsedMs} ms</span>
-          )}
-          {total > results.length && (
-            <span> · showing top {results.length}</span>
-          )}
-        </p>
+      {!loading && answer && cards.length > 0 && (
+        <section
+          aria-label="Answer"
+          className="mb-6 p-5 border border-gray-200 rounded-md bg-white"
+        >
+          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">
+            {renderWithCitations(answer, cards.length)}
+          </div>
+          <p className="mt-4 text-xs text-gray-500">
+            Generated from {cards.length} of {total.toLocaleString()} matched card
+            {total === 1 ? "" : "s"}
+            {typeof claudeMs === "number" && (
+              <span> · Claude {claudeMs} ms</span>
+            )}
+            {typeof elapsedMs === "number" && (
+              <span> · total {elapsedMs} ms</span>
+            )}
+          </p>
+        </section>
+      )}
+
+      {cards.length > 0 && (
+        <h2 className="text-xs font-medium tracking-wide uppercase text-gray-500 mb-3">
+          Sources
+        </h2>
       )}
 
       <ul className="space-y-3">
-        {results.map((r) => (
-          <li
-            key={r.node_id}
-            className="border border-gray-200 rounded-md p-4 hover:border-gray-300 hover:shadow-sm transition-all"
-          >
-            <div className="flex items-start gap-3 mb-2">
-              {r.source_ref ? (
-                <a
-                  href={r.source_ref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 font-medium text-indigo-700 hover:text-indigo-900 hover:underline break-words"
+        {cards.map((r, idx) => {
+          const cardN = idx + 1
+          return (
+            <li
+              key={r.node_id}
+              id={`card-${cardN}`}
+              className="border border-gray-200 rounded-md p-4 hover:border-gray-300 hover:shadow-sm transition-all scroll-mt-4"
+            >
+              <div className="flex items-start gap-3 mb-2">
+                <span
+                  className="shrink-0 text-xs font-mono text-gray-500 mt-0.5"
+                  aria-label={`Card ${cardN}`}
                 >
-                  {r.title || "(untitled)"}
-                </a>
-              ) : (
-                <span className="flex-1 font-medium text-gray-900">
-                  {r.title || "(untitled)"}
+                  [{cardN}]
                 </span>
-              )}
-              <span
-                className={`shrink-0 text-xs px-2 py-0.5 rounded font-mono ${originBadgeStyle(
-                  r.source_origin,
-                )}`}
-              >
-                {originBadgeLabel(r.source_origin)}
-              </span>
-            </div>
-            <p className="text-sm text-gray-700 whitespace-pre-line line-clamp-4">
-              {r.excerpt || "—"}
-            </p>
-          </li>
-        ))}
+                {r.source_ref ? (
+                  <a
+                    href={r.source_ref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 font-medium text-indigo-700 hover:text-indigo-900 hover:underline break-words"
+                  >
+                    {r.title || "(untitled)"}
+                  </a>
+                ) : (
+                  <span className="flex-1 font-medium text-gray-900">
+                    {r.title || "(untitled)"}
+                  </span>
+                )}
+                <span
+                  className={`shrink-0 text-xs px-2 py-0.5 rounded font-mono ${originBadgeStyle(
+                    r.source_origin,
+                  )}`}
+                >
+                  {originBadgeLabel(r.source_origin)}
+                </span>
+              </div>
+              <p className="text-sm text-gray-700 whitespace-pre-line line-clamp-4">
+                {r.excerpt || "—"}
+              </p>
+            </li>
+          )
+        })}
       </ul>
     </main>
   )
@@ -216,7 +309,13 @@ function KnowledgeBody() {
 
 export default function KnowledgePage() {
   return (
-    <Suspense fallback={<main className="max-w-3xl mx-auto px-4 py-10 text-sm text-gray-500">Loading…</main>}>
+    <Suspense
+      fallback={
+        <main className="max-w-3xl mx-auto px-4 py-10 text-sm text-gray-500">
+          Loading…
+        </main>
+      }
+    >
       <KnowledgeBody />
     </Suspense>
   )
