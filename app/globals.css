@@ -12,3 +12,8 @@ html { -webkit-font-smoothing: antialiased; }
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
 }
+
+/* Mode C: elevate hovered agent node so tooltip isn't covered by neighboring nodes (DOM-order stacking) */
+.react-flow__node-agent:hover {
+  z-index: 10;
+}
