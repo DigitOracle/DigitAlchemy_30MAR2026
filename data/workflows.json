@@ -148,7 +148,7 @@
         ]
       }
     ],
-    "agents": ["DA-02", "DA-11", "DA-12"],
+    "agents": ["DA-02", "DA-11", "DA-12", "DA-13"],
     "mcpTools": ["revit-mcp", "autocad-mcp", "ifcmcp", "docker-markdownify"],
     "processorChain": ["file-parse", "ifc-extract", "classification-check", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["bim-metrics", "compliance-flags", "schema-metadata", "json-structured"]
@@ -205,7 +205,7 @@
         "condition": { "field": "spatialInputType", "operator": "eq", "value": "coordinates" }
       }
     ],
-    "agents": ["DA-03", "DA-01"],
+    "agents": ["DA-03", "DA-01", "DA-13"],
     "mcpTools": ["cesium-mcp", "autocad-mcp", "docker-playwright"],
     "processorChain": ["spatial-parse", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["summary", "json-structured", "schema-metadata"]
@@ -254,7 +254,7 @@
         "placeholder": "e.g. Abu Dhabi, Dubai, ADGM, Federal UAE…"
       }
     ],
-    "agents": ["DA-04", "DA-11", "DA-01"],
+    "agents": ["DA-04", "DA-11", "DA-01", "DA-13"],
     "mcpTools": ["perplexity", "docker-wikipedia", "docker-brave", "docker-neo4j", "docker-markdownify"],
     "processorChain": ["standards-lookup", "doc-parse", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["compliance-flags", "summary", "json-structured"]
@@ -306,7 +306,7 @@
         ]
       }
     ],
-    "agents": ["DA-07", "DA-06", "DA-03"],
+    "agents": ["DA-07", "DA-06", "DA-03", "DA-13"],
     "mcpTools": ["docker-timestream", "firebase-mcp", "cesium-mcp"],
     "processorChain": ["space-analysis", "viper-derivation", "semantic-memory-retrieve", "llm-planning", "semantic-memory-store"],
     "outputs": ["json-structured", "summary", "schema-metadata"]
@@ -353,7 +353,7 @@
         "condition": { "field": "twinInputType", "operator": "eq", "value": "model-file" }
       }
     ],
-    "agents": ["DA-06", "DA-07", "DA-02"],
+    "agents": ["DA-06", "DA-07", "DA-02", "DA-13"],
     "mcpTools": ["revit-mcp", "cesium-mcp", "firebase-mcp", "docker-neo4j"],
     "processorChain": ["model-parse", "twin-analysis", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["summary", "json-structured", "compliance-flags"]
@@ -420,9 +420,27 @@
         ]
       }
     ],
-    "agents": ["DA-10", "DA-11", "DA-01"],
+    "agents": ["DA-10", "DA-11", "DA-01", "DA-13"],
     "mcpTools": ["docker-markdownify", "docker-markitdown", "google-docs", "notebooklm-mcp"],
     "processorChain": ["docling-parse", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
+    "outputs": ["summary", "json-structured", "export-package"]
+  },
+  {
+    "id": "client-deliverable-storytelling",
+    "label": "Client Deliverable",
+    "description": "Brand-tier client deliverables. BIM-grounded marketing visuals, training material, and demo reels composed via Blender/UE5/NeRF/AI media. DA-13 audits, DA-01 orchestrates, DA-10 stamps into Living Dossier.",
+    "icon": "film",
+    "color": "purple",
+    "triggers": {
+      "assetTypes": ["text-prompt", "bim", "document"],
+      "keywords": ["brand", "marketing", "demo reel", "showreel", "training video", "client deliverable", "blender", "nerf", "render", "story"],
+      "strongKeywords": ["brand atelier", "demo reel for client", "marketing visuals from bim", "training material from model"]
+    },
+    "canCompound": ["bim-model-review", "digital-twin"],
+    "intakeSteps": [],
+    "agents": ["DA-14", "DA-09", "DA-05", "DA-10", "DA-13", "DA-01"],
+    "mcpTools": [],
+    "processorChain": ["llm-classification", "semantic-memory-retrieve", "llm-planning", "brand-atelier-compose", "semantic-memory-store"],
     "outputs": ["summary", "json-structured", "export-package"]
   },
   {
@@ -438,7 +456,7 @@
     },
     "canCompound": [],
     "intakeSteps": [],
-    "agents": ["DA-01"],
+    "agents": ["DA-01", "DA-13"],
     "mcpTools": [],
     "processorChain": ["llm-classification", "semantic-memory-retrieve", "llm-analysis", "semantic-memory-store"],
     "outputs": ["summary", "json-structured"]
