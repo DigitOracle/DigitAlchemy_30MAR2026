@@ -2,19 +2,23 @@
  * /knowledge — public-mode search UI.
  *
  * Hits /api/knowledge/answer on submit. The endpoint returns a
- * Claude-generated natural-language explanation grounded in the top-K
- * cards (same cards /api/knowledge/query would return for the same q).
+ * Claude-generated structured response: { sections, cards, ... } where
+ * each section has a heading, body (with inline [N] markers), and a
+ * citations array. Sections render as a 2-column card grid; the source
+ * cards render below as a single-column list (same visual style).
  *
- * Layout:
+ * Layout (max-w-5xl wrapper, consistent across answer grid + sources):
  *   1. Header + search input.
- *   2. While loading: a "thinking" line (Claude takes ~3-5s).
- *   3. Answer prose at the top, with inline [N] tokens converted to
- *      anchor links pointing at the cards below.
- *   4. Cards rendered below the answer with id="card-N" so the inline
- *      links scroll-and-highlight.
+ *   2. Loading hint (Claude takes ~3-5s).
+ *   3. Section card grid: 1 col mobile, 2 cols desktop. Each card has
+ *      heading, body with [N] inline links, and a citation chip row at
+ *      the bottom — both link to #card-N below.
+ *   4. (answer formatting fallback) hint when parse_fallback is true.
+ *   5. Timing footer.
+ *   6. Sources list — each card has id="card-N" so inline links and
+ *      chips both scroll-anchor here.
  *
- * URL preserves ?q=<term> for shareable links — useEffect runs the
- * fetch on every searchParams change.
+ * URL preserves ?q=<term> for shareable links.
  *
  * /api/knowledge/query stays live and unchanged — both routes coexist;
  * this page only consumes /answer.
@@ -32,14 +36,21 @@ interface KnowledgeResult {
   source_origin: string
 }
 
+interface AnswerSection {
+  heading: string
+  body: string
+  citations: number[]
+}
+
 interface AnswerResponse {
-  answer: string
+  sections: AnswerSection[]
   cards: KnowledgeResult[]
   total: number
   query: string
   limit: number
   elapsed_ms: number
   claude_ms?: number
+  parse_fallback?: boolean
   error?: string
   detail?: string
 }
@@ -63,20 +74,20 @@ function originBadgeLabel(origin: string): string {
 }
 
 /**
- * Split the answer text on `[N]` citation tokens and render them as
- * anchor links to `#card-N`. Preserves all surrounding whitespace and
- * newlines so the prose layout stays intact when wrapped in
- * `whitespace-pre-line`.
+ * Split text on `[N]` citation tokens and render them as anchor links
+ * to `#card-N`. Used for inline body citations. Citation chips at the
+ * bottom of each section card use the same #card-N anchor convention
+ * but go through a simpler chip renderer below.
  */
-function renderWithCitations(answer: string, maxCardN: number): ReactNode[] {
+function renderWithCitations(body: string, maxCardN: number): ReactNode[] {
   const parts: ReactNode[] = []
   const regex = /\[(\d+)\]/g
   let lastIndex = 0
   let match: RegExpExecArray | null
   let key = 0
-  while ((match = regex.exec(answer)) !== null) {
+  while ((match = regex.exec(body)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(answer.slice(lastIndex, match.index))
+      parts.push(body.slice(lastIndex, match.index))
     }
     const n = parseInt(match[1], 10)
     if (n >= 1 && n <= maxCardN) {
@@ -96,8 +107,8 @@ function renderWithCitations(answer: string, maxCardN: number): ReactNode[] {
     }
     lastIndex = match.index + match[0].length
   }
-  if (lastIndex < answer.length) {
-    parts.push(answer.slice(lastIndex))
+  if (lastIndex < body.length) {
+    parts.push(body.slice(lastIndex))
   }
   return parts
 }
@@ -108,11 +119,12 @@ function KnowledgeBody() {
   const initialQ = searchParams.get("q") ?? ""
 
   const [query, setQuery] = useState(initialQ)
-  const [answer, setAnswer] = useState<string>("")
+  const [sections, setSections] = useState<AnswerSection[]>([])
   const [cards, setCards] = useState<KnowledgeResult[]>([])
   const [total, setTotal] = useState<number>(0)
   const [elapsedMs, setElapsedMs] = useState<number | null>(null)
   const [claudeMs, setClaudeMs] = useState<number | null>(null)
+  const [parseFallback, setParseFallback] = useState<boolean>(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searched, setSearched] = useState<string>("")
@@ -120,18 +132,20 @@ function KnowledgeBody() {
   async function runQuery(q: string) {
     const trimmed = q.trim()
     if (!trimmed) {
-      setAnswer("")
+      setSections([])
       setCards([])
       setTotal(0)
       setElapsedMs(null)
       setClaudeMs(null)
+      setParseFallback(false)
       setSearched("")
       return
     }
     setLoading(true)
     setError(null)
-    setAnswer("")
+    setSections([])
     setCards([])
+    setParseFallback(false)
     try {
       const res = await fetch(
         `/api/knowledge/answer?q=${encodeURIComponent(trimmed)}`,
@@ -140,27 +154,30 @@ function KnowledgeBody() {
       const data: AnswerResponse = await res.json()
       if (!res.ok || data.error) {
         setError(data.detail ?? data.error ?? `API returned ${res.status}`)
-        setAnswer("")
+        setSections([])
         setCards([])
         setTotal(0)
         setElapsedMs(null)
         setClaudeMs(null)
+        setParseFallback(false)
       } else {
-        setAnswer(data.answer)
+        setSections(data.sections)
         setCards(data.cards)
         setTotal(data.total)
         setElapsedMs(data.elapsed_ms)
         setClaudeMs(typeof data.claude_ms === "number" ? data.claude_ms : null)
+        setParseFallback(Boolean(data.parse_fallback))
       }
       setSearched(trimmed)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
-      setAnswer("")
+      setSections([])
       setCards([])
       setTotal(0)
       setElapsedMs(null)
       setClaudeMs(null)
+      setParseFallback(false)
     } finally {
       setLoading(false)
     }
@@ -179,7 +196,7 @@ function KnowledgeBody() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-10">
+    <main className="max-w-5xl mx-auto px-4 py-10">
       <header className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
           DigitAlchemy Knowledge
@@ -190,7 +207,7 @@ function KnowledgeBody() {
         </p>
       </header>
 
-      <form onSubmit={handleSubmit} className="flex gap-2 mb-6">
+      <form onSubmit={handleSubmit} className="flex gap-2 mb-6 max-w-2xl">
         <input
           type="search"
           value={query}
@@ -231,14 +248,44 @@ function KnowledgeBody() {
         </div>
       )}
 
-      {!loading && answer && cards.length > 0 && (
-        <section
-          aria-label="Answer"
-          className="mb-6 p-5 border border-gray-200 rounded-md bg-white"
-        >
-          <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">
-            {renderWithCitations(answer, cards.length)}
+      {!loading && sections.length > 0 && cards.length > 0 && (
+        <section aria-label="Answer" className="mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {sections.map((s, i) => (
+              <article
+                key={`section-${i}`}
+                className="border border-gray-200 rounded-md p-4 bg-white flex flex-col"
+              >
+                <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                  {s.heading}
+                </h3>
+                <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line flex-1">
+                  {renderWithCitations(s.body, cards.length)}
+                </div>
+                {s.citations.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-3 pt-3 border-t border-gray-100">
+                    {s.citations.map((n) => (
+                      <a
+                        key={`chip-${n}`}
+                        href={`#card-${n}`}
+                        className="text-xs px-2 py-0.5 rounded font-mono bg-gray-100 text-gray-700 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                        aria-label={`Jump to card ${n}`}
+                      >
+                        [{n}]
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </article>
+            ))}
           </div>
+
+          {parseFallback && (
+            <p className="mt-3 text-xs text-amber-700">
+              (answer formatting fallback)
+            </p>
+          )}
+
           <p className="mt-4 text-xs text-gray-500">
             Generated from {cards.length} of {total.toLocaleString()} matched card
             {total === 1 ? "" : "s"}
@@ -311,7 +358,7 @@ export default function KnowledgePage() {
   return (
     <Suspense
       fallback={
-        <main className="max-w-3xl mx-auto px-4 py-10 text-sm text-gray-500">
+        <main className="max-w-5xl mx-auto px-4 py-10 text-sm text-gray-500">
           Loading…
         </main>
       }
