@@ -148,7 +148,7 @@ export type ProcessorDefinition = {
   cacheStrategy: CacheStrategy
   primaryTool?: string
   fallbackTool?: string
-  reliability: "high" | "medium" | "low"
+  reliability: "high" | "medium" | "low" | "experimental"
   notes?: string
 }
 

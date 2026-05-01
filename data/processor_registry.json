@@ -234,6 +234,23 @@
       ],
       "cacheStrategy": { "enabled": false },
       "reliability": "high"
+    },
+    {
+      "id": "brand-atelier-compose",
+      "label": "Brand Atelier Composition",
+      "description": "Composes brand-tier client deliverables from BIM source: marketing visuals, training material, demo reels via Blender / UE5 / NeRF / AI media toolchain.",
+      "type": "backend-service",
+      "acceptedInputTypes": ["bim-asset", "text-prompt", "document"],
+      "requiredInputs": ["projectContext", "deliverableSpec"],
+      "produces": ["render-asset", "project-bundle", "narrative-script"],
+      "timeoutMs": 120000,
+      "retryPolicy": { "maxAttempts": 1, "backoffMs": 0, "retryOn": [] },
+      "failureModes": [
+        { "errorType": "toolchain-not-implemented", "description": "Forward-declared processor — DA-14 Blender/NeRF/UE5 toolchain integration pending", "recovery": "fallback", "fallbackProcessorId": "llm-planning" }
+      ],
+      "cacheStrategy": { "enabled": false },
+      "reliability": "experimental",
+      "notes": "Forward-declared. Implementation pending DA-14 Blender/NeRF/UE5 toolchain integration. DA-14 Brand Atelier proprietary logic."
     }
   ]
 }
