@@ -30,7 +30,9 @@ import {
   runKeywordQuery,
   clampLimit,
   type KnowledgeResult,
+  type KnowledgeQueryOutcome,
 } from "@/lib/knowledge/query"
+import { runVectorQuery } from "@/lib/knowledge/vector-query"
 
 export const runtime = "nodejs"
 export const maxDuration = 30
@@ -161,17 +163,51 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     )
   }
 
-  // 1. Cards via the shared keyword search.
-  let outcome
+  // 1. Cards via vector retrieval first; fall back to keyword on
+  //    empty results or any failure (Voyage down, index not ready,
+  //    VOYAGE_API_KEY unset, etc.). The fallback chain means the
+  //    surface stays usable on local dev without a Voyage key.
+  let outcome: KnowledgeQueryOutcome | null = null
+  let retrievalPath:
+    | "vector"
+    | "keyword_fallback_empty"
+    | "keyword_fallback_error" = "vector"
+  let vectorError: string | null = null
+
   try {
-    outcome = await runKeywordQuery(q, limit)
+    const vec = await runVectorQuery(q, limit)
+    if (vec.results.length > 0) {
+      outcome = vec
+      retrievalPath = "vector"
+    } else {
+      retrievalPath = "keyword_fallback_empty"
+    }
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return NextResponse.json(
-      { error: "knowledge_query_failed", detail: msg },
-      { status: 500 },
-    )
+    vectorError = err instanceof Error ? err.message : String(err)
+    retrievalPath = "keyword_fallback_error"
   }
+
+  if (outcome === null) {
+    try {
+      outcome = await runKeywordQuery(q, limit)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const detail = vectorError
+        ? `vector failed (${vectorError}); keyword also failed: ${msg}`
+        : msg
+      return NextResponse.json(
+        { error: "knowledge_query_failed", detail },
+        { status: 500 },
+      )
+    }
+  }
+
+  console.log(
+    `[knowledge/answer] q=${JSON.stringify(q)} ` +
+      `path=${retrievalPath} cards=${outcome.results.length} ` +
+      `total=${outcome.total}` +
+      (vectorError ? ` vector_error=${JSON.stringify(vectorError)}` : ""),
+  )
 
   // No cards = no grounding = no Claude call.
   if (outcome.results.length === 0) {
@@ -183,6 +219,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         query: q,
         limit,
         elapsed_ms: Date.now() - startedAt,
+        retrieval_path: retrievalPath,
       },
       { headers: { "Cache-Control": "no-store" } },
     )
@@ -246,6 +283,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       limit,
       claude_ms: claudeMs,
       elapsed_ms: Date.now() - startedAt,
+      retrieval_path: retrievalPath,
       ...(parseFallback ? { parse_fallback: true } : {}),
     },
     { headers: { "Cache-Control": "no-store" } },
